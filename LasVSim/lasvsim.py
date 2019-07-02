@@ -1,4 +1,4 @@
-from simulator import *
+from .simulator import *
 
 simulation = None
 

@@ -1,11 +1,11 @@
 # coding=utf-8
-from sensor_module import *
-from controller_module import *
-from dynamic_module import *
-from traffic_module import *
-from decision_module import *
-from navigation_module import *
-from default_value import *
+from .sensor_module import *
+from .controller_module import *
+from .dynamic_module import *
+from .traffic_module import *
+from .decision_module import *
+from .navigation_module import *
+from .default_value import *
 import threading
 
 
@@ -116,7 +116,7 @@ class Agent(object):
         self.simulation_settings = settings
         self.route = []
         self.plan_output = []  # plan out put. Each member for example: [t,x,y,velocity,heading angle]
-        self.plan_output_type = 0  # 0 for temporal-spatial trajectory, 1 for dynamic input(engine torque, brake pressure, steer wheel angle)
+        self.plan_output_type = 1  # 0 for temporal-spatial trajectory, 1 for dynamic input(engine torque, brake pressure, steer wheel angle)
 
         #  TODO(Xu Chenxiang): Combined to one class
         # sub classes
@@ -144,10 +144,10 @@ class Agent(object):
         self.front_length = settings.car_center2head  # distance from car center to front end, m
         self.back_length = self.length - self.front_length  # distance from car center to back end, m
         self.weight = settings.car_weight  # unladen weight, kg
-        self.shape_center_x = settings.points[0][0]  # m
-        self.shape_center_y = settings.points[0][1]  # m
-        self.velocity = settings.points[0][2] # m
-        self.heading = settings.points[0][3] #  deg(In base coordinates)
+        self.shape_center_x = settings.start_point[0]  # m
+        self.shape_center_y = settings.start_point[1]  # m
+        self.velocity = settings.start_point[2] # m
+        self.heading = settings.start_point[3] #  deg(In base coordinates)
         self.acceleration = 0.0  # m/s2
         self.engine_speed = 0.0  # r/min
         self.gears_ratio = 1
@@ -176,7 +176,7 @@ class Agent(object):
         if hasattr(self, 'dynamic'):
             del self.dynamic
 
-        points = self.simulation_settings.points
+        points = self.simulation_settings.start_point
 
         """Load dynamic module."""
         step_length = (self.simulation_settings.step_length *
@@ -184,9 +184,9 @@ class Agent(object):
         if self.simulation_settings.dynamic_type is None:
             pass # TODO 后期考虑加入其他车
         else:
-            self.dynamic = VehicleDynamicModel(x=points[0][0],
-                                          y=points[0][1],
-                                          a=points[0][3],
+            self.dynamic = VehicleDynamicModel(x=points[0],
+                                          y=points[1],
+                                          a=points[3],
                                           car_parameter=self.simulation_settings.car_para,
                                           step_length=step_length,
                                           model_type=self.simulation_settings.dynamic_type)
@@ -229,8 +229,8 @@ class Agent(object):
         self.sensors = Sensors(step_length=step_length,
                                sensor_info=self.simulation_settings.sensors)
         self.map = Map()  # TODO
-        self.mission = Mission(self.map, points,
-                               self.simulation_settings.mission_type)        # self.predictor = VehiclePredictor(self.map)
+        # self.mission = Mission(self.map, points,
+        #                        self.simulation_settings.mission_type)        # self.predictor = VehiclePredictor(self.map)
 
     def update_dynamic_state(self,):
         """Run ego's dynamic model according to given steps.

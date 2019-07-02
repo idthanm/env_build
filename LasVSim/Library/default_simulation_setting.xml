@@ -8,23 +8,29 @@
 	</Info>
 	<StepLength>100</StepLength>
 	<Map>
-		<Type>Map2_Highway</Type>
+		<Type>Matp2_Highway</Type>
 	</Map>
-	<Mission>
-		<Type>One Way</Type>
-		<Point>
-			<X>-765.060</X>
-			<Y>-5.625</Y>
-			<Speed>0</Speed>
-			<Yaw>0</Yaw>
-		</Point>
-		<Point>
-			<X>578.460</X>
-			<Y>-5.625</Y>
-			<Speed>0</Speed>
-			<Yaw>0</Yaw>
-		</Point>
-	</Mission>
+	<Start_point>
+		<X>578.460</X>
+		<Y>-5.625</Y>
+		<Speed>0</Speed>
+		<Yaw>0</Yaw>
+	</Start_point>
+	<!--<Mission>-->
+		<!--<Type>One Way</Type>-->
+		<!--<Point>-->
+			<!--<X>-765.060</X>-->
+			<!--<Y>-5.625</Y>-->
+			<!--<Speed>0</Speed>-->
+			<!--<Yaw>0</Yaw>-->
+		<!--</Point>-->
+		<!--<Point>-->
+			<!--<X>578.460</X>-->
+			<!--<Y>-5.625</Y>-->
+			<!--<Speed>0</Speed>-->
+			<!--<Yaw>0</Yaw>-->
+		<!--</Point>-->
+	<!--</Mission>-->
 	<SelfCar>
 		<Length>4.8</Length>
 		<Width>1.8</Width>
@@ -57,7 +63,7 @@
 		<Frequency>1</Frequency>
 	</Traffic>
 	<Controller>
-		<Type>Preview PID</Type>
+		<Type>External</Type>
 		<Lib>Modules/Controller.dll</Lib>
 		<Frequency>1</Frequency>
 		<FileType>C/C++ DLL</FileType>
@@ -67,13 +73,13 @@
 		<Lib>Modules/CarModel_CVT.dll</Lib>
 		<Frequency>1</Frequency>
 	</Dynamic>
-	<Router>
-		<OutputType>spatio-temporal trajectory</OutputType>
-		<Type>Map2_XinLong Planner</Type>
-		<Lib>Modules/DecisionModule/Map2_XinLong.dll</Lib>
-		<Frequency>2</Frequency>
-		<FileType>DLL</FileType>
-	</Router>
+	<!--<Router>-->
+		<!--<OutputType>spatio-temporal trajectory</OutputType>-->
+		<!--<Type>Map2_XinLong Planner</Type>-->
+		<!--<Lib>Modules/DecisionModule/Map2_XinLong.dll</Lib>-->
+		<!--<Frequency>2</Frequency>-->
+		<!--<FileType>DLL</FileType>-->
+	<!--</Router>-->
 	<Sensors>
 		<Type>SensorModel</Type>
 		<Lib>Modules/Sensors.dll</Lib>
