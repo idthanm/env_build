@@ -29,6 +29,7 @@ class Data:
         self.vehicle_count = 0
         self.trajectory_count = 0
         self.max_path_points = 100
+        
 
     def __del__(self):
         self.file.close()
