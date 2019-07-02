@@ -1,0 +1,60 @@
+<routes>
+	<vType id="car_1" length="4.754264" width="1.596668" accel="2.6" decel="4.5" apparentDecel="4.5" emergencyDecel="4.5" sigma="0.5" tau="1" minGap="2.5" maxSpeed="8" speedDev="0" color="24,0,255,255" vClass="passenger" guiShape="passenger" impatience="0" laneChangeModel="SL2015" carFollowModel="Krauss" latAlignment="center" minGapLat="0.1" maxSpeedLat="1"/>
+	<vType id="car_2" length="4.173896" width="1.77515" accel="2.6" decel="4.5" apparentDecel="4.5"  emergencyDecel="4.5" sigma="0.5" tau="1" minGap="2.5" maxSpeed="8" speedDev="0" color="62,62,62,235" vClass="passenger" guiShape="passenger" impatience="0" laneChangeModel="SL2015" carFollowModel="Krauss" latAlignment="center" minGapLat="0.1" maxSpeedLat="1"/>
+	<vType id="truck_1" length="6.174" width="2.166908" accel="2" decel="4.5" apparentDecel="4"  emergencyDecel="4.5" sigma="0.5" tau="1" minGap="3" maxSpeed="6" speedDev="0" color="255,0,0,255" vClass="passenger" guiShape="truck" impatience="0" laneChangeModel="SL2015" carFollowModel="Krauss" latAlignment="center" minGapLat="0.1" maxSpeedLat="1"/>
+	<vType id="car_3" length="4.173896" width="1.77515" accel="2.6" decel="4.5" apparentDecel="4.5"  emergencyDecel="4.5" sigma="0.5" tau="1" minGap="2.5" maxSpeed="7" speedDev="0" color="255,255,255,186" vClass="passenger" guiShape="passenger" impatience="0" laneChangeModel="SL2015" carFollowModel="Krauss" latAlignment="center" minGapLat="0.1" maxSpeedLat="1"/>
+	<vType id="motorbike_1" length="2" width="0.75" accel="2.6" decel="5" apparentDecel="4.5"  emergencyDecel="5" sigma="0.5" tau="1" minGap="1.5" maxSpeed="4" speedDev="0" color="0,128,0,255" vClass="passenger" guiShape="motorcycle" impatience="0" laneChangeModel="SL2015" carFollowModel="Krauss" latAlignment="center" minGapLat="0.1" maxSpeedLat="1"/>
+	<vType id="self_car" length="4.5" width="1.8" accel="3.5" decel="2.2" sigma="1.0" guiShape="passenger/wagon" color="1,0,1" maxSpeed="30"/>
+
+<route id="self_route" edges="gneE2" />
+	<flow id="carflow_1.1" type="car_1" beg="0" end="5" number="7" from="-gneE14" to="-gneE14"  />
+	<flow id="carflow_2.1" type="car_2" beg="0" end="5" number="3" from="-gneE13" to="-gneE13"  />
+	<flow id="carflow_3.1" type="car_3" beg="0" end="5" number="5" from="-gneE15" to="-gneE15"  />
+	<flow id="carflow_4.1" type="truck_1" beg="0" end="5" number="5" from="-gneE16" to="-gneE16"  />
+	
+	<flow id="carflow_1.2" type="car_1" beg="0" end="5" number="4" from="-gneE17" to="-gneE17"  />
+	<flow id="carflow_2.2" type="car_2" beg="0" end="5" number="6" from="-gneE19" to="-gneE19"  />
+	<flow id="carflow_3.2" type="car_3" beg="0" end="5" number="8" from="-gneE24" to="-gneE24"  />
+	<flow id="carflow_4.2" type="truck_1" beg="0" end="5" number="2" from="-gneE23" to="-gneE23"  />
+	
+	<flow id="carflow_1.3" type="car_1" beg="0" end="5" number="5" from="-gneE22" to="-gneE22"  />
+	<flow id="carflow_2.3" type="car_2" beg="0" end="5" number="5" from="-gneE21" to="-gneE21"  />
+	<flow id="carflow_3.3" type="car_3" beg="0" end="5" number="5" from="-gneE22" to="-gneE22"  />
+	<flow id="carflow_4.3" type="truck_1" beg="0" end="5" number="5" from="-gneE21" to="-gneE21"  />
+	
+	<flow id="carflow_1.4" type="car_1" beg="0" end="5" number="4" from="-gneE20" to="-gneE20"  />
+	<flow id="carflow_2.4" type="car_2" beg="0" end="5" number="4" from="-gneE18" to="-gneE18"  />
+	<flow id="carflow_3.4" type="car_3" beg="0" end="5" number="7" from="-gneE18" to="-gneE18"  />
+	<flow id="carflow_4.4" type="truck_1" beg="0" end="5" number="5" from="-gneE20" to="-gneE20"  />
+
+	<flow id="carflow_1.5" type="car_1" beg="0" end="5" number="6" from="-gneE4" to="-gneE4"  />
+	<flow id="carflow_2.5" type="car_2" beg="0" end="5" number="6" from="gneE4" to="gneE4"  />
+	<flow id="carflow_3.5" type="car_3" beg="0" end="5" number="4" from="gneE5" to="gneE5"  />
+	<flow id="carflow_4.5" type="truck_1" beg="0" end="5" number="4" from="-gneE5" to="-gneE5"  />
+	
+	<flow id="carflow_1.6" type="car_1" beg="0" end="5" number="7" from="-gneE10" to="-gneE10"  />
+	<flow id="carflow_2.6" type="car_2" beg="0" end="5" number="2" from="gneE10" to="gneE10"  />
+	<flow id="carflow_3.6" type="car_3" beg="0" end="5" number="3" from="-gneE11" to="-gneE11"  />
+	<flow id="carflow_4.6" type="truck_1" beg="0" end="5" number="8" from="gneE11" to="gneE11"  />
+	
+	<flow id="carflow_1.7" type="car_1" beg="0" end="5" number="8" from="-gneE9" to="-gneE9"  />
+	<flow id="carflow_2.7" type="car_2" beg="0" end="5" number="1" from="gneE9" to="gneE9"  />
+	<flow id="carflow_3.7" type="car_3" beg="0" end="5" number="8" from="-gneE8" to="-gneE8"  />
+	<flow id="carflow_4.7" type="truck_1" beg="0" end="5" number="3" from="gneE8" to="gneE8"  />
+	
+	<flow id="carflow_1.8" type="car_1" beg="0" end="5" number="3" from="-gneE7" to="-gneE7"  />
+	<flow id="carflow_2.8" type="car_2" beg="0" end="5" number="3" from="gneE7" to="gneE7"  />
+	<flow id="carflow_3.8" type="car_3" beg="0" end="5" number="6" from="gneE6" to="gneE6"  />
+	<flow id="carflow_4.8" type="truck_1" beg="0" end="5" number="8" from="-gneE6" to="-gneE6"  />
+
+	<flow id="carflow_1.9" type="car_1" beg="0" end="5" number="5" from="-gneE1" to="-gneE1"  />
+	<flow id="carflow_2.9" type="car_2" beg="0" end="5" number="5" from="gneE1" to="gneE1"  />
+	<flow id="carflow_3.9" type="car_3" beg="0" end="5" number="4" from="gneE2" to="gneE2"  />
+	<flow id="carflow_4.9" type="truck_1" beg="0" end="5" number="6" from="-gneE2" to="-gneE2"  />
+	
+	<flow id="carflow_1.10" type="car_1" beg="0" end="5" number="4" from="-gneE0" to="-gneE0"  />
+	<flow id="carflow_2.10" type="car_2" beg="0" end="5" number="5" from="gneE12" to="gneE12"  />
+	<flow id="carflow_3.10" type="car_3" beg="0" end="5" number="6" from="gneE3" to="gneE3"  />
+	<flow id="carflow_4.10" type="truck_1" beg="0" end="5" number="5" from="-gneE3" to="-gneE3"  />
+	
+</routes>

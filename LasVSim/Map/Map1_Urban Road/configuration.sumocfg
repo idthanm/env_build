@@ -1,0 +1,10 @@
+<configuration>
+	<input>
+	<net-file value="grid-map.net.xml"/>
+	<route-files value="grid-map-traffic.rou.xml"/>
+	<additional-files value="grid-map-additions.add.xml"/>	
+</input>
+<gui_only>
+	<gui-settings-file value="grid-map-viewsetting.xml"/>
+</gui_only>
+</configuration>

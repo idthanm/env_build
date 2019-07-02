@@ -1,0 +1,12 @@
+Type,Angle,Radius,Installation_Lat,Installation_Long,Orientation,Accuracy_Vel,Accuracy_Location,Accuracy_Yaw,Accuracy_Width,Accuracy_Length,Accuracy_Height,Accuracy_Radius,Name,Info
+0,90,60,0,3.3,0,1.4,0.1,8,0.2,0.3,0.25,0.25,DELPHI ESR Mid,DELPHI Electronically Scanning RADAR (ESR) : Mid Range
+1,20,174,0,3.3,0,1.4,0.1,8,0.2,0.3,0.25,0.25,DELPHI ESR Long,DELPHI Electronically Scanning RADAR (ESR) : Long Range
+2,150,80,0.85,-1.2,-120,1.4,0.1,8,0.2,0.3,0,0,DELPHI RSDS Right,DELPHI Rear Side Detection Support Radar (RSDS)
+3,150,80,-0.85,-1.2,120,1.4,0.1,8,0.2,0.3,0,0,DELPHI RSDS Left,DELPHI Rear Side Detection Support Radar (RSDS)
+4,360,60,0,0,0,3,0.5,2,0.1,0.12,0.1,0.1,Velodyne HDL-64E,Velodyne HDL-64E Lidar
+5,360,50,0,0,0,3,0.5,2,0.1,0.12,0,0,Velodyne HDL-32E,Velodyne HDL-32E Lidar
+6,360,40,0,0,0,3,0.5,2,0.1,0.12,0,0,Velodyne VLP-16,Velodyne VLP-16 Lidar
+7,110,100,0,3.3,0,3,0.6,4.5,0.18,0.2,0,0,Ibeo LUX-4L,Ibeo LUX-4L Lidar
+8,110,100,0,3.3,0,4,0.7,2.5,0.14,0.16,0,0,Ibeo LUX-8L,Ibeo LUX-8L Lidar
+9,38,80,0,3.3,0,3,1,4,0.12,0.14,0.15,0.15,Mobileye Camera,mobileye camera
+10,120,8,0,-1.2,180,2,0.5,8,0.2,0.4,0,0,Ultrasonic Radar,Ultrasonic Radar
