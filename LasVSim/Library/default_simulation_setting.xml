@@ -73,13 +73,13 @@
 		<Lib>Modules/CarModel_CVT.dll</Lib>
 		<Frequency>1</Frequency>
 	</Dynamic>
-	<!--<Router>-->
-		<!--<OutputType>spatio-temporal trajectory</OutputType>-->
-		<!--<Type>Map2_XinLong Planner</Type>-->
-		<!--<Lib>Modules/DecisionModule/Map2_XinLong.dll</Lib>-->
-		<!--<Frequency>2</Frequency>-->
-		<!--<FileType>DLL</FileType>-->
-	<!--</Router>-->
+	<Router>
+		<OutputType>Acceleration, Front Wheel Angle</OutputType>
+		<Type>No Planner</Type>
+		<Lib>Modules/DecisionModule/Map2_XinLong.dll</Lib>
+		<Frequency>2</Frequency>
+		<FileType>DLL</FileType>
+	</Router>
 	<Sensors>
 		<Type>SensorModel</Type>
 		<Lib>Modules/Sensors.dll</Lib>

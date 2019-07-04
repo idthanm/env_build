@@ -12,74 +12,74 @@ import threading
 _WINKER_PERIOD=0.5
 
 
-def plan(agent):
-    """Plan a new temporal-spatial route
-
-    This function is for parallel computation.
-
-    Args:
-        agent: A agent class instance.
-    """
-    # rotation = 0
-    # agent.pos_time = agent.dynamic.pos_time
-    # x0, y0, v0, a0 = agent.mission.pos
-    if agent.mission.status == MISSION_RUNNING:
-        if agent.planner.type is 'LatticeRouter':
-            pass  # TODO(Xu Chenxiang): Add lattice router later.
-        else:
-            task, task_data = agent.mission.current_task
-            if task == MISSION_GOTO_TARGET:
-                xt, yt, vt, at = task_data
-                target_status, target_lane_info = agent.map.map_position(xt, yt)
-                if target_status != MAP_IN_ROAD:
-                    raise Exception('target not in road')
-                direction = target_lane_info['direction']
-                cross = target_lane_info['target']
-                if cross is not None:
-                    cross_center = agent.map.get_cross_center(cross)
-                else:
-                    cross_center = agent.map.get_out_cross_center(
-                        target_lane_info['source'], direction)
-                direction = agent.mission.current_lane['direction']
-                turn = 'S'
-                light = 'green' if agent.is_light_green(direction) else 'red'
-                agent.route = agent.planner.plan(cross_center, direction, turn,
-                                                 (agent.dynamic.x,
-                                                  agent.dynamic.y,
-                                                  agent.dynamic.v,
-                                                  agent.dynamic.heading),
-                                                agent.detected_objects,
-                                                light, agent.pos_time)
-            elif task == MISSION_GOTO_CROSS:
-                cross, target_lane_info = task_data
-                cross_center = agent.map.get_cross_center(cross)
-                direction = agent.mission.current_lane['direction']
-                turn = agent.get_turn(direction, agent.mission.next_direction)
-                light = 'green' if agent.is_light_green(direction) else 'red'
-                agent.route = agent.planner.plan(cross_center, direction, turn,
-                                                 (agent.dynamic.x,
-                                                  agent.dynamic.y,
-                                                  agent.dynamic.v,
-                                                  agent.dynamic.heading),
-                                                agent.detected_objects, light,
-                                                agent.pos_time)
-            elif task == MISSION_TURNTO_ROAD:
-                cross = task_data['source']
-                cross_center = agent.map.get_cross_center(cross)
-                direction = agent.mission.current_lane['direction']
-                turn = agent.mission.cross_task
-                light = 'green' if agent.is_light_green(direction) else 'red'
-                agent.route = agent.planner.plan(cross_center, direction, turn,
-                                                 (agent.dynamic.x,
-                                                  agent.dynamic.y,
-                                                  agent.dynamic.v,
-                                                  agent.dynamic.heading),
-                                                 agent.detected_objects,
-                                                 light, agent.pos_time)
-            agent.get_future_path()
-            agent.controller.set_track(agent.route, 0)
-    else:
-        pass
+# def plan(agent):
+#     """Plan a new temporal-spatial route
+#
+#     This function is for parallel computation.
+#
+#     Args:
+#         agent: A agent class instance.
+#     """
+#     # rotation = 0
+#     # agent.pos_time = agent.dynamic.pos_time
+#     # x0, y0, v0, a0 = agent.mission.pos
+#     if agent.mission.status == MISSION_RUNNING:
+#         if agent.planner.type is 'LatticeRouter':
+#             pass  # TODO(Xu Chenxiang): Add lattice router later.
+#         else:
+#             task, task_data = agent.mission.current_task
+#             if task == MISSION_GOTO_TARGET:
+#                 xt, yt, vt, at = task_data
+#                 target_status, target_lane_info = agent.map.map_position(xt, yt)
+#                 if target_status != MAP_IN_ROAD:
+#                     raise Exception('target not in road')
+#                 direction = target_lane_info['direction']
+#                 cross = target_lane_info['target']
+#                 if cross is not None:
+#                     cross_center = agent.map.get_cross_center(cross)
+#                 else:
+#                     cross_center = agent.map.get_out_cross_center(
+#                         target_lane_info['source'], direction)
+#                 direction = agent.mission.current_lane['direction']
+#                 turn = 'S'
+#                 light = 'green' if agent.is_light_green(direction) else 'red'
+#                 agent.route = agent.planner.plan(cross_center, direction, turn,
+#                                                  (agent.dynamic.x,
+#                                                   agent.dynamic.y,
+#                                                   agent.dynamic.v,
+#                                                   agent.dynamic.heading),
+#                                                 agent.detected_objects,
+#                                                 light, agent.pos_time)
+#             elif task == MISSION_GOTO_CROSS:
+#                 cross, target_lane_info = task_data
+#                 cross_center = agent.map.get_cross_center(cross)
+#                 direction = agent.mission.current_lane['direction']
+#                 turn = agent.get_turn(direction, agent.mission.next_direction)
+#                 light = 'green' if agent.is_light_green(direction) else 'red'
+#                 agent.route = agent.planner.plan(cross_center, direction, turn,
+#                                                  (agent.dynamic.x,
+#                                                   agent.dynamic.y,
+#                                                   agent.dynamic.v,
+#                                                   agent.dynamic.heading),
+#                                                 agent.detected_objects, light,
+#                                                 agent.pos_time)
+#             elif task == MISSION_TURNTO_ROAD:
+#                 cross = task_data['source']
+#                 cross_center = agent.map.get_cross_center(cross)
+#                 direction = agent.mission.current_lane['direction']
+#                 turn = agent.mission.cross_task
+#                 light = 'green' if agent.is_light_green(direction) else 'red'
+#                 agent.route = agent.planner.plan(cross_center, direction, turn,
+#                                                  (agent.dynamic.x,
+#                                                   agent.dynamic.y,
+#                                                   agent.dynamic.v,
+#                                                   agent.dynamic.heading),
+#                                                  agent.detected_objects,
+#                                                  light, agent.pos_time)
+#             agent.get_future_path()
+#             agent.controller.set_track(agent.route, 0)
+#     else:
+#         pass
 
 
 def control(agent):
@@ -186,6 +186,7 @@ class Agent(object):
         else:
             self.dynamic = VehicleDynamicModel(x=points[0],
                                           y=points[1],
+                                          v=points[2],
                                           a=points[3],
                                           car_parameter=self.simulation_settings.car_para,
                                           step_length=step_length,
@@ -204,7 +205,7 @@ class Agent(object):
         elif self.simulation_settings.controller_type == CONTROLLER_TYPE[EXTERNAL]:
             self.controller=CarControllerDLL(path=CONTROLLER_FILE_PATH,
                                              step_length=step_length,
-                                             model_type=CONTROLLER_TYPE[PID],
+                                             model_type=CONTROLLER_TYPE[EXTERNAL],
                                              car_parameter=self.simulation_settings.car_para,
                                              input_type=self.simulation_settings.router_output_type,
                                              car_model=self.simulation_settings.dynamic_type)
@@ -221,7 +222,7 @@ class Agent(object):
         else:
                 self.planner = DAGRouter(step_length=step_length,
                                          path=self.simulation_settings.router_lib)
-        self.decision_thread = threading.Thread(target=plan, args=(self,))
+        # self.decision_thread = threading.Thread(target=plan, args=(self,))
 
         """Load sensor module."""
         step_length = (self.simulation_settings.step_length *
@@ -298,24 +299,24 @@ class Agent(object):
         self.detected_objects = self.sensors.getVisibleVehicles()
         self.surrounding_objects_numbers = len(self.detected_objects)
 
-    def update_plan_output(self, traffic_lights):
-        """Ego vehicle plans, 内置的决策算法.
-
-        According to current surrounding environment and driving tasks, returns
-         a desired spatio-temporal trajectory
-
-         Returns:
-             A list containing state information of each point on the desired
-             trajectory. For example:
-             [[time:s, x:m, y:m, velocity:m/s, heading:deg],
-             [0.0, 0.0, 0.0, 0.0,0.0]...]
-        """
-        # Update current plan state before planning.
-        status = [self.dynamic.x, self.dynamic.y, self.dynamic.v,
-                  self.dynamic.heading]
-        self.mission.update(status)
-        self.traffic_lights = traffic_lights
-        self.__plan()
+    # def update_plan_output(self, traffic_lights):
+    #     """Ego vehicle plans, 内置的决策算法.
+    #
+    #     According to current surrounding environment and driving tasks, returns
+    #      a desired spatio-temporal trajectory
+    #
+    #      Returns:
+    #          A list containing state information of each point on the desired
+    #          trajectory. For example:
+    #          [[time:s, x:m, y:m, velocity:m/s, heading:deg],
+    #          [0.0, 0.0, 0.0, 0.0,0.0]...]
+    #     """
+    #     # Update current plan state before planning.
+    #     status = [self.dynamic.x, self.dynamic.y, self.dynamic.v,
+    #               self.dynamic.heading]
+    #     self.mission.update(status)
+    #     self.traffic_lights = traffic_lights
+    #     self.__plan()
 
     # def get_lane_pos(self,lane_pos,direction,lane_end):
     #     """
@@ -340,16 +341,16 @@ class Agent(object):
     #         x,y=y,x
     #
     #     return (x,y)
-    def get_future_path(self):
-        """
-        get geo track from temporal-spatial route
-        """
-        if self.route is not None:
-            t,x,y,v,a=zip(*self.route)
-            self.future_path=zip(x,y)
-            f = open("data.txt",'a')
-            f.write(str(self.future_path)+',')
-            f.close()
+    # def get_future_path(self):
+    #     """
+    #     get geo track from temporal-spatial route
+    #     """
+    #     if self.route is not None:
+    #         t,x,y,v,a=zip(*self.route)
+    #         self.future_path=zip(x,y)
+    #         f = open("data.txt",'a')
+    #         f.write(str(self.future_path)+',')
+    #         f.close()
 
     def is_light_green(self, direction):
         if direction in 'NS':
@@ -357,38 +358,44 @@ class Agent(object):
         else:
             return self.traffic_lights['h'] == 'green'
 
-    def __plan(self):
-        if self.decision_thread.is_alive():
-            print('planning delay')
-            self.decision_thread.join()
-
-        self.decision_thread = threading.Thread(target=plan, args=(self,))
-        self.decision_thread.start()
-        self.decision_thread.join()
-
-    def get_turn(self,d1,d2):
-        """
-        get turn status
-        """
-        dirs='NWSE'
-        n1=dirs.find(d1)
-        n2=dirs.find(d2)
-        if n1<0 or n2<0:
-            return None
-        elif n1==n2:
-            return 'S'
-        elif abs(n1-n2) == 2:
-            return 'U'
-        elif n1+1 == n2 or n1-3 == n2:
-            return 'L'
-        else:
-            return 'R'
+    # def __plan(self):
+    #     if self.decision_thread.is_alive():
+    #         print('planning delay')
+    #         self.decision_thread.join()
+    #
+    #     self.decision_thread = threading.Thread(target=plan, args=(self,))
+    #     self.decision_thread.start()
+    #     self.decision_thread.join()
+    #
+    # def get_turn(self,d1,d2):
+    #     """
+    #     get turn status
+    #     """
+    #     dirs='NWSE'
+    #     n1=dirs.find(d1)
+    #     n2=dirs.find(d2)
+    #     if n1<0 or n2<0:
+    #         return None
+    #     elif n1==n2:
+    #         return 'S'
+    #     elif abs(n1-n2) == 2:
+    #         return 'U'
+    #     elif n1+1 == n2 or n1-3 == n2:
+    #         return 'L'
+    #     else:
+    #         return 'R'
 
     def get_control_info(self):
         """
         get car data from controller
         """
         return self.dynamic.get_info()[:4]
+
+    def get_info(self):
+        """
+        get car data from controller
+        """
+        return self.dynamic.get_info()
 
     # def plan_control_input(self):
     #     x, y, v, yaw=self.mission.pos

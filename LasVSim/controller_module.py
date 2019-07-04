@@ -143,7 +143,7 @@ class CarControllerDLL(object):
                                          c_float(steering_wheel))
         else:  # 输入是期望加速度，期望前轮转角
             self.dll.set_control_outputB(c_float(acceleration),
-                                         c_float(front_wheel_angle))
+                                         c_float(steering_wheel))
 
     def __resample_track(self, track):
         if len(track) < 2:

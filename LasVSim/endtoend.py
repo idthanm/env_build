@@ -1,5 +1,6 @@
 import gym
 from . import lasvsim
+from gym.utils import seeding
 
 env_closer = closer.Closer()
 
@@ -40,10 +41,13 @@ class EndtoendEnv(gym.Env):
 
 
     def __init__(self, setting_path):
-        simulation = lasvsim.create_simulation(setting_path)
+        lasvsim.create_simulation(setting_path)
+        self.goal_state = None
+        self.reset()
 
 
-    def step(self, action):
+
+    def step(self, action): # action is a np.array, [expected_acceleration, expected_steer]
         """Run one timestep of the environment's dynamics. When end of
         episode is reached, you are responsible for calling `reset()`
         to reset this environment's state.
@@ -59,7 +63,17 @@ class EndtoendEnv(gym.Env):
             done (bool): whether the episode has ended, in which case further step() calls will return undefined results
             info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
         """
-        raise NotImplementedError
+        expected_acceleration, expected_steer = action
+        lasvsim.set_steer_and_acc(expected_acceleration, expected_steer)
+        lasvsim.sim_step()
+        self.detected_objects = lasvsim.get_detected_objects()
+        self.ego_position = lasvsim.get_ego_position()
+        self.ego_info = lasvsim.get_self_car_info()
+        obs = self.obs_encoder()
+        rew = self.rew_function()
+        done = self.judge_done()
+        info = self.ego_info
+        return obs, rew, done, info
 
     def reset(self):
         """Resets the state of the environment and returns an initial observation.
@@ -67,7 +81,19 @@ class EndtoendEnv(gym.Env):
         Returns:
             observation (object): the initial observation.
         """
-        raise NotImplementedError
+        init_state, goal_state, init_gear = self.generate_init_and_goal_state() # output two list, [x, y, v, heading]
+                                                                                # and initial transmission ratio
+        self.init_state = init_state
+        self.goal_state = goal_state
+        lasvsim.reset_simulation(overwrite_settings={'init_gear': init_gear, 'speed': init_state[2]})
+        self.simulation = lasvsim.simulation
+        self.detected_objects = lasvsim.get_detected_objects()
+        self.ego_position = lasvsim.get_ego_position()
+        self.ego_info = lasvsim.get_self_car_info()
+        return self.obs_encoder()
+
+    def generate_init_and_goal_state(self):
+        pass
 
     def render(self, mode='human'):
         """Renders the environment.
@@ -131,7 +157,8 @@ class EndtoendEnv(gym.Env):
               'seed'. Often, the main seed equals the provided 'seed', but
               this won't be true if seed=None, for example.
         """
-        return
+        self.np_random, seed = seeding.np_random(seed)
+        return [seed]
 
     @property
     def unwrapped(self):
@@ -155,6 +182,16 @@ class EndtoendEnv(gym.Env):
         self.close()
         # propagate exception
         return False
+
+    def obs_encoder(self):
+        pass
+
+    def rew_function(self):
+        pass
+
+    def judge_done(self):
+        pass
+
 
 
 class GoalEnv(Env):

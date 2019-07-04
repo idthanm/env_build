@@ -1,7 +1,7 @@
 from ctypes import *
 from _ctypes import FreeLibrary
 from math import pi
-from default_value import *
+from .default_value import *
 DAGROUTER_MODEL_PATH='Modules/DecisionModule/Map1_XinLong.dll'
 DAGROUTER_TASK_TURNLEFT=2
 DAGROUTER_TASK_TURNRIGHT=3

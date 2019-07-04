@@ -81,24 +81,24 @@ class VehicleInfo(Structure):
     Car Position Structure for C/C++ interface
     """
     _fields_ = [
-        ("AV_Eng", c_float),
-        ("AV_Y", c_float),
-        ("Ax", c_float),
-        ("Ay", c_float),
-        ("A", c_float),
-        ("Beta", c_float),
-        ("Bk_Pressure", c_float),
-        ("Mfuel", c_float),
-        ("M_EngOut", c_float),
-        ("Rgear_Tr", c_float),
-        ("Steer_SW", c_float),
-        ("StrAV_SW", c_float),
-        ("Steer_L1", c_float),
-        ("Throttle", c_float),
-        ("Vx", c_float),
-        ("Vy", c_float),
-        ("Yaw", c_float),
-        ("Qfuel", c_float)]
+        ("AV_Eng", c_float), # Engine crankshaft spin
+        ("AV_Y", c_float), # 横摆角速度
+        ("Ax", c_float), # 纵向加速度
+        ("Ay", c_float), # 横向加速度
+        ("A", c_float), # 总的加速度
+        ("Beta", c_float), # Slip angle
+        ("Bk_Pressure", c_float), # 制动压力
+        ("Mfuel", c_float), # Mass of fuel consumed
+        ("M_EngOut", c_float), # Engine crankshaft output torque
+        ("Rgear_Tr", c_float), # Transmission gear ratio
+        ("Steer_SW", c_float), # Steering wheel angle
+        ("StrAV_SW", c_float), #
+        ("Steer_L1", c_float), #
+        ("Throttle", c_float), # Normalized throttle at Pedal
+        ("Vx", c_float), # 纵向速度
+        ("Vy", c_float), # 横向速度
+        ("Yaw", c_float), # 偏航角
+        ("Qfuel", c_float)] # Fuel rate
 
 if __name__ == "__main__":
     class Abc(object):

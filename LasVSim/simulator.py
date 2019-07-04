@@ -314,7 +314,7 @@ class Simulation(object):
 
     """
 
-    def __init__(self, setting_path=None):
+    def __init__(self, default_setting_path=None, overwrite_settings=None):
 
         self.tick_count = 0  # Simulation run time. Counted by simulation steps.
         self.sim_time = 0.0  # Simulation run time. Counted by steps multiply stpe length.
@@ -323,14 +323,16 @@ class Simulation(object):
         self.stopped = False  # 仿真结束标志位
         self.simulation_loaded = False  # 仿真载入标志位
         self.traffic_data = TrafficData()  # 初始交通流数据对象
-        self.settings = None  # 仿真设置对象
+        self.settings = Settings(file_path=default_setting_path)  # 仿真设置对象
+        self.settings.car_para.R_GEAR_TR1 = overwrite_settings['init_gear']
+        self.settings.start_point[2] = overwrite_settings['init_speed']
 
         self.external_control_flag = False  # 外部控制输入标识，若外部输入会覆盖内部控制器
 
-        self.reset(settings=Settings(file_path=setting_path))
+        self.reset(settings=self.settings)
         # self.sim_step()
 
-    def reset(self, settings=None, init_traffic=None):
+    def reset(self, settings=None, overwrite_settings=None, init_traffic=None):
         """Clear previous loaded module.
 
         Args:
@@ -346,6 +348,8 @@ class Simulation(object):
 
         self.tick_count = 0
         self.settings = settings
+        self.settings.car_para.R_GEAR_TR1 = overwrite_settings['init_gear']
+        self.settings.start_point[2] = overwrite_settings['init_speed']
         self.stopped = False
         self.data = Data()
         self.ego_history = {}
@@ -367,6 +371,7 @@ class Simulation(object):
         """Load agent module."""
         self.agent=Agent(settings)
         self.agent.sensors.setVehicleModel(vehicle_models)
+        self.agent.update_info_from_sensor(self.other_vehicles)
 
     def load_scenario(self, path):
         """Load an existing LasVSim simulation configuration file.
@@ -508,8 +513,11 @@ class Simulation(object):
     def get_ego_position(self):
         return self.agent.dynamic.x, self.agent.dynamic.y
 
-    def get_self_car_info(self):
+    def get_self_car_control_info(self):
         return self.agent.get_control_info()
+
+    def get_self_car_info(self):
+        return self.agent.get_info()
 
     def get_time(self):
         return self.traffic.sim_time
@@ -623,7 +631,7 @@ class Settings:  # 可以直接和package版本的Settings类替换,需要转换
         self.__load_controller()
         self.__load_traffic()
         self.__load_sensors()
-        # self.__load_router()
+        self.__load_router()
         self.__load_dynamic()
         self.__load_start_point()
 
@@ -723,12 +731,12 @@ class Settings:  # 可以直接和package版本的Settings类替换,需要转换
                 exec(('self.sensors[i].%s=%s(self.root.Sensors.Sensor[i].%'
                       's.cdata)') % (attr, dtype, attr))
 
-    # def __load_router(self):
-    #     self.router_output_type = str(self.root.Router.OutputType.cdata)
-    #     self.router_type = str(self.root.Router.Type.cdata)
-    #     self.router_lib = str(self.root.Router.Lib.cdata)
-    #     self.router_frequency = int(self.root.Router.Frequency.cdata)
-    #     self.router_file_type = str(self.root.Router.FileType.cdata)
+    def __load_router(self):
+        self.router_output_type = str(self.root.Router.OutputType.cdata)
+        self.router_type = str(self.root.Router.Type.cdata)
+        self.router_lib = str(self.root.Router.Lib.cdata)
+        self.router_frequency = int(self.root.Router.Frequency.cdata)
+        self.router_file_type = str(self.root.Router.FileType.cdata)
 
     def save(self,path):
         file_name=re.split(r'[\\/]',str(path))[-1].split('.')[0]

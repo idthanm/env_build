@@ -10,7 +10,7 @@ import os
 import sys
 import traci
 import copy
-from data_structures import *
+from .data_structures import *
 try:
     sys.path.append(os.path.join(os.path.dirname(
         __file__), '..', '..', '..', '..', "tools"))

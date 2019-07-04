@@ -5,7 +5,8 @@
 @Date: 2019.02.28
 """
 from math import pi
-from data_structures import *
+from .data_structures import *
+from _ctypes import FreeLibrary
 
 
 CVT_MODEL_FILE_PATH = "Modules/CarModel_CVT.dll"
@@ -31,7 +32,7 @@ class VehicleDynamicModel(object):  # 可以直接与gui版本替换
         steer_wheel: Steering wheel angle, deg.
     """
 
-    def __init__(self, x, y, a, step_length, car_parameter=None,
+    def __init__(self, x, y, a, v, step_length, car_parameter=None,
                  model_type=None):
         if model_type is None or model_type == 'CVT Car':
             self.path = CVT_MODEL_FILE_PATH
@@ -48,7 +49,7 @@ class VehicleDynamicModel(object):  # 可以直接与gui版本替换
         self.x = x  # m
         self.y = y  # m
         self.heading = a  # deg,坐标系2
-        self.v = 0.0  # m/s
+        self.v = v  # m/s
         self.acc = 0.0  # m/s^2
         self.engine_speed = self.car_para.AV_ENGINE_IDLE / 30 * pi  # rpm
         self.drive_ratio = 1.0
@@ -58,7 +59,7 @@ class VehicleDynamicModel(object):  # 可以直接与gui版本替换
         self.car_info = VehicleInfo()  # 自车信息结构体
 
         self.dll = CDLL(self.path)
-        self.dll.init(c_float(self.x), c_float(self.y), c_float(self.heading),
+        self.dll.init(c_float(self.x), c_float(self.y), c_float(self.heading), c_float(self.v),
                       c_float(self.step_length), byref(self.car_para))
         self.pos_time = 0
 

@@ -82,7 +82,7 @@ class Sensors(object):
         self.__step_length = step_length
         self.dll = CDLL(SENSORS_MODEL_PATH)
         self.setSensor(sensor_info)
-        from traffic_module import VEHICLE_COUNT
+        from .traffic_module import VEHICLE_COUNT
         self.other_car_num = VEHICLE_COUNT
         other_car_arr = ObjectInfo * (self.other_car_num - 1)
         detect_car_arr = ObjectInfoFromSensor * (self.other_car_num - 1)
@@ -147,7 +147,7 @@ class Sensors(object):
 
 
 if __name__ == "__main__":
-    self.other_car_num = 1001
+    other_car_num = 1001
     sensor_info = (SensorInfo * 3)()
     for i in [0, 1, 2]:
         if i == 0:
