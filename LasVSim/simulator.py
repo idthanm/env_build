@@ -349,7 +349,7 @@ class Simulation(object):
         self.tick_count = 0
         self.settings = settings
         self.settings.car_para.R_GEAR_TR1 = overwrite_settings['init_gear']
-        self.settings.start_point[2] = overwrite_settings['init_speed']
+        self.settings.start_point = overwrite_settings['init_state']
         self.stopped = False
         self.data = Data()
         self.ego_history = {}

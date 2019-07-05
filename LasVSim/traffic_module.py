@@ -8,20 +8,27 @@ import math
 import optparse
 import os
 import sys
-import traci
 import copy
-from .data_structures import *
+from data_structures import *
+
+if 'SUMO_HOME' in os.environ:
+    tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
+    sys.path.append(tools)
+else:
+    sys.exit("please declare environment variable 'SUMO_HOME'")
 try:
     sys.path.append(os.path.join(os.path.dirname(
         __file__), '..', '..', '..', '..', "tools"))
     sys.path.append(os.path.join(os.environ.get("SUMO_HOME", os.path.join(
         os.path.dirname(__file__), "..", "..", "..")), "tools"))
+
     from sumolib import checkBinary
 except ImportError:
     sys.exit(
         "please declare environment variable 'SUMO_HOME' as the root directory "
         "of your sumo installation (it should contain folders 'bin', 'tools' "
         "and 'docs')")
+import traci
 
 SUMO_BINARY=checkBinary('sumo')
 VEHICLE_COUNT = 501
@@ -256,7 +263,8 @@ class Traffic(object):
         traci.close()
         pass
 
-    def init(self, source):
+    def init(self
+             , source):
         """Initiate traffic.
 
         Initiate traffic.
@@ -613,7 +621,8 @@ class Traffic(object):
 
 if __name__ == "__main__":
     sumoBinary = checkBinary('sumo-gui')
-    traci.start([sumoBinary, "-c", "Map/Urban Road/configuration.sumocfg",
+    print(__file__)
+    traci.start([sumoBinary, "-c", "Map/Map1_Urban Road/traffic_generation_Mixed Traffic_Dense.sumocfg",
                  "--step-length", "1"])
 
     """add self car"""

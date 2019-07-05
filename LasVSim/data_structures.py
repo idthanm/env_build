@@ -2,7 +2,7 @@
 # 该文件下代码可直接与gui相替换
 from __future__ import print_function
 from ctypes import *
-from _ctypes import FreeLibrary
+# from _ctypes import FreeLibrary
 
 
 """Simulation Setting Value"""

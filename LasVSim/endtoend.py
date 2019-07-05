@@ -85,7 +85,7 @@ class EndtoendEnv(gym.Env):
                                                                                 # and initial transmission ratio
         self.init_state = init_state
         self.goal_state = goal_state
-        lasvsim.reset_simulation(overwrite_settings={'init_gear': init_gear, 'speed': init_state[2]})
+        lasvsim.reset_simulation(overwrite_settings={'init_gear': init_gear, 'init_state': init_state})
         self.simulation = lasvsim.simulation
         self.detected_objects = lasvsim.get_detected_objects()
         self.ego_position = lasvsim.get_ego_position()
