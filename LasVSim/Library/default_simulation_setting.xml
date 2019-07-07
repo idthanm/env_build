@@ -8,7 +8,7 @@
 	</Info>
 	<StepLength>100</StepLength>
 	<Map>
-		<Type>Matp2_Highway</Type>
+		<Type>Map3_Highway_v2</Type>
 	</Map>
 	<Start_point>
 		<X>578.460</X>
@@ -59,7 +59,7 @@
 	</SelfCar>
 	<Traffic>
 		<Type>Vehicle Only Traffic</Type>
-		<Lib>Middle</Lib>
+		<Lib>Dense</Lib>
 		<Frequency>1</Frequency>
 	</Traffic>
 	<Controller>

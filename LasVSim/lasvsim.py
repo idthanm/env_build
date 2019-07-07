@@ -174,7 +174,7 @@ def get_bias():
 
     Returns:
         double, m."""
-    return simulation.traffic.get_dis2center_line()
+    return simulation.traffic.get_dis2center_line()  # 左正右负
 
 
 def reset_simulation(overwrite_settings=None):

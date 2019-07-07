@@ -12,8 +12,8 @@ import os
 from .traffic_module import *
 from .agent_module import *
 from xml.dom.minidom import Document
-#import kdtree
-#import StringIO
+import kdtree
+# import StringIO
 import time
 from . import data_structures
 from .default_value import *
@@ -34,8 +34,8 @@ class Data:
     def __del__(self):
         self.file.close()
 
-    def append(self, self_status, self_info, vehicles, light_values,
-               trajectory, dis=None, speed_limit=None):
+    def append(self, self_status, self_info, vehicles, light_values=None,
+               trajectory=None, dis=None, speed_limit=None):
         if self.file.closed:
             return
         t, x, y, v, a = self_status
@@ -324,12 +324,9 @@ class Simulation(object):
         self.simulation_loaded = False  # 仿真载入标志位
         self.traffic_data = TrafficData()  # 初始交通流数据对象
         self.settings = Settings(file_path=default_setting_path)  # 仿真设置对象
-        self.settings.car_para.R_GEAR_TR1 = overwrite_settings['init_gear']
-        self.settings.start_point[2] = overwrite_settings['init_speed']
-
         self.external_control_flag = False  # 外部控制输入标识，若外部输入会覆盖内部控制器
 
-        self.reset(settings=self.settings)
+        self.reset(settings=self.settings, overwrite_settings=overwrite_settings)
         # self.sim_step()
 
     def reset(self, settings=None, overwrite_settings=None, init_traffic=None):
@@ -348,8 +345,9 @@ class Simulation(object):
 
         self.tick_count = 0
         self.settings = settings
-        self.settings.car_para.R_GEAR_TR1 = overwrite_settings['init_gear']
-        self.settings.start_point = overwrite_settings['init_state']
+        if overwrite_settings is not None:
+            self.settings.car_para.R_GEAR_TR1 = overwrite_settings['init_gear']
+            self.settings.start_point = overwrite_settings['init_state']
         self.stopped = False
         self.data = Data()
         self.ego_history = {}
@@ -373,7 +371,7 @@ class Simulation(object):
         self.agent.sensors.setVehicleModel(vehicle_models)
         self.agent.update_info_from_sensor(self.other_vehicles)
 
-    def load_scenario(self, path):
+    def load_scenario(self, path, overwrite_settings=None):
         """Load an existing LasVSim simulation configuration file.
 
         Args:
@@ -383,19 +381,19 @@ class Simulation(object):
             settings = Settings()
             settings.load(path+'/simulation setting file.xml')
             #self.reset(settings)
-            self.reset(settings, self.traffic_data.load_traffic(path))
+            self.reset(settings, overwrite_settings=overwrite_settings, init_traffic=self.traffic_data.load_traffic(path))
             self.simulation_loaded = True
             return
         print('\033[31;0mSimulation loading failed: 找不到对应的根目录\033[0m')
         self.simulation_loaded = False
 
-    def save_scenario(self, path):
-        """Save current simulation configuration
-
-        Args:
-            path: Absolute path.
-        """
-        self.settings.save(path)
+    # def save_scenario(self, path):
+    #     """Save current simulation configuration
+    #
+    #     Args:
+    #         path: Absolute path.
+    #     """
+    #     self.settings.save(path)
 
     def export_data(self, path):
         self.data.export_csv(path)
@@ -478,7 +476,7 @@ class Simulation(object):
                                          self.agent.dynamic.heading)
                 self.traffic.sim_step()
                 self.other_vehicles = self.traffic.get_vehicles()
-                self.light_status = self.traffic.get_light_status()
+                # self.light_status = self.traffic.get_light_status()
 
             # 传感器线程
             if self.tick_count % self.settings.sensor_frequency == 0:
@@ -496,11 +494,12 @@ class Simulation(object):
                              self.agent.dynamic.v,
                              self.agent.dynamic.heading],
                 self_info=self.agent.dynamic.get_info(),
-                vehicles=self.other_vehicles,
-                light_values=self.traffic.get_light_values(),
-                trajectory=self.agent.route,
-                dis=self.traffic.get_current_distance_to_stopline(),
-                speed_limit=self.traffic.get_current_lane_speed_limit())
+                vehicles=self.other_vehicles
+                # light_values=self.traffic.get_light_values(),
+                # trajectory=self.agent.route
+                # dis=self.traffic.get_current_distance_to_stopline(),
+                # speed_limit=self.traffic.get_current_lane_speed_limit()
+                )
             self.tick_count += 1
         return True
 
@@ -738,321 +737,321 @@ class Settings:  # 可以直接和package版本的Settings类替换,需要转换
         self.router_frequency = int(self.root.Router.Frequency.cdata)
         self.router_file_type = str(self.root.Router.FileType.cdata)
 
-    def save(self,path):
-        file_name=re.split(r'[\\/]',str(path))[-1].split('.')[0]
-        doc = Document();
-        root = doc.createElement('Simulation')
-        doc.appendChild(root)
-        info_node=doc.createElement('Info')
-        title_node=doc.createElement('Title')
-        date_node=doc.createElement('Date')
-        author_node=doc.createElement('Author')
-        version_node=doc.createElement('Version')
-        title_node.appendChild(doc.createTextNode(file_name))
-        date_node.appendChild(doc.createTextNode(time.strftime('%Y-%m-%d')))
-        author_node.appendChild(doc.createTextNode('Author Name'))
-        version_node.appendChild(doc.createTextNode('1.0'))
-        info_node.appendChild(title_node)
-        info_node.appendChild(date_node)
-        info_node.appendChild(author_node)
-        info_node.appendChild(version_node)
-
-        step_node = doc.createElement('StepLength')
-        step_node.appendChild(doc.createTextNode(str(self.step_length)))
-
-        """Save map info."""
-        map_node = doc.createElement('Map')
-        type_node = doc.createElement('Type')
-        type_node.appendChild(doc.createTextNode(self.map))
-
-        map_node.appendChild(type_node)
-
-        """Save mission info."""
-        mission_node = doc.createElement('Mission')
-        type_node = doc.createElement('Type')
-        type_node.appendChild(doc.createTextNode(self.mission_type))
-        mission_node.appendChild(type_node)
-        for i in range(len(self.points)):
-            point_node = doc.createElement('Point')
-            mission_node.appendChild(point_node)
-
-            x_node = doc.createElement('X')
-            x_node.appendChild(doc.createTextNode('%.3f' % self.points[i][0]))
-            y_node = doc.createElement('Y')
-            y_node.appendChild(doc.createTextNode('%.3f' % self.points[i][1]))
-            speed_node = doc.createElement('Speed')
-            speed_node.appendChild(doc.createTextNode('%.0f' % self.points[i][2]))
-            yaw_node = doc.createElement('Yaw')
-            yaw_node.appendChild(doc.createTextNode('%.0f' % (-self.points[i][3]+90)))
-            point_node.appendChild(x_node)
-            point_node.appendChild(y_node)
-            point_node.appendChild(speed_node)
-            point_node.appendChild(yaw_node)
-
-        # 保存自车动力学模型参数
-        selfcar_node = doc.createElement('SelfCar')
-
-        length_node=doc.createElement('Length')  # 车长
-        length_node.appendChild(doc.createTextNode('4.8'))
-        selfcar_node.appendChild(length_node)
-
-        width_node=doc.createElement('Width')  # 车宽
-        width_node.appendChild(doc.createTextNode('1.8'))
-        selfcar_node.appendChild(width_node)
-
-        CenterToHead_node=doc.createElement('CenterToHead')  # 质心距车头距离
-        CenterToHead_node.appendChild(doc.createTextNode('2.7'))
-        selfcar_node.appendChild(CenterToHead_node)
-
-        FAxleToCenter_node=doc.createElement('FAxleToCenter')  # 悬上质量质心至前轴距离，m
-        FAxleToCenter_node.appendChild(doc.createTextNode(str(
-            self.car_para.LX_CG_SU)))
-        selfcar_node.appendChild(FAxleToCenter_node)
-
-        RAxleToCenter_node=doc.createElement('RAxleToCenter')  # 悬上质量质心至后轴距离，m
-        RAxleToCenter_node.appendChild(doc.createTextNode(str(
-            self.car_para.LX_AXLE-self.car_para.LX_CG_SU)))
-        selfcar_node.appendChild(RAxleToCenter_node)
-
-        Weight_node = doc.createElement('Weight')  # 质量
-        Weight_node.appendChild(doc.createTextNode(str(
-            self.car_para.M_SU+self.car_para.M_US)))
-        selfcar_node.appendChild(Weight_node)
-
-        LX_AXLE = doc.createElement('LX_AXLE')  # 悬上质量，kg
-        LX_AXLE.appendChild(doc.createTextNode(str(self.car_para.LX_AXLE)))
-        selfcar_node.appendChild(LX_AXLE)
-
-        LX_CG_SU = doc.createElement('LX_CG_SU')  # 悬上质量，kg
-        LX_CG_SU.appendChild(doc.createTextNode(str(self.car_para.LX_CG_SU)))
-        selfcar_node.appendChild(LX_CG_SU)
-
-        M_SU = doc.createElement('M_SU')  # 悬上质量，kg
-        M_SU.appendChild(doc.createTextNode(str(self.car_para.M_SU)))
-        selfcar_node.appendChild(M_SU)
-
-        IZZ_SU = doc.createElement('IZZ_SU')  # 转动惯量，kg*m^2
-        IZZ_SU.appendChild(doc.createTextNode(str(self.car_para.IZZ_SU)))
-        selfcar_node.appendChild(IZZ_SU)
-
-        A_Wind = doc.createElement('A')  # 迎风面积，m^2
-        A_Wind.appendChild(doc.createTextNode(str(self.car_para.A)))
-        selfcar_node.appendChild(A_Wind)
-
-        CFx = doc.createElement('CFx')  # 空气动力学侧偏角为零度时的纵向空气阻力系数
-        CFx.appendChild(doc.createTextNode(str(self.car_para.CFx)))
-        selfcar_node.appendChild(CFx)
-
-        AV_ENGINE_IDLE = doc.createElement('AV_ENGINE_IDLE')  # 怠速转速，rpm
-        AV_ENGINE_IDLE.appendChild(doc.createTextNode(str(
-            self.car_para.AV_ENGINE_IDLE)))
-        selfcar_node.appendChild(AV_ENGINE_IDLE)
-
-        IENG = doc.createElement('IENG')  # 曲轴转动惯量，kg*m^2
-        IENG.appendChild(doc.createTextNode(str(self.car_para.IENG)))
-        selfcar_node.appendChild(IENG)
-
-        TAU = doc.createElement('TAU')  # 发动机-变速箱输入轴 时间常数，s
-        TAU.appendChild(doc.createTextNode(str(self.car_para.TAU)))
-        selfcar_node.appendChild(TAU)
-
-        R_GEAR_TR1 = doc.createElement('R_GEAR_TR1')  # 最低档变速箱传动比
-        R_GEAR_TR1.appendChild(doc.createTextNode(str(self.car_para.R_GEAR_TR1)))
-        selfcar_node.appendChild(R_GEAR_TR1)
-
-        R_GEAR_FD = doc.createElement('R_GEAR_FD')  # 主减速器传动比
-        R_GEAR_FD.appendChild(doc.createTextNode(str(self.car_para.R_GEAR_FD)))
-        selfcar_node.appendChild(R_GEAR_FD)
-
-        BRAK_COEF = doc.createElement('BRAK_COEF')  # 液压缸变矩系数,Nm/(MPa)
-        BRAK_COEF.appendChild(doc.createTextNode(str(self.car_para.BRAK_COEF)))
-        selfcar_node.appendChild(BRAK_COEF)
-
-        Steer_FACTOR = doc.createElement('Steer_FACTOR')  # 转向传动比
-        Steer_FACTOR.appendChild(doc.createTextNode(str(
-            self.car_para.Steer_FACTOR)))
-        selfcar_node.appendChild(Steer_FACTOR)
-
-        M_US = doc.createElement('M_US')  # 簧下质量，kg
-        M_US.appendChild(doc.createTextNode(str(self.car_para.M_US)))
-        selfcar_node.appendChild(M_US)
-
-        RRE = doc.createElement('RRE')  # 车轮有效滚动半径，m
-        RRE.appendChild(doc.createTextNode(str(self.car_para.RRE)))
-        selfcar_node.appendChild(RRE)
-
-        CF = doc.createElement('CF')  # 前轮侧偏刚度，N/rad
-        CF.appendChild(doc.createTextNode(str(self.car_para.CF)))
-        selfcar_node.appendChild(CF)
-
-        CR = doc.createElement('CR')  # 后轮侧偏刚度，N/rad
-        CR.appendChild(doc.createTextNode(str(self.car_para.CR)))
-        selfcar_node.appendChild(CR)
-
-        ROLL_RESISTANCE = doc.createElement('ROLL_RESISTANCE')  # 滚动阻力系数
-        ROLL_RESISTANCE.appendChild(doc.createTextNode(str(
-            self.car_para.ROLL_RESISTANCE)))
-        selfcar_node.appendChild(ROLL_RESISTANCE)
-
-        """Save traffic setting info."""
-        traffic_node = doc.createElement('Traffic')
-        type_node=doc.createElement('Type')
-        type_node.appendChild(doc.createTextNode(self.traffic_type))
-        traffic_node.appendChild(type_node)
-        lib_node = doc.createElement('Lib')
-        lib_node.appendChild(doc.createTextNode(self.traffic_lib))
-        traffic_node.appendChild(lib_node)
-        fre_node = doc.createElement('Frequency')
-        fre_node.appendChild(doc.createTextNode(str(self.traffic_frequency)))
-        traffic_node.appendChild(fre_node)
-
-        """Save controller setting info."""
-        control_node = doc.createElement('Controller')
-        type_node=doc.createElement('Type')
-        type_node.appendChild(doc.createTextNode(self.controller_type))
-        control_node.appendChild(type_node)
-        lib_node = doc.createElement('Lib')
-        lib_node.appendChild(doc.createTextNode(self.controller_lib))
-        control_node.appendChild(lib_node)
-        fre_node = doc.createElement('Frequency')
-        fre_node.appendChild(doc.createTextNode(str(self.controller_frequency)))
-        control_node.appendChild(fre_node)
-        file_node = doc.createElement('FileType')
-        file_node.appendChild(doc.createTextNode(self.controller_file_type))
-        control_node.appendChild(file_node)
-
-        """Save vehicle dynamic model parameters."""
-        dynamic_node = doc.createElement('Dynamic')
-        type_node = doc.createElement('Type')
-        type_node.appendChild(doc.createTextNode(self.dynamic_type))
-        dynamic_node.appendChild(type_node)
-        lib_node = doc.createElement('Lib')
-        lib_node.appendChild(doc.createTextNode(self.dynamic_lib))
-        dynamic_node.appendChild(lib_node)
-        fre_node = doc.createElement('Frequency')
-        fre_node.appendChild(doc.createTextNode(str(self.dynamic_frequency)))
-        dynamic_node.appendChild(fre_node)
-
-        """Save decision module info."""
-        router_node = doc.createElement('Router')
-        output_type_node = doc.createElement('OutputType')
-        output_type_node.appendChild(doc.createTextNode(self.router_output_type))
-        router_node.appendChild(output_type_node)
-        type_node=doc.createElement('Type')
-        type_node.appendChild(doc.createTextNode(self.router_type))
-        router_node.appendChild(type_node)
-        lib_node = doc.createElement('Lib')
-        lib_node.appendChild(doc.createTextNode(self.router_lib))
-        router_node.appendChild(lib_node)
-        fre_node = doc.createElement('Frequency')
-        fre_node.appendChild(doc.createTextNode(str(self.router_frequency)))
-        router_node.appendChild(fre_node)
-        file_node = doc.createElement('FileType')
-        file_node.appendChild(doc.createTextNode(self.router_file_type))
-        router_node.appendChild(file_node)
-
-        """Save sensor module info."""
-        sensors_node = doc.createElement('Sensors')
-        type_node=doc.createElement('Type')
-        type_node.appendChild(doc.createTextNode(self.sensor_model_type))
-        sensors_node.appendChild(type_node)
-        lib_node = doc.createElement('Lib')
-        lib_node.appendChild(doc.createTextNode(self.sensor_model_lib))
-        sensors_node.appendChild(lib_node)
-        fre_node = doc.createElement('Frequency')
-        fre_node.appendChild(doc.createTextNode(str(self.sensor_frequency)))
-        sensors_node.appendChild(fre_node)
-        for i in range(len(self.sensors)):
-            s = self.sensors[i]
-            s_node = doc.createElement('Sensor')
-            sensors_node.appendChild(s_node)
-
-            ID_node = doc.createElement('id')
-            ID_node.appendChild(doc.createTextNode('%d' % i))
-            s_node.appendChild(ID_node)
-
-            Type_node = doc.createElement('type')
-            Type_node.appendChild(doc.createTextNode('%d' % s.type))
-            s_node.appendChild(Type_node)
-
-            Angle_node = doc.createElement('detection_angle')
-            Angle_node.appendChild(
-                doc.createTextNode('%.0f' % s.detection_angle))
-            s_node.appendChild(Angle_node)
-
-            Radius_node = doc.createElement('detection_range')
-            Radius_node.appendChild(
-                doc.createTextNode('%.1f' % s.detection_range))
-            s_node.appendChild(Radius_node)
-
-            Installation_lat_node=doc.createElement('installation_lateral_bias')
-            Installation_lat_node.appendChild(
-                doc.createTextNode('%.3f' % s.installation_lateral_bias))
-            s_node.appendChild(Installation_lat_node)
-
-            Installation_long_node = doc.createElement(
-                'installation_longitudinal_bias')
-            Installation_long_node.appendChild(
-                doc.createTextNode('%.3f'% s.installation_longitudinal_bias))
-            s_node.appendChild(Installation_long_node)
-
-            Orientation_node=doc.createElement('installation_orientation_angle')
-            Orientation_node.appendChild(
-                doc.createTextNode('%.0f' % s.installation_orientation_angle))
-            s_node.appendChild(Orientation_node)
-
-            Accuracy_Vel_node=doc.createElement('accuracy_velocity')
-            Accuracy_Vel_node.appendChild(
-                doc.createTextNode('%.2f' % s.accuracy_velocity))
-            s_node.appendChild(Accuracy_Vel_node)
-
-            Accuracy_Location_node=doc.createElement('accuracy_location')
-            Accuracy_Location_node.appendChild(
-                doc.createTextNode('%.2f' % s.accuracy_location))
-            s_node.appendChild(Accuracy_Location_node)
-
-            Accuracy_Yaw_node=doc.createElement('accuracy_heading')
-            Accuracy_Yaw_node.appendChild(
-                doc.createTextNode('%.2f' % s.accuracy_heading))
-            s_node.appendChild(Accuracy_Yaw_node)
-
-            Accuracy_Width_node=doc.createElement('accuracy_width')
-            Accuracy_Width_node.appendChild(
-                doc.createTextNode('%.2f' % s.accuracy_width))
-            s_node.appendChild(Accuracy_Width_node)
-
-            Accuracy_Length_node=doc.createElement('accuracy_length')
-            Accuracy_Length_node.appendChild(
-                doc.createTextNode('%.2f' % s.accuracy_length))
-            s_node.appendChild(Accuracy_Length_node)
-
-            Detect_Turnlight=doc.createElement('accuracy_height')
-            Detect_Turnlight.appendChild(
-                doc.createTextNode('%.2f' % s.accuracy_height))
-            s_node.appendChild(Detect_Turnlight)
-
-            Detect_Vehicletype=doc.createElement('accuracy_radius')
-            Detect_Vehicletype.appendChild(
-                doc.createTextNode('%.2f' % s.accuracy_radius))
-            s_node.appendChild(Detect_Vehicletype)
-
-        root.appendChild(info_node)
-        root.appendChild(step_node)
-        root.appendChild(map_node)
-        root.appendChild(mission_node)
-        root.appendChild(selfcar_node)
-        root.appendChild(traffic_node)
-        root.appendChild(control_node)
-        root.appendChild(dynamic_node)
-        root.appendChild(router_node)
-        root.appendChild(sensors_node)
-
-        buffer = StringIO.StringIO()
-        doc.writexml(buffer, addindent="\t", newl='\n', encoding='utf-8')
-        txt = re.sub('\n\t+[^<^>]*\n\t+',
-                     lambda x: re.sub('[\t\n]', '', x.group(0)),
-                     buffer.getvalue())
-        open(path, 'w').write(txt)
+    # def save(self,path):
+    #     file_name=re.split(r'[\\/]',str(path))[-1].split('.')[0]
+    #     doc = Document();
+    #     root = doc.createElement('Simulation')
+    #     doc.appendChild(root)
+    #     info_node=doc.createElement('Info')
+    #     title_node=doc.createElement('Title')
+    #     date_node=doc.createElement('Date')
+    #     author_node=doc.createElement('Author')
+    #     version_node=doc.createElement('Version')
+    #     title_node.appendChild(doc.createTextNode(file_name))
+    #     date_node.appendChild(doc.createTextNode(time.strftime('%Y-%m-%d')))
+    #     author_node.appendChild(doc.createTextNode('Author Name'))
+    #     version_node.appendChild(doc.createTextNode('1.0'))
+    #     info_node.appendChild(title_node)
+    #     info_node.appendChild(date_node)
+    #     info_node.appendChild(author_node)
+    #     info_node.appendChild(version_node)
+    #
+    #     step_node = doc.createElement('StepLength')
+    #     step_node.appendChild(doc.createTextNode(str(self.step_length)))
+    #
+    #     """Save map info."""
+    #     map_node = doc.createElement('Map')
+    #     type_node = doc.createElement('Type')
+    #     type_node.appendChild(doc.createTextNode(self.map))
+    #
+    #     map_node.appendChild(type_node)
+    #
+    #     """Save mission info."""
+    #     mission_node = doc.createElement('Mission')
+    #     type_node = doc.createElement('Type')
+    #     type_node.appendChild(doc.createTextNode(self.mission_type))
+    #     mission_node.appendChild(type_node)
+    #     for i in range(len(self.points)):
+    #         point_node = doc.createElement('Point')
+    #         mission_node.appendChild(point_node)
+    #
+    #         x_node = doc.createElement('X')
+    #         x_node.appendChild(doc.createTextNode('%.3f' % self.points[i][0]))
+    #         y_node = doc.createElement('Y')
+    #         y_node.appendChild(doc.createTextNode('%.3f' % self.points[i][1]))
+    #         speed_node = doc.createElement('Speed')
+    #         speed_node.appendChild(doc.createTextNode('%.0f' % self.points[i][2]))
+    #         yaw_node = doc.createElement('Yaw')
+    #         yaw_node.appendChild(doc.createTextNode('%.0f' % (-self.points[i][3]+90)))
+    #         point_node.appendChild(x_node)
+    #         point_node.appendChild(y_node)
+    #         point_node.appendChild(speed_node)
+    #         point_node.appendChild(yaw_node)
+    #
+    #     # 保存自车动力学模型参数
+    #     selfcar_node = doc.createElement('SelfCar')
+    #
+    #     length_node=doc.createElement('Length')  # 车长
+    #     length_node.appendChild(doc.createTextNode('4.8'))
+    #     selfcar_node.appendChild(length_node)
+    #
+    #     width_node=doc.createElement('Width')  # 车宽
+    #     width_node.appendChild(doc.createTextNode('1.8'))
+    #     selfcar_node.appendChild(width_node)
+    #
+    #     CenterToHead_node=doc.createElement('CenterToHead')  # 质心距车头距离
+    #     CenterToHead_node.appendChild(doc.createTextNode('2.7'))
+    #     selfcar_node.appendChild(CenterToHead_node)
+    #
+    #     FAxleToCenter_node=doc.createElement('FAxleToCenter')  # 悬上质量质心至前轴距离，m
+    #     FAxleToCenter_node.appendChild(doc.createTextNode(str(
+    #         self.car_para.LX_CG_SU)))
+    #     selfcar_node.appendChild(FAxleToCenter_node)
+    #
+    #     RAxleToCenter_node=doc.createElement('RAxleToCenter')  # 悬上质量质心至后轴距离，m
+    #     RAxleToCenter_node.appendChild(doc.createTextNode(str(
+    #         self.car_para.LX_AXLE-self.car_para.LX_CG_SU)))
+    #     selfcar_node.appendChild(RAxleToCenter_node)
+    #
+    #     Weight_node = doc.createElement('Weight')  # 质量
+    #     Weight_node.appendChild(doc.createTextNode(str(
+    #         self.car_para.M_SU+self.car_para.M_US)))
+    #     selfcar_node.appendChild(Weight_node)
+    #
+    #     LX_AXLE = doc.createElement('LX_AXLE')  # 悬上质量，kg
+    #     LX_AXLE.appendChild(doc.createTextNode(str(self.car_para.LX_AXLE)))
+    #     selfcar_node.appendChild(LX_AXLE)
+    #
+    #     LX_CG_SU = doc.createElement('LX_CG_SU')  # 悬上质量，kg
+    #     LX_CG_SU.appendChild(doc.createTextNode(str(self.car_para.LX_CG_SU)))
+    #     selfcar_node.appendChild(LX_CG_SU)
+    #
+    #     M_SU = doc.createElement('M_SU')  # 悬上质量，kg
+    #     M_SU.appendChild(doc.createTextNode(str(self.car_para.M_SU)))
+    #     selfcar_node.appendChild(M_SU)
+    #
+    #     IZZ_SU = doc.createElement('IZZ_SU')  # 转动惯量，kg*m^2
+    #     IZZ_SU.appendChild(doc.createTextNode(str(self.car_para.IZZ_SU)))
+    #     selfcar_node.appendChild(IZZ_SU)
+    #
+    #     A_Wind = doc.createElement('A')  # 迎风面积，m^2
+    #     A_Wind.appendChild(doc.createTextNode(str(self.car_para.A)))
+    #     selfcar_node.appendChild(A_Wind)
+    #
+    #     CFx = doc.createElement('CFx')  # 空气动力学侧偏角为零度时的纵向空气阻力系数
+    #     CFx.appendChild(doc.createTextNode(str(self.car_para.CFx)))
+    #     selfcar_node.appendChild(CFx)
+    #
+    #     AV_ENGINE_IDLE = doc.createElement('AV_ENGINE_IDLE')  # 怠速转速，rpm
+    #     AV_ENGINE_IDLE.appendChild(doc.createTextNode(str(
+    #         self.car_para.AV_ENGINE_IDLE)))
+    #     selfcar_node.appendChild(AV_ENGINE_IDLE)
+    #
+    #     IENG = doc.createElement('IENG')  # 曲轴转动惯量，kg*m^2
+    #     IENG.appendChild(doc.createTextNode(str(self.car_para.IENG)))
+    #     selfcar_node.appendChild(IENG)
+    #
+    #     TAU = doc.createElement('TAU')  # 发动机-变速箱输入轴 时间常数，s
+    #     TAU.appendChild(doc.createTextNode(str(self.car_para.TAU)))
+    #     selfcar_node.appendChild(TAU)
+    #
+    #     R_GEAR_TR1 = doc.createElement('R_GEAR_TR1')  # 最低档变速箱传动比
+    #     R_GEAR_TR1.appendChild(doc.createTextNode(str(self.car_para.R_GEAR_TR1)))
+    #     selfcar_node.appendChild(R_GEAR_TR1)
+    #
+    #     R_GEAR_FD = doc.createElement('R_GEAR_FD')  # 主减速器传动比
+    #     R_GEAR_FD.appendChild(doc.createTextNode(str(self.car_para.R_GEAR_FD)))
+    #     selfcar_node.appendChild(R_GEAR_FD)
+    #
+    #     BRAK_COEF = doc.createElement('BRAK_COEF')  # 液压缸变矩系数,Nm/(MPa)
+    #     BRAK_COEF.appendChild(doc.createTextNode(str(self.car_para.BRAK_COEF)))
+    #     selfcar_node.appendChild(BRAK_COEF)
+    #
+    #     Steer_FACTOR = doc.createElement('Steer_FACTOR')  # 转向传动比
+    #     Steer_FACTOR.appendChild(doc.createTextNode(str(
+    #         self.car_para.Steer_FACTOR)))
+    #     selfcar_node.appendChild(Steer_FACTOR)
+    #
+    #     M_US = doc.createElement('M_US')  # 簧下质量，kg
+    #     M_US.appendChild(doc.createTextNode(str(self.car_para.M_US)))
+    #     selfcar_node.appendChild(M_US)
+    #
+    #     RRE = doc.createElement('RRE')  # 车轮有效滚动半径，m
+    #     RRE.appendChild(doc.createTextNode(str(self.car_para.RRE)))
+    #     selfcar_node.appendChild(RRE)
+    #
+    #     CF = doc.createElement('CF')  # 前轮侧偏刚度，N/rad
+    #     CF.appendChild(doc.createTextNode(str(self.car_para.CF)))
+    #     selfcar_node.appendChild(CF)
+    #
+    #     CR = doc.createElement('CR')  # 后轮侧偏刚度，N/rad
+    #     CR.appendChild(doc.createTextNode(str(self.car_para.CR)))
+    #     selfcar_node.appendChild(CR)
+    #
+    #     ROLL_RESISTANCE = doc.createElement('ROLL_RESISTANCE')  # 滚动阻力系数
+    #     ROLL_RESISTANCE.appendChild(doc.createTextNode(str(
+    #         self.car_para.ROLL_RESISTANCE)))
+    #     selfcar_node.appendChild(ROLL_RESISTANCE)
+    #
+    #     """Save traffic setting info."""
+    #     traffic_node = doc.createElement('Traffic')
+    #     type_node=doc.createElement('Type')
+    #     type_node.appendChild(doc.createTextNode(self.traffic_type))
+    #     traffic_node.appendChild(type_node)
+    #     lib_node = doc.createElement('Lib')
+    #     lib_node.appendChild(doc.createTextNode(self.traffic_lib))
+    #     traffic_node.appendChild(lib_node)
+    #     fre_node = doc.createElement('Frequency')
+    #     fre_node.appendChild(doc.createTextNode(str(self.traffic_frequency)))
+    #     traffic_node.appendChild(fre_node)
+    #
+    #     """Save controller setting info."""
+    #     control_node = doc.createElement('Controller')
+    #     type_node=doc.createElement('Type')
+    #     type_node.appendChild(doc.createTextNode(self.controller_type))
+    #     control_node.appendChild(type_node)
+    #     lib_node = doc.createElement('Lib')
+    #     lib_node.appendChild(doc.createTextNode(self.controller_lib))
+    #     control_node.appendChild(lib_node)
+    #     fre_node = doc.createElement('Frequency')
+    #     fre_node.appendChild(doc.createTextNode(str(self.controller_frequency)))
+    #     control_node.appendChild(fre_node)
+    #     file_node = doc.createElement('FileType')
+    #     file_node.appendChild(doc.createTextNode(self.controller_file_type))
+    #     control_node.appendChild(file_node)
+    #
+    #     """Save vehicle dynamic model parameters."""
+    #     dynamic_node = doc.createElement('Dynamic')
+    #     type_node = doc.createElement('Type')
+    #     type_node.appendChild(doc.createTextNode(self.dynamic_type))
+    #     dynamic_node.appendChild(type_node)
+    #     lib_node = doc.createElement('Lib')
+    #     lib_node.appendChild(doc.createTextNode(self.dynamic_lib))
+    #     dynamic_node.appendChild(lib_node)
+    #     fre_node = doc.createElement('Frequency')
+    #     fre_node.appendChild(doc.createTextNode(str(self.dynamic_frequency)))
+    #     dynamic_node.appendChild(fre_node)
+    #
+    #     """Save decision module info."""
+    #     router_node = doc.createElement('Router')
+    #     output_type_node = doc.createElement('OutputType')
+    #     output_type_node.appendChild(doc.createTextNode(self.router_output_type))
+    #     router_node.appendChild(output_type_node)
+    #     type_node=doc.createElement('Type')
+    #     type_node.appendChild(doc.createTextNode(self.router_type))
+    #     router_node.appendChild(type_node)
+    #     lib_node = doc.createElement('Lib')
+    #     lib_node.appendChild(doc.createTextNode(self.router_lib))
+    #     router_node.appendChild(lib_node)
+    #     fre_node = doc.createElement('Frequency')
+    #     fre_node.appendChild(doc.createTextNode(str(self.router_frequency)))
+    #     router_node.appendChild(fre_node)
+    #     file_node = doc.createElement('FileType')
+    #     file_node.appendChild(doc.createTextNode(self.router_file_type))
+    #     router_node.appendChild(file_node)
+    #
+    #     """Save sensor module info."""
+    #     sensors_node = doc.createElement('Sensors')
+    #     type_node=doc.createElement('Type')
+    #     type_node.appendChild(doc.createTextNode(self.sensor_model_type))
+    #     sensors_node.appendChild(type_node)
+    #     lib_node = doc.createElement('Lib')
+    #     lib_node.appendChild(doc.createTextNode(self.sensor_model_lib))
+    #     sensors_node.appendChild(lib_node)
+    #     fre_node = doc.createElement('Frequency')
+    #     fre_node.appendChild(doc.createTextNode(str(self.sensor_frequency)))
+    #     sensors_node.appendChild(fre_node)
+    #     for i in range(len(self.sensors)):
+    #         s = self.sensors[i]
+    #         s_node = doc.createElement('Sensor')
+    #         sensors_node.appendChild(s_node)
+    #
+    #         ID_node = doc.createElement('id')
+    #         ID_node.appendChild(doc.createTextNode('%d' % i))
+    #         s_node.appendChild(ID_node)
+    #
+    #         Type_node = doc.createElement('type')
+    #         Type_node.appendChild(doc.createTextNode('%d' % s.type))
+    #         s_node.appendChild(Type_node)
+    #
+    #         Angle_node = doc.createElement('detection_angle')
+    #         Angle_node.appendChild(
+    #             doc.createTextNode('%.0f' % s.detection_angle))
+    #         s_node.appendChild(Angle_node)
+    #
+    #         Radius_node = doc.createElement('detection_range')
+    #         Radius_node.appendChild(
+    #             doc.createTextNode('%.1f' % s.detection_range))
+    #         s_node.appendChild(Radius_node)
+    #
+    #         Installation_lat_node=doc.createElement('installation_lateral_bias')
+    #         Installation_lat_node.appendChild(
+    #             doc.createTextNode('%.3f' % s.installation_lateral_bias))
+    #         s_node.appendChild(Installation_lat_node)
+    #
+    #         Installation_long_node = doc.createElement(
+    #             'installation_longitudinal_bias')
+    #         Installation_long_node.appendChild(
+    #             doc.createTextNode('%.3f'% s.installation_longitudinal_bias))
+    #         s_node.appendChild(Installation_long_node)
+    #
+    #         Orientation_node=doc.createElement('installation_orientation_angle')
+    #         Orientation_node.appendChild(
+    #             doc.createTextNode('%.0f' % s.installation_orientation_angle))
+    #         s_node.appendChild(Orientation_node)
+    #
+    #         Accuracy_Vel_node=doc.createElement('accuracy_velocity')
+    #         Accuracy_Vel_node.appendChild(
+    #             doc.createTextNode('%.2f' % s.accuracy_velocity))
+    #         s_node.appendChild(Accuracy_Vel_node)
+    #
+    #         Accuracy_Location_node=doc.createElement('accuracy_location')
+    #         Accuracy_Location_node.appendChild(
+    #             doc.createTextNode('%.2f' % s.accuracy_location))
+    #         s_node.appendChild(Accuracy_Location_node)
+    #
+    #         Accuracy_Yaw_node=doc.createElement('accuracy_heading')
+    #         Accuracy_Yaw_node.appendChild(
+    #             doc.createTextNode('%.2f' % s.accuracy_heading))
+    #         s_node.appendChild(Accuracy_Yaw_node)
+    #
+    #         Accuracy_Width_node=doc.createElement('accuracy_width')
+    #         Accuracy_Width_node.appendChild(
+    #             doc.createTextNode('%.2f' % s.accuracy_width))
+    #         s_node.appendChild(Accuracy_Width_node)
+    #
+    #         Accuracy_Length_node=doc.createElement('accuracy_length')
+    #         Accuracy_Length_node.appendChild(
+    #             doc.createTextNode('%.2f' % s.accuracy_length))
+    #         s_node.appendChild(Accuracy_Length_node)
+    #
+    #         Detect_Turnlight=doc.createElement('accuracy_height')
+    #         Detect_Turnlight.appendChild(
+    #             doc.createTextNode('%.2f' % s.accuracy_height))
+    #         s_node.appendChild(Detect_Turnlight)
+    #
+    #         Detect_Vehicletype=doc.createElement('accuracy_radius')
+    #         Detect_Vehicletype.appendChild(
+    #             doc.createTextNode('%.2f' % s.accuracy_radius))
+    #         s_node.appendChild(Detect_Vehicletype)
+    #
+    #     root.appendChild(info_node)
+    #     root.appendChild(step_node)
+    #     root.appendChild(map_node)
+    #     root.appendChild(mission_node)
+    #     root.appendChild(selfcar_node)
+    #     root.appendChild(traffic_node)
+    #     root.appendChild(control_node)
+    #     root.appendChild(dynamic_node)
+    #     root.appendChild(router_node)
+    #     root.appendChild(sensors_node)
+    #
+    #     buffer = StringIO.StringIO()
+    #     doc.writexml(buffer, addindent="\t", newl='\n', encoding='utf-8')
+    #     txt = re.sub('\n\t+[^<^>]*\n\t+',
+    #                  lambda x: re.sub('[\t\n]', '', x.group(0)),
+    #                  buffer.getvalue())
+    #     open(path, 'w').write(txt)
 
 
 MAP_MIN_X=-933.0

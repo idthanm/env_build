@@ -24,8 +24,8 @@
 	<flow id="carflow_3" type="car_3" beg="0" end="200" number="120" from="gneE18" to="-gneE20" departLane="free"/>
 	<flow id="carflow_4" type="truck_1" beg="0" end="200" number="40" from="gneE18" to="-gneE20"  departLane="free"/>
 	
-	<flow id="carflow_5" type="car_1" beg="0" end="200" number="120" from="-gneE25" to="gneE20" departLane="free"/>
+	<!-- <flow id="carflow_5" type="car_1" beg="0" end="200" number="120" from="-gneE25" to="gneE20" departLane="free"/>
 	<flow id="carflow_6" type="car_2" beg="0" end="200" number="120" from="-gneE25" to="gneE20"  departLane="free"/>
 	<flow id="carflow_7" type="car_3" beg="0" end="200" number="120" from="-gneE25" to="gneE20" departLane="free"/>
-	<flow id="carflow_8" type="truck_1" beg="0" end="200" number="40" from="-gneE25" to="gneE20"  departLane="free"/>
+	<flow id="carflow_8" type="truck_1" beg="0" end="200" number="40" from="-gneE25" to="gneE20"  departLane="free"/> -->
 </routes>
