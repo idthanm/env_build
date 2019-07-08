@@ -220,7 +220,7 @@ class Agent(object):
         elif self.simulation_settings.router_type == '-':
             pass  # TODO(Xu Chenxiang):
         else:
-                self.planner = DAGRouter(step_length=step_length,
+            self.planner = DAGRouter(step_length=step_length,
                                          path=self.simulation_settings.router_lib)
         # self.decision_thread = threading.Thread(target=plan, args=(self,))
 

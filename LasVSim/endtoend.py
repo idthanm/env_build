@@ -36,18 +36,25 @@ class EndtoendEnv(gym.Env):
     # spec = None
 
     # Set these in ALL subclasses
-    action_space = None
-    observation_space = None
-
 
     def __init__(self, setting_path):
+        self.action_space = None
+        self.observation_space = None
         lasvsim.create_simulation(setting_path)
-        self.reset()
+        self.seed()
+        print(self.reset())
+
+    def seed(self, seed=None):
+        self.np_random, seed = seeding.np_random(seed)
+        return [seed]
 
     def step(self, action):  # action is a np.array, [expected_acceleration, expected_steer]
         """Run one timestep of the environment's dynamics. When end of
         episode is reached, you are responsible for calling `reset()`
         to reset this environment's state.
+
+        I'm such a big pig that I didn't answer my baby's demand and I took her priority less significant.
+        I'm praying and sighing and regretting.
 
         Accepts an action and returns a tuple (observation, reward, done, info).
 
@@ -76,7 +83,7 @@ class EndtoendEnv(gym.Env):
         """Resets the state of the environment and returns an initial observation.
 
         Returns:
-            observation (object): the initial observation.
+            observation (object): the initial observation love my baby.
         """
         init_state, goal_state, init_gear = self.generate_init_and_goal_state() # output two list, [x, y, v, heading]
                                                                                 # and initial transmission ratio
@@ -165,23 +172,7 @@ class EndtoendEnv(gym.Env):
         """
         pass
 
-    def seed(self, seed=None):
-        """Sets the seed for this env's random number generator(s).
 
-        Note:
-            Some environments use multiple pseudorandom number generators.
-            We want to capture all such seeds used in order to ensure that
-            there aren't accidental correlations between multiple generators.
-
-        Returns:
-            list<bigint>: Returns the list of seeds used in this env's random
-              number generators. The first value in the list should be the
-              "main" seed, or the value which a reproducer should pass to
-              'seed'. Often, the main seed equals the provided 'seed', but
-              this won't be true if seed=None, for example.
-        """
-        self.np_random, seed = seeding.np_random(seed)
-        return [seed]
 
     @property
     def unwrapped(self):

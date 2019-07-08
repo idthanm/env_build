@@ -254,7 +254,7 @@ class Traffic(object):
                 # 本次仿真的交通流配置与上次仿真一致则不用重新初始化随机交通流
                 self.random_traffic = RANDOM_TRAFFIC
                 self.traffic_change_flag = False
-            print(self.random_traffic.keys())
+            # print(self.random_traffic.keys())
             self.vehicleName = ['ego'] + list(self.random_traffic.keys())
             VEHICLE_COUNT = len(self.vehicleName)
 
@@ -276,7 +276,7 @@ class Traffic(object):
         self.sim_time = 0
         self.vehicles = [None] * VEHICLE_COUNT
 
-        SUMO_BINARY = checkBinary('sumo-gui')
+        # SUMO_BINARY = checkBinary('sumo-gui')
         traci.start(
             [SUMO_BINARY, "-c", self.__path + "configuration.sumocfg",
              "--step-length", self.step_length,
