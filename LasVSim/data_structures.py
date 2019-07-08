@@ -23,6 +23,8 @@ TRUCK = 2
 CVT_MODEL_FILE_PATH = "Modules/CarModel_CVT.dll"
 AMT_MODEL_FILE_PATH = "Modules/CarModel_AMT.dll"
 TRUCK_MODEL_FILE_PATH = "Modules/CarModel_Truck.dll"
+SENSOR_LIBRARY_PATH='Library/sensor_library.csv'
+SENSORS_MODEL_PATH='Modules/Sensors.dll'
 CAR_LIB = [CVT_MODEL_FILE_PATH, AMT_MODEL_FILE_PATH, TRUCK_MODEL_FILE_PATH] # 不能更改顺序
 
 TRAFFIC_TYPE = ['No Traffic', 'Mixed Traffic', 'Vehicle Only Traffic'] # 不能更改顺序
@@ -42,7 +44,7 @@ EXTERNAL = 1
 FILE_TYPE = ['C/C++ DLL', 'Python Module'] # 不能更改顺序
 
 MAPS = ['Map1_Urban Road', 'Map2_Highway', 'Map3_Shanghai Anting',
-        'Map4_Beijing Changping', 'Map5_Mcity']  # 不能更改顺序
+        'Map4_Beijing Changping', 'Map5_Mcity', 'Map3_Highway_v2']  # 不能更改顺序
 
 class CarParameter(Structure):
     """

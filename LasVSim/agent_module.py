@@ -1,11 +1,11 @@
 # coding=utf-8
-from .sensor_module import *
-from .controller_module import *
-from .dynamic_module import *
-from .traffic_module import *
-from .decision_module import *
-from .navigation_module import *
-from .default_value import *
+from LasVSim.sensor_module import *
+from LasVSim.controller_module import *
+from LasVSim.dynamic_module import *
+from LasVSim.traffic_module import *
+from LasVSim.decision_module import *
+from LasVSim.navigation_module import *
+from LasVSim.default_value import *
 import threading
 
 

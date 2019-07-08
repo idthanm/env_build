@@ -1,7 +1,7 @@
 # coding=utf-8
 from __future__ import print_function
 from ctypes import *
-from _ctypes import FreeLibrary
+# from _ctypes import dlclose
 
 
 DEFAULT_SETTING_FILE = 'Library/default_simulation_setting.xml'
@@ -19,7 +19,7 @@ CAR_TYPE = ['CVT Car', 'AMT Car', 'Truck'] # 不能更改顺序
 CVT_CAR = 0
 AMT_CAR = 1
 TRUCK = 2
-CVT_MODEL_FILE_PATH = "Modules/CarModel_CVT.dll"
+CVT_MODEL_FILE_PATH = "Modules/CarModel_CVT_old.dll"
 AMT_MODEL_FILE_PATH = "Modules/CarModel_AMT.dll"
 TRUCK_MODEL_FILE_PATH = "Modules/CarModel_Truck.dll"
 CAR_LIB = [CVT_MODEL_FILE_PATH, AMT_MODEL_FILE_PATH, TRUCK_MODEL_FILE_PATH] # 不能更改顺序

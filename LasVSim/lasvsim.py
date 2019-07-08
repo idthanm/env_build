@@ -1,4 +1,4 @@
-from .simulator import *
+from LasVSim.simulator import *
 
 simulation = None
 

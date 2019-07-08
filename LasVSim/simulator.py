@@ -9,8 +9,8 @@ Date: 2017-8-23
 import _struct as struct
 import untangle
 import os
-from .traffic_module import *
-from .agent_module import *
+from LasVSim.traffic_module import *
+from LasVSim.agent_module import *
 from xml.dom.minidom import Document
 import kdtree
 # import StringIO

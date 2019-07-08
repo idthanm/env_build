@@ -9,7 +9,7 @@ import optparse
 import os
 import sys
 import copy
-from .data_structures import *
+from LasVSim.data_structures import *
 
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
@@ -168,7 +168,6 @@ class VehicleModels(object):  # 该部分可直接与gui相替换
         self.__info = dict()
         with open(model_path) as f:
             line = f.readline()
-            line = f.readline()
             while len(line)>0:
                 data = line.split(',')
                 type = int(data[1])
@@ -255,8 +254,8 @@ class Traffic(object):
                 # 本次仿真的交通流配置与上次仿真一致则不用重新初始化随机交通流
                 self.random_traffic = RANDOM_TRAFFIC
                 self.traffic_change_flag = False
-
-            self.vehicleName = ['ego'] + self.random_traffic.keys()
+            print(self.random_traffic.keys())
+            self.vehicleName = ['ego'] + list(self.random_traffic.keys())
             VEHICLE_COUNT = len(self.vehicleName)
 
     def __del__(self):  # 该部分可直接与gui相替换
@@ -540,7 +539,7 @@ class Traffic(object):
                 VEHICLE_COUNT = 201
             else:
                 VEHICLE_COUNT = 41
-        elif self.__map_type == MAPS[1]:
+        elif self.__map_type == MAPS[1] or MAPS[5]:
             if self.density == 'Dense':
                 VEHICLE_COUNT = 401
             elif self.density == 'Middle':
@@ -557,7 +556,7 @@ class Traffic(object):
 
         # 等待一段时间让交通流尽可能分布在整个路网中。
         while True:
-            if traci.simulation.getTime() > 1000:
+            if traci.simulation.getTime() > 1600:
                 random_traffic = traci.vehicle.getContextSubscriptionResults(
                     'ego')
                 for veh in random_traffic:
@@ -594,7 +593,7 @@ class Traffic(object):
             traci.vehicle.setRoute(vehID=veh,
                                    edgeList=self.random_traffic[veh][87])
             traci.vehicle.moveToXY(vehID=veh,
-                                   edgeID='gneE25',  #
+                                   edgeID='gneE25',
                                    lane=0,
                                    x=(self.random_traffic[veh]
                                       [traci.constants.VAR_POSITION][0]),

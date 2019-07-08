@@ -1,6 +1,6 @@
 # coding=utf-8
 import sys
-from . import lasvsim
+from LasVSim import lasvsim
 
 def check_import():
     print('import success')

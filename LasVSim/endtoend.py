@@ -1,5 +1,5 @@
 import gym
-from . import lasvsim
+from LasVSim import lasvsim
 from gym.utils import seeding
 
 # env_closer = closer.Closer()

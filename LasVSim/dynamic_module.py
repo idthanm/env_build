@@ -5,13 +5,8 @@
 @Date: 2019.02.28
 """
 from math import pi
-from .data_structures import *
-from _ctypes import FreeLibrary
-
-
-CVT_MODEL_FILE_PATH = "Modules/CarModel_CVT.dll"
-AMT_MODEL_FILE_PATH = "Modules/CarModel_AMT.dll"
-TRUCK_MODEL_FILE_PATH = "Modules/CarModel_Truck.dll"
+from LasVSim.data_structures import *
+from _ctypes import dlclose
 
 
 class VehicleDynamicModel(object):  # 可以直接与gui版本替换
@@ -64,7 +59,7 @@ class VehicleDynamicModel(object):  # 可以直接与gui版本替换
         self.pos_time = 0
 
     def __del__(self):
-        FreeLibrary(self.dll._handle)
+        dlclose(self.dll._handle)
         del self.dll
 
     def sim_step(self, EngTorque=None, BrakPressure=None, SteerWheel=None):

@@ -1,8 +1,8 @@
 # coding=utf-8
 from ctypes import *
-from _ctypes import FreeLibrary
+# from _ctypes import FreeLibrary
 from math import *
-from .dynamic_module import CarParameter
+from LasVSim.dynamic_module import CarParameter
 
 CONTROLLER_MODEL_PATH='Modules/Controller.dll'
 ROUTER_MAX_ERR = 1e-6

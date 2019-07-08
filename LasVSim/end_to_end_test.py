@@ -1,4 +1,4 @@
-from endtoend import EndtoendEnv
+from LasVSim.endtoend import EndtoendEnv
 import gym
 import matplotlib.pyplot as plt
 import numpy as np

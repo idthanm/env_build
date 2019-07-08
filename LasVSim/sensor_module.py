@@ -1,10 +1,8 @@
 from ctypes import *
-from _ctypes import FreeLibrary
+# from _ctypes import FreeLibrary
 from math import fabs
+from LasVSim.data_structures import *
 
-
-SENSOR_LIBRARY_PATH='Library/sensor_library.csv'
-SENSORS_MODEL_PATH='Modules/Sensors.dll'
 
 class SensorInfo(Structure):
     """Sensor structure for C/C++ interface
