@@ -6,7 +6,7 @@
 """
 from math import pi
 from LasVSim.data_structures import *
-from _ctypes import dlclose
+from _ctypes import FreeLibrary
 
 
 class VehicleDynamicModel(object):  # 可以直接与gui版本替换
@@ -59,7 +59,7 @@ class VehicleDynamicModel(object):  # 可以直接与gui版本替换
         self.pos_time = 0
 
     def __del__(self):
-        dlclose(self.dll._handle)
+        FreeLibrary(self.dll._handle)
         del self.dll
 
     def sim_step(self, EngTorque=None, BrakPressure=None, SteerWheel=None):
