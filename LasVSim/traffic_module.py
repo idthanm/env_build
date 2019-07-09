@@ -405,7 +405,11 @@ class Traffic(object):
 
         traci.vehicle.setLength('ego', 4.8)  # Sumo function
         traci.vehicle.setWidth('ego', 2.2)  # Sumo function
-        traci.vehicle.moveToXY('ego', 'gneE12', 0, x, y, -a+90, 0)  # 此处与gui不同
+        traci.vehicle.moveToXY('ego', 'gneE20', 0, self.__own_x +
+                               OWN_CAR_START_LENGTH / 2 *
+                               math.cos(math.radians(self.__own_a)),
+                               self.__own_y + OWN_CAR_START_LENGTH / 2 *
+                               math.sin(math.radians(self.__own_a)), -a+90, 0)  # 此处与gui不同
         traci.simulationStep()
         print('\nrandom traffic initialized')
 
