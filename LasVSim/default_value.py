@@ -2,46 +2,46 @@
 from __future__ import print_function
 from ctypes import *
 # from _ctypes import dlclose
+from LasVSim.data_structures import *
 
-
-DEFAULT_SETTING_FILE = 'Library/default_simulation_setting.xml'
-
-DECISION_OUTPUT_TYPE = ['spatio-temporal trajectory',
-                        'acceleration(m/s^2), front wheel angle(deg)',
-                        'eng_torque(N*m), steering(deg), brake(Mpa)']  # 不能更改顺序
-DECISION_TYPE = ['Map1_XinLong Planner', 'External', 'External']  # 不能更改顺序
-DECISION_FILE_PATH = "Modules/DecisionModel.dll"
-DYNAMIC_OUTPUT = 2
-KINEMATIC_OUTPUT = 1
-SPATIO_TEMPORAL_TRAJECTORY = 0
-
-CAR_TYPE = ['CVT Car', 'AMT Car', 'Truck'] # 不能更改顺序
-CVT_CAR = 0
-AMT_CAR = 1
-TRUCK = 2
-CVT_MODEL_FILE_PATH = "Modules/CarModel_CVT_old.dll"
-AMT_MODEL_FILE_PATH = "Modules/CarModel_AMT.dll"
-TRUCK_MODEL_FILE_PATH = "Modules/CarModel_Truck.dll"
-CAR_LIB = [CVT_MODEL_FILE_PATH, AMT_MODEL_FILE_PATH, TRUCK_MODEL_FILE_PATH] # 不能更改顺序
-
-TRAFFIC_TYPE = ['No Traffic', 'Mixed Traffic', 'Vehicle Only Traffic'] # 不能更改顺序
-NO_TRAFFIC = 0
-MIXED_TRAFFIC = 1
-VEHICLE_ONLY_TRAFFIC = 2
-TRAFFIC_DENSITY = ['Sparse', 'Middle', 'Dense'] # 不能更改顺序
-SPARSE = 0
-MIDDLE = 1
-DENSE = 2
-
-CONTROLLER_TYPE = ['Preview PID', 'External', 'External'] # 不能更改顺序
-CONTROLLER_FILE_PATH = "Modules/Controller.dll"
-PID = 0
-EXTERNAL = 1
-
-FILE_TYPE = ['C/C++ DLL', 'Python Module'] # 不能更改顺序
-
-MAPS = ['Map1_Urban Road', 'Map2_Highway', 'Map3_Shanghai Anting',
-        'Map4_Beijing Changping', 'Map5_Mcity']  # 不能更改顺序
+# DEFAULT_SETTING_FILE = 'Library/simulation_setting_file.xml'
+#
+# DECISION_OUTPUT_TYPE = ['spatio-temporal trajectory',
+#                         'acceleration(m/s^2), front wheel angle(deg)',
+#                         'eng_torque(N*m), steering(deg), brake(Mpa)']  # 不能更改顺序
+# DECISION_TYPE = ['Map1_XinLong Planner', 'External', 'External']  # 不能更改顺序
+# DECISION_FILE_PATH = "Modules/DecisionModel.dll"
+# DYNAMIC_OUTPUT = 2
+# KINEMATIC_OUTPUT = 1
+# SPATIO_TEMPORAL_TRAJECTORY = 0
+#
+# CAR_TYPE = ['CVT Car', 'AMT Car', 'Truck'] # 不能更改顺序
+# CVT_CAR = 0
+# AMT_CAR = 1
+# TRUCK = 2
+# CVT_MODEL_FILE_PATH = "Modules/CarModel_CVT_old.dll"
+# AMT_MODEL_FILE_PATH = "Modules/CarModel_AMT.dll"
+# TRUCK_MODEL_FILE_PATH = "Modules/CarModel_Truck.dll"
+# CAR_LIB = [CVT_MODEL_FILE_PATH, AMT_MODEL_FILE_PATH, TRUCK_MODEL_FILE_PATH] # 不能更改顺序
+#
+# TRAFFIC_TYPE = ['No Traffic', 'Mixed Traffic', 'Vehicle Only Traffic'] # 不能更改顺序
+# NO_TRAFFIC = 0
+# MIXED_TRAFFIC = 1
+# VEHICLE_ONLY_TRAFFIC = 2
+# TRAFFIC_DENSITY = ['Sparse', 'Middle', 'Dense'] # 不能更改顺序
+# SPARSE = 0
+# MIDDLE = 1
+# DENSE = 2
+#
+# CONTROLLER_TYPE = ['Preview PID', 'External', 'External'] # 不能更改顺序
+# CONTROLLER_FILE_PATH = "Modules/Controller.dll"
+# PID = 0
+# EXTERNAL = 1
+#
+# FILE_TYPE = ['C/C++ DLL', 'Python Module'] # 不能更改顺序
+#
+# MAPS = ['Map1_Urban Road', 'Map2_Highway', 'Map3_Shanghai Anting',
+#         'Map4_Beijing Changping', 'Map5_Mcity']  # 不能更改顺序
 
 
 class CarParameter(Structure):

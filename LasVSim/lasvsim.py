@@ -177,9 +177,9 @@ def get_bias():
     return simulation.traffic.get_dis2center_line()  # 左正右负
 
 
-def reset_simulation(overwrite_settings=None):
+def reset_simulation(overwrite_settings=None, init_traffic_path=None):
     """Reset simulation to it's initial state."""
-    simulation.reset(simulation.settings, overwrite_settings)
+    simulation.reset(simulation.settings, overwrite_settings, init_traffic_path)
 
 
 def return_current_simulation_step():

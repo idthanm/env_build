@@ -4,17 +4,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-env = EndtoendEnv('./Library/default_simulation_setting.xml')
-# plt.figure(1)
-# x = np.linspace(0, 2, 200)  # 在0到2pi之间，均匀产生200点的数组
-#
-# y = 0.75 * x**2 - 0.25 * x**3  # 半径
-# plt.plot(x, y)
-# plt.show()
-abp = os.path.abspath('.')
-print(abp)
-print('aaaaa')
-# with open('Library/vehicle_model_library.csv') as f:
-#     a = f.readline()
-#     print(a)
+def action_fn(obs):
+    detected_objects, all_objects, ego_dynamics, ego_info = obs
+    return np.array([1, 0])
+
+env = EndtoendEnv('./Scenario/Highway_endtoend/simulation_setting_file.xml')
+done = 0
+episode_num = 10
+for i in range(episode_num):  # run episode_num episodes
+    obs = env.reset()
+    while not done:
+        action = action_fn(obs)
+        obs, rew, done, info = env.step(action)
+
+
 

@@ -7,6 +7,7 @@
 from math import pi
 from LasVSim.data_structures import *
 from _ctypes import FreeLibrary
+import math
 
 
 class VehicleDynamicModel(object):  # 可以直接与gui版本替换
@@ -46,8 +47,9 @@ class VehicleDynamicModel(object):  # 可以直接与gui版本替换
         self.heading = a  # deg,坐标系2
         self.v = v  # m/s
         self.acc = 0.0  # m/s^2
-        self.engine_speed = self.car_para.AV_ENGINE_IDLE / 30 * pi  # rpm
-        self.drive_ratio = 1.0
+        self.engine_speed = self.car_para.AV_ENGINE_IDLE / 30 * pi \
+            if self.v < 1 else self.v * self.car_para.R_GEAR_FD * self.car_para.R_GEAR_TR1 / self.car_para.RRE # rpm
+        self.drive_ratio = self.car_para.R_GEAR_TR1
         self.engine_torque = 0.0  # N.m
         self.brake_pressure = 0.0  # Mpa
         self.steer_wheel = 0.0  # deg
@@ -96,8 +98,13 @@ class VehicleDynamicModel(object):  # 可以直接与gui版本替换
                               r.value, i.value)
 
     def get_pos(self):
-        return (self.x, self.y, self.v, self.heading, self.acc,
-                self.engine_speed, self.drive_ratio)
+        return {'x': self.x,
+                'y': self.y,
+                'v': self.v,
+                'heading': self.heading,  # (deg)
+                'acceleration': self.acc,
+                'engine_speed': self.engine_speed,  # 发动机转速(rad/s), # CVT range: [78.5, 680.5]
+                'Transmission_gear_ratio': self.drive_ratio}  # CVT range: [0.32, 2.25]
 
     def set_control_input(self, eng_torque, brake_pressure, steer_wheel):
         self.engine_torque = eng_torque
@@ -106,23 +113,25 @@ class VehicleDynamicModel(object):  # 可以直接与gui版本替换
 
     def get_info(self):
         self.dll.get_info(byref(self.car_info))
-        return (self.car_info.Steer_SW,
-                self.car_info.Throttle,
-                self.car_info.Bk_Pressure,
-                self.car_info.Rgear_Tr,
-                self.car_info.AV_Eng,
-                self.car_info.M_EngOut,
-                self.car_info.A,
-                self.car_info.Beta / pi * 180,
-                self.car_info.AV_Y / pi * 180,
-                self.car_info.Vy,
-                self.car_info.Vx,
-                self.car_info.Steer_L1,
-                self.car_info.StrAV_SW,
-                self.car_info.Mfuel,
-                self.car_info.Ax,
-                self.car_info.Ay,
-                self.car_info.Qfuel)
+        return {'Steer_wheel_angle': self.car_info.Steer_SW,  # 方向盘转角(deg)
+                'Throttle': self.car_info.Throttle,  # 节气门开度 (0-100)
+                'Bk_Pressure': self.car_info.Bk_Pressure,  # 制动压力(Mpa)
+                'Transmission_gear_ratio': self.car_info.Rgear_Tr,  # 变速器ratio, CVT range: [0.32, 2.25]
+                'Engine_crankshaft_spin': self.car_info.AV_Eng,  # 发动机转速(rpm), CVT range: [750, 6500]
+                'Engine_output_torque': self.car_info.M_EngOut,  # 发动机输出转矩(N*m)
+                'A': self.car_info.A,  # 车辆加速度(m^2/s)
+                'beta_angle': self.car_info.Beta / pi * 180,  # 质心侧偏角(deg)
+                'Yaw_rate': self.car_info.AV_Y / pi * 180,  # 横摆角速度(deg/s)
+                'Lateral_speed': self.car_info.Vy,  # 横向速度(m/s)
+                'Longitudinal_speed': self.car_info.Vx,  # 纵向速度(m/s)
+                'Steer_L1': self.car_info.Steer_L1 / pi * 180,  # 自行车模型前轮转角(deg)
+                'StrAV_SW': self.car_info.StrAV_SW,  # 方向盘角速度(deg/s）
+                'Mass_of_fuel_consumed': self.car_info.Mfuel,  # 燃料消耗质量(g)
+                'Longitudinal_acc': self.car_info.Ax,  # 纵向加速度(m^2/s)
+                'Lateral_acc': self.car_info.Ay,  # 横向加速度(m^2/s)
+                'Fuel_rate': self.car_info.Qfuel}  # 燃料消耗率(g/s)
+
+
 if __name__ == "__main__":
     pass
 

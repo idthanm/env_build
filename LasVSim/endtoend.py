@@ -2,6 +2,7 @@ import gym
 from LasVSim import lasvsim
 from gym.utils import seeding
 
+
 # env_closer = closer.Closer()
 
 
@@ -30,6 +31,7 @@ class EndtoendEnv(gym.Env):
     non-underscored versions are wrapper methods to which we may add
     functionality over time.
     """
+
     # Set this in SOME subclasses
     # metadata = {'render.modes': []}
     # reward_range = (-float('inf'), float('inf'))
@@ -40,9 +42,9 @@ class EndtoendEnv(gym.Env):
     def __init__(self, setting_path):
         self.action_space = None
         self.observation_space = None
-        lasvsim.create_simulation(setting_path)
         self.seed()
-        print(self.reset())
+        lasvsim.create_simulation(setting_path)
+        self.reset()
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -70,10 +72,10 @@ class EndtoendEnv(gym.Env):
         expected_acceleration, expected_steer = action
         lasvsim.set_steer_and_acc(expected_acceleration, expected_steer)
         lasvsim.sim_step()
-        self.detected_objects = lasvsim.get_detected_objects()
-        self.ego_position = lasvsim.get_ego_position()
-        self.ego_info = lasvsim.get_self_car_info()
-        obs = self.obs_encoder()
+        self.detected_objects = lasvsim.get_detected_objects()  # coordination 2
+        self.all_objects = lasvsim.get_all_objects()  # coordination 2
+        self.ego_dynamics, self.ego_info = lasvsim.get_self_car_info()
+        obs = self.obs_encoder(0)
         rew = self.rew_function()
         done = self.judge_done()
         info = self.ego_info
@@ -85,21 +87,37 @@ class EndtoendEnv(gym.Env):
         Returns:
             observation (object): the initial observation love my baby.
         """
-        init_state, goal_state, init_gear = self.generate_init_and_goal_state() # output two list, [x, y, v, heading]
-                                                                                # and initial transmission ratio
+        init_state, goal_state, init_gear = self.generate_init_and_goal_state()  # output two list, [x, y, v, heading]
+        # and initial transmission ratio
         self.init_state = init_state  # a list
         self.goal_state = goal_state
-        lasvsim.reset_simulation(overwrite_settings={'init_gear': init_gear, 'init_state': init_state})
+        lasvsim.reset_simulation(overwrite_settings={'init_gear': init_gear, 'init_state': init_state},
+                                 init_traffic_path='./Scenario/Highway_endtoend/')
         self.simulation = lasvsim.simulation
+        self.all_objects = lasvsim.get_all_objects()
+        # dict(type=c_t, x=c_x, y=c_y, v=c_v, angle=c_a,
+        #      rotation=c_r, winker=w, winker_time=wt,
+        #      render=render_flag, length=length,
+        #      width=width,
+        #      lane_index=other_veh_info[i][
+        #          'current_lane'],
+        #      max_decel=other_veh_info[i]['max_decel'])
         self.detected_objects = lasvsim.get_detected_objects()
-        self.ego_position = lasvsim.get_ego_position()
-        self.ego_info = lasvsim.get_self_car_info()
-        return self.obs_encoder()
+        # {'id': id,
+        #  'x': x,
+        #  'y': y,
+        #  'v': v,
+        #  'angle': a,
+        #  'width': w,
+        #  'length': l}
+        self.ego_dynamics, self.ego_info = lasvsim.get_self_car_info()
+        return self.obs_encoder(0)
 
     def generate_init_and_goal_state(self):
         init_x = self.np_random.uniform(-900.0, 500.0)
         init_lane = self.np_random.randint(4)
-        lane2y_dict = {0: -150-3.75*7.0/2, 1: -150-3.75*5.0/2, 2: -150-3.75*3.0/2, 3: -150-3.75*1.0/2}
+        lane2y_dict = {0: -150 - 3.75 * 7.0 / 2, 1: -150 - 3.75 * 5.0 / 2, 2: -150 - 3.75 * 3.0 / 2,
+                       3: -150 - 3.75 * 1.0 / 2}
         init_y = lane2y_dict[init_lane]
         init_v = self.np_random.uniform(0.0, 34.0)  # m/s
         init_heading = 0.0  # deg
@@ -125,88 +143,124 @@ class EndtoendEnv(gym.Env):
         init_gear = initspeed2initgear(init_v)
         return init_state, goal_state, init_gear
 
-    def render(self, mode='human'):
-        """Renders the environment.
+    # def render(self, mode='human'):
+    #     """Renders the environment.
+    #
+    #     The set of supported modes varies per environment. (And some
+    #     environments do not support rendering at all.) By convention,
+    #     if mode is:
+    #
+    #     - human: render to the current display or terminal and
+    #       return nothing. Usually for human consumption.
+    #     - rgb_array: Return an numpy.ndarray with shape (x, y, 3),
+    #       representing RGB values for an x-by-y pixel image, suitable
+    #       for turning into a video.
+    #     - ansi: Return a string (str) or StringIO.StringIO containing a
+    #       terminal-style text representation. The text can include newlines
+    #       and ANSI escape sequences (e.g. for colors).
+    #
+    #     Note:
+    #         Make sure that your class's metadata 'render.modes' key includes
+    #           the list of supported modes. It's recommended to call super()
+    #           in implementations to use the functionality of this method.
+    #
+    #     Args:
+    #         mode (str): the mode to render with
+    #
+    #     Example:
+    #
+    #     class MyEnv(Env):
+    #         metadata = {'render.modes': ['human', 'rgb_array']}
+    #
+    #         def render(self, mode='human'):
+    #             if mode == 'rgb_array':
+    #                 return np.array(...) # return RGB frame suitable for video
+    #             elif mode == 'human':
+    #                 ... # pop up a window and render
+    #             else:
+    #                 super(MyEnv, self).render(mode=mode) # just raise an exception
+    #     """
+    #     raise NotImplementedError
+    #
+    # def close(self):
+    #     """Override close in your subclass to perform any necessary cleanup.
+    #
+    #     Environments will automatically close() themselves when
+    #     garbage collected or when the program exits.
+    #     """
+    #     pass
+    #
+    # @property
+    # def unwrapped(self):
+    #     """Completely unwrap this env.
+    #
+    #     Returns:
+    #         gym.Env: The base non-wrapped gym.Env instance
+    #     """
+    #     return self
+    #
+    # def __str__(self):
+    #     if self.spec is None:
+    #         return '<{} instance>'.format(type(self).__name__)
+    #     else:
+    #         return '<{}<{}>>'.format(type(self).__name__, self.spec.id)
+    #
+    # def __enter__(self):
+    #     return self
+    #
+    # def __exit__(self, *args):
+    #     self.close()
+    #     # propagate exception
+    #     return False
 
-        The set of supported modes varies per environment. (And some
-        environments do not support rendering at all.) By convention,
-        if mode is:
+    def obs_encoder(self, type):
+        return self.detected_objects, self.all_objects, self.ego_dynamics, self.ego_info
 
-        - human: render to the current display or terminal and
-          return nothing. Usually for human consumption.
-        - rgb_array: Return an numpy.ndarray with shape (x, y, 3),
-          representing RGB values for an x-by-y pixel image, suitable
-          for turning into a video.
-        - ansi: Return a string (str) or StringIO.StringIO containing a
-          terminal-style text representation. The text can include newlines
-          and ANSI escape sequences (e.g. for colors).
+    def _2d_grid_v2x_no_noise_obs_encoder(self):
+        filtered_objects = self.v2x_pre_filter_for_2dgrid()
 
-        Note:
-            Make sure that your class's metadata 'render.modes' key includes
-              the list of supported modes. It's recommended to call super()
-              in implementations to use the functionality of this method.
-
-        Args:
-            mode (str): the mode to render with
-
-        Example:
-
-        class MyEnv(Env):
-            metadata = {'render.modes': ['human', 'rgb_array']}
-
-            def render(self, mode='human'):
-                if mode == 'rgb_array':
-                    return np.array(...) # return RGB frame suitable for video
-                elif mode == 'human':
-                    ... # pop up a window and render
-                else:
-                    super(MyEnv, self).render(mode=mode) # just raise an exception
-        """
-        raise NotImplementedError
-
-    def close(self):
-        """Override close in your subclass to perform any necessary cleanup.
-
-        Environments will automatically close() themselves when
-        garbage collected or when the program exits.
-        """
         pass
 
+    def _2d_grid_sensors_with_noise_obs_encoder(self):
+        pass
 
+    def _highway_v2x_no_noise_obs_encoder(self):
+        pass
 
-    @property
-    def unwrapped(self):
-        """Completely unwrap this env.
+    def _highway_sensors_with_noise_obs_encoder(self):
+        pass
 
-        Returns:
-            gym.Env: The base non-wrapped gym.Env instance
-        """
-        return self
+    def v2x_pre_filter_for_2dgrid(self):  # delete unnecessary cars and unify output format
+        results = []
+        # dict(type=c_t, x=c_x, y=c_y, v=c_v, angle=c_a,
+        #      rotation=c_r, winker=w, winker_time=wt,
+        #      render=render_flag, length=length,
+        #      width=width,
+        #      lane_index=other_veh_info[i][
+        #          'current_lane'],
+        #      max_decel=other_veh_info[i]['max_decel'])
+        for obj in range(len(self.all_objects)):
+            results.append({'x': self.all_objects[obj][x],
+                            'y': self.all_objects[obj][y],
+                            'v': self.all_objects[obj][y],
+                            'angle': self.all_objects[obj][angle],
+                            'width': w,
+                            'length': h})
+        return self.all_objects
 
-    def __str__(self):
-        if self.spec is None:
-            return '<{} instance>'.format(type(self).__name__)
-        else:
-            return '<{}<{}>>'.format(type(self).__name__, self.spec.id)
+    def sensors_pre_filter_for_2dgrid(self):
+        return self.detected_objects
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        self.close()
-        # propagate exception
-        return False
-
-    def obs_encoder(self):
-        return self.detected_objects, self.ego_position, self.ego_info
+    def cal_rela_info(self):
+        pass
 
     def rew_function(self):
+        return 0
         pass
 
     def judge_done(self):
+        return 0
         pass
-
-
 
 # class GoalEnv(Env):
 #     """A goal-based environment. It functions just as any regular OpenAI Gym environment but it

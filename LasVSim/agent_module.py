@@ -185,12 +185,12 @@ class Agent(object):
             pass # TODO 后期考虑加入其他车
         else:
             self.dynamic = VehicleDynamicModel(x=points[0],
-                                          y=points[1],
-                                          v=points[2],
-                                          a=points[3],
-                                          car_parameter=self.simulation_settings.car_para,
-                                          step_length=step_length,
-                                          model_type=self.simulation_settings.dynamic_type)
+                                               y=points[1],
+                                               v=points[2],
+                                               a=points[3],
+                                               car_parameter=self.simulation_settings.car_para,
+                                               step_length=step_length,
+                                               model_type=self.simulation_settings.dynamic_type)
 
         """Load controller module."""
         step_length = (self.simulation_settings.step_length *
@@ -395,7 +395,7 @@ class Agent(object):
         """
         get car data from controller
         """
-        return self.dynamic.get_info()
+        return self.dynamic.get_pos(), self.dynamic.get_info()
 
     # def plan_control_input(self):
     #     x, y, v, yaw=self.mission.pos

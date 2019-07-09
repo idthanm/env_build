@@ -131,7 +131,7 @@ class Sensors(object):
             y = vehicle.object_y_detected
             a = vehicle.object_heading_detected
             w = vehicle.object_width_detected
-            h = vehicle.object_length_detected
+            l = vehicle.object_length_detected
             height = vehicle.object_height_detected
             radius = vehicle.object_radius_detected
             v = vehicle.object_velocity_detected
@@ -139,7 +139,13 @@ class Sensors(object):
                 w = 1.0
             if h < 1:
                 h = 1.0
-            visible_vehicles.append((id, x, y, v, a, w, h))
+            visible_vehicles.append({'id': id,
+                                     'x': x,
+                                     'y': y,
+                                     'v': v,
+                                     'angle': a,
+                                     'width': w,
+                                     'length': l})
         return visible_vehicles
 
 

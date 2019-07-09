@@ -15,8 +15,8 @@ from xml.dom.minidom import Document
 import kdtree
 # import StringIO
 import time
-from . import data_structures
-from .default_value import *
+from LasVSim import data_structures
+from LasVSim.traffic_module import TrafficData
 
 class Data:
     """
@@ -199,93 +199,6 @@ class Data:
                     buffer=fbin.read(struct.calcsize(fmt))
 
 
-class TrafficData:
-    """保存随机交通流初始状态的数据类"""
-
-    def __init__(self):
-        self.file = None  # 保存数据的二进制文件
-        pass
-
-    def __del__(self):
-        self.file.close()
-
-    def save_traffic(self, traffic, path):
-        self.file = open(path+'/traffic.bin', 'wb')
-        for veh in traffic:
-            self.file.write(struct.pack('6f', *[traffic[veh][64],
-                                                traffic[veh][66][0],
-                                                traffic[veh][66][1],
-                                                traffic[veh][67],
-                                                traffic[veh][68],
-                                                traffic[veh][77]]))
-            # print(fmt),
-            name_length = len(traffic[veh][79])
-            fmt = 'i'
-            self.file.write(struct.pack(fmt, *[name_length]))
-            # print(fmt),
-            fmt = str(name_length)+'s'
-            self.file.write(struct.pack(fmt,
-                                        *[traffic[veh][79]]))
-            # print(fmt),
-            name_length = len(traffic[veh][87])
-            fmt = 'i'
-            self.file.write(struct.pack(fmt, *[name_length]))
-            # print(name_length),
-            for route in traffic[veh][87]:
-                name_length = len(route)
-                fmt = 'i'
-                self.file.write(struct.pack(fmt, *[name_length]))
-                # print(fmt),
-                fmt = str(name_length) + 's'
-                self.file.write(struct.pack(fmt, *[route]))
-                # print(fmt),
-        self.file.close()
-
-    def load_traffic(self, path):
-        traffic = {}
-        with open(path+'/simulation traffic data.bin', 'rb') as traffic_data:
-            fmt = '6f'
-            buffer = traffic_data.read(struct.calcsize(fmt))
-            # print(fmt),
-            id = 0
-            while len(buffer) > 0:
-                # 读取车辆位姿信息，float类型变量
-                v, x, y, heading, length, width = struct.unpack(fmt, buffer)
-
-                # 读取车辆类型，string类型变量
-                fmt = 'i'
-                name_length = struct.unpack(fmt, traffic_data.read(
-                    struct.calcsize(fmt)))[0]  # 读取类型名长度
-                # print(fmt),
-                fmt = str(name_length)+'s'
-                type = struct.unpack(fmt, traffic_data.read(
-                    struct.calcsize(fmt)))[0]
-                # print(fmt),
-
-                # 读取车辆路径，string类型变量
-                route = []
-                fmt = 'i'
-                name_length = struct.unpack(fmt, traffic_data.read(
-                    struct.calcsize(fmt)))[0]  # 读取车辆路径长度
-                # print(name_length),
-                for i in range(name_length):
-                    fmt = 'i'
-                    route_length = struct.unpack(fmt, traffic_data.read(
-                        struct.calcsize(fmt)))[0]  # 读取路径名长度
-                    # print(fmt),
-                    fmt = str(route_length)+'s'
-                    route.append(struct.unpack(fmt, traffic_data.read(
-                        struct.calcsize(fmt)))[0])
-                    # print(fmt),
-                traffic[str(id)] = {64: v, 66: (x, y), 67: heading, 68: length,
-                                    77: width, 79: type, 87: route}
-                id += 1
-                fmt = '6f'
-                buffer = traffic_data.read(struct.calcsize(fmt))
-                # print(fmt),
-        return traffic
-
-
 PLANNER_FREQUENCY = 2
 CONTROLLER_FREQUENCY = 1
 SENSOR_FREQUENCY = 1
@@ -314,7 +227,7 @@ class Simulation(object):
 
     """
 
-    def __init__(self, default_setting_path=None, overwrite_settings=None):
+    def __init__(self, default_setting_path=None):
 
         self.tick_count = 0  # Simulation run time. Counted by simulation steps.
         self.sim_time = 0.0  # Simulation run time. Counted by steps multiply stpe length.
@@ -326,10 +239,10 @@ class Simulation(object):
         self.settings = Settings(file_path=default_setting_path)  # 仿真设置对象
         self.external_control_flag = False  # 外部控制输入标识，若外部输入会覆盖内部控制器
 
-        self.reset(settings=self.settings, overwrite_settings=overwrite_settings)
+        # self.reset(settings=self.settings, overwrite_settings=overwrite_settings, init_traffic_path=init_traffic_path)
         # self.sim_step()
 
-    def reset(self, settings=None, overwrite_settings=None, init_traffic=None):
+    def reset(self, settings=None, overwrite_settings=None, init_traffic_path=None):
         """Clear previous loaded module.
 
         Args:
@@ -353,15 +266,15 @@ class Simulation(object):
         self.ego_history = {}
 
         """Load vehicle module library"""
-        vehicle_models = VehicleModels('Library/vehicle_model_library.csv')
+        vehicle_models = VehicleModels('./Library/vehicle_model_library.csv')
 
         """Load traffic module."""
         step_length = self.settings.step_length * self.settings.traffic_frequency
-        self.traffic=Traffic(path=settings.map,
+        self.traffic = Traffic(path=settings.map,
                              traffic_type=settings.traffic_type,
                              traffic_density=settings.traffic_lib,
                              step_length=step_length,
-                             init_traffic=init_traffic)
+                             init_traffic=self.traffic_data.load_traffic(init_traffic_path))
         self.traffic.init(settings.start_point)
         self.other_vehicles = self.traffic.get_vehicles()
         # self.light_status = self.traffic.get_light_status()
@@ -379,9 +292,9 @@ class Simulation(object):
         """
         if os.path.exists(path):
             settings = Settings()
-            settings.load(path+'/simulation setting file.xml')
+            settings.load(path+'/simulation_setting_file.xml')
             #self.reset(settings)
-            self.reset(settings, overwrite_settings=overwrite_settings, init_traffic=self.traffic_data.load_traffic(path))
+            self.reset(settings, overwrite_settings=overwrite_settings, init_traffic_path=path)
             self.simulation_loaded = True
             return
         print('\033[31;0mSimulation loading failed: 找不到对应的根目录\033[0m')
@@ -487,19 +400,19 @@ class Simulation(object):
             #     self.stop()
 
             # 保存当前步仿真数据
-            self.data.append(
-                self_status=[self.tick_count * float(self.settings.step_length),
-                             self.agent.dynamic.x,
-                             self.agent.dynamic.y,
-                             self.agent.dynamic.v,
-                             self.agent.dynamic.heading],
-                self_info=self.agent.dynamic.get_info(),
-                vehicles=self.other_vehicles
-                # light_values=self.traffic.get_light_values(),
-                # trajectory=self.agent.route
-                # dis=self.traffic.get_current_distance_to_stopline(),
-                # speed_limit=self.traffic.get_current_lane_speed_limit()
-                )
+            # self.data.append(
+            #     self_status=[self.tick_count * float(self.settings.step_length),
+            #                  self.agent.dynamic.x,
+            #                  self.agent.dynamic.y,
+            #                  self.agent.dynamic.v,
+            #                  self.agent.dynamic.heading],
+            #     self_info=self.agent.dynamic.get_info(),
+            #     vehicles=self.other_vehicles
+            #     # light_values=self.traffic.get_light_values(),
+            #     # trajectory=self.agent.route
+            #     # dis=self.traffic.get_current_distance_to_stopline(),
+            #     # speed_limit=self.traffic.get_current_lane_speed_limit()
+            #     )
             self.tick_count += 1
         return True
 

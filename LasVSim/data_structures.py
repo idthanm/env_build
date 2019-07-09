@@ -2,9 +2,10 @@
 # 该文件下代码可直接与gui相替换
 from __future__ import print_function
 from ctypes import *
+import os
 # from _ctypes import FreeLibrary
 
-
+DEFAULT_SETTING_FILE = 'Library/simulation_setting_file.xml'
 """Simulation Setting Value"""
 DECISION_OUTPUT_TYPE = ['spatio-temporal trajectory',
                         'acceleration(m/s^2), front wheel angle(deg)',
@@ -20,11 +21,14 @@ CAR_TYPE = ['CVT Car', 'AMT Car', 'Truck'] # 不能更改顺序
 CVT_CAR = 0
 AMT_CAR = 1
 TRUCK = 2
-CVT_MODEL_FILE_PATH = "E:\\Research\\Reinforcement Learning\\lasvsim\\env_build\\LasVSim\\Modules\\CarModel_CVT.dll"
-AMT_MODEL_FILE_PATH = "Modules/CarModel_AMT.dll"
-TRUCK_MODEL_FILE_PATH = "Modules/CarModel_Truck.dll"
-SENSOR_LIBRARY_PATH='Library/sensor_library.csv'
-SENSORS_MODEL_PATH='Modules/Sensors.dll'
+
+current_path = os.path.dirname(__file__)
+# "E:\\Research\\Reinforcement Learning\\lasvsim\\env_build\\LasVSim\\Modules\\CarModel_CVT.dll"
+CVT_MODEL_FILE_PATH = current_path + "\\Modules\\CarModel_CVT.dll"
+AMT_MODEL_FILE_PATH = current_path + "\\Modules\\CarModel_AMT.dll"
+TRUCK_MODEL_FILE_PATH = current_path + "\\Modules\\CarModel_Truck.dll"
+SENSOR_LIBRARY_PATH = current_path + '\\Library\\sensor_library.csv'
+SENSORS_MODEL_PATH = current_path + '\\Modules\\Sensors.dll'
 CAR_LIB = [CVT_MODEL_FILE_PATH, AMT_MODEL_FILE_PATH, TRUCK_MODEL_FILE_PATH] # 不能更改顺序
 
 TRAFFIC_TYPE = ['No Traffic', 'Mixed Traffic', 'Vehicle Only Traffic'] # 不能更改顺序
@@ -37,7 +41,7 @@ MIDDLE = 1
 DENSE = 2
 
 CONTROLLER_TYPE = ['Preview PID', 'External', 'External'] # 不能更改顺序
-CONTROLLER_FILE_PATH = "Modules/Controller.dll"
+CONTROLLER_FILE_PATH = current_path + "\\Modules\\Controller.dll"
 PID = 0
 EXTERNAL = 1
 

@@ -10,6 +10,97 @@ import os
 import sys
 import copy
 from LasVSim.data_structures import *
+import _struct as struct
+
+
+class TrafficData:
+    """保存随机交通流初始状态的数据类"""
+
+    def __init__(self):
+        self.file = None  # 保存数据的二进制文件
+        pass
+
+    def __del__(self):
+        self.file.close()
+
+    def save_traffic(self, traffic, path):
+        self.file = open(path+'/simulation_traffic_data.bin', 'wb')
+        for veh in traffic:
+            self.file.write(struct.pack('6f', *[traffic[veh][64],
+                                                traffic[veh][66][0],
+                                                traffic[veh][66][1],
+                                                traffic[veh][67],
+                                                traffic[veh][68],
+                                                traffic[veh][77]]))
+            # print(fmt),
+            name_length = len(traffic[veh][79])
+            fmt = 'i'
+            self.file.write(struct.pack(fmt, *[name_length]))
+            # print(fmt),
+            fmt = str(name_length)+'s'
+            self.file.write(struct.pack(fmt,
+                                        *[traffic[veh][79].encode()]))
+            # print(fmt),
+            name_length = len(traffic[veh][87])
+            fmt = 'i'
+            self.file.write(struct.pack(fmt, *[name_length]))
+            # print(name_length),
+            for route in traffic[veh][87]:
+                name_length = len(route)
+                fmt = 'i'
+                self.file.write(struct.pack(fmt, *[name_length]))
+                # print(fmt),
+                fmt = str(name_length) + 's'
+                self.file.write(struct.pack(fmt, *[route.encode()]))
+                # print(fmt),
+        self.file.close()
+
+    def load_traffic(self, path):
+        if path is not None:
+            traffic = {}
+            with open(path+'/simulation_traffic_data.bin', 'rb') as traffic_data:
+                fmt = '6f'
+                buffer = traffic_data.read(struct.calcsize(fmt))
+                # print(fmt),
+                id = 0
+                while len(buffer) > 0:
+                    # 读取车辆位姿信息，float类型变量
+                    v, x, y, heading, length, width = struct.unpack(fmt, buffer)
+
+                    # 读取车辆类型，string类型变量
+                    fmt = 'i'
+                    name_length = struct.unpack(fmt, traffic_data.read(
+                        struct.calcsize(fmt)))[0]  # 读取类型名长度
+                    # print(fmt),
+                    fmt = str(name_length)+'s'
+                    type = struct.unpack(fmt, traffic_data.read(
+                        struct.calcsize(fmt)))[0]
+                    # print(fmt),
+
+                    # 读取车辆路径，string类型变量
+                    route = []
+                    fmt = 'i'
+                    name_length = struct.unpack(fmt, traffic_data.read(
+                        struct.calcsize(fmt)))[0]  # 读取车辆路径长度
+                    # print(name_length),
+                    for i in range(name_length):
+                        fmt = 'i'
+                        route_length = struct.unpack(fmt, traffic_data.read(
+                            struct.calcsize(fmt)))[0]  # 读取路径名长度
+                        # print(fmt),
+                        fmt = str(route_length)+'s'
+                        route.append(struct.unpack(fmt, traffic_data.read(
+                            struct.calcsize(fmt)))[0].decode())
+                        # print(fmt),
+                    traffic[str(id)] = {64: v, 66: (x, y), 67: heading, 68: length,
+                                        77: width, 79: type.decode(), 87: route}
+                    id += 1
+                    fmt = '6f'
+                    buffer = traffic_data.read(struct.calcsize(fmt))
+                    # print(fmt),
+            return traffic
+        else:
+            return None
 
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
@@ -90,7 +181,7 @@ def _getothercarInfo(othercar_dict, othercarname):  # 该部分可直接与gui�
         car['length'] = othercar_dict[name][68]
         car['width'] = othercar_dict[name][77]
         # sumo中车辆的位置由车辆车头中心表示，因此要计算根据sumo给的坐标换算
-        # 车辆中心的坐标。
+        # 车辆中心(形心)的坐标。
         car['x'] = car['x'] - (math.cos(car['angle'] / 180 * math.pi) *
                                car['length'] / 2)
         car['y'] = car['y'] - (math.sin(car['angle'] / 180 * math.pi) *
@@ -247,6 +338,8 @@ class Traffic(object):
                     HISTORY_TRAFFIC_SETTING[1] != traffic_density or
                     HISTORY_TRAFFIC_SETTING[2] != path):
                 self.random_traffic = self.__generate_random_traffic()
+                traffic_data = TrafficData()
+                traffic_data.save_traffic(self.random_traffic, './Scenario/Highway_endtoend')
                 RANDOM_TRAFFIC = copy.deepcopy(self.random_traffic)
                 HISTORY_TRAFFIC_SETTING = [traffic_type, traffic_density, path]
                 self.traffic_change_flag = True
@@ -374,8 +467,8 @@ class Traffic(object):
                 wt = self.vehicles[i]['winker_time']
                 w = self.vehicles[i]['winker']
                 if self.vehicles[i]['rotation'] != r:
-                    w=1
-                    wt=self.sim_time
+                    w = 1
+                    wt = self.sim_time
                 else:
                     if (self.sim_time-self.vehicles[i]['winker_time'] >=
                             WINKER_PERIOD):
@@ -437,7 +530,7 @@ class Traffic(object):
                                     max_decel=other_veh_info[i]['max_decel'])
             if self.vehicles[i]['type'] in [4, 5]:
                 self.vehicles[i]['type'] = 0
-        return self.vehicles[VEHICLE_INDEX_START:]
+        return self.vehicles[VEHICLE_INDEX_START:]  # 返回的x,y是车辆形心，自车x，y传入也被sumo当做形心
 
     # def get_light_status(self):  # 该部分可直接与package相替换
     #     """
@@ -587,7 +680,8 @@ class Traffic(object):
                                     depart=2,
                                     pos=0,
                                     lane=-6,
-                                    speed=0.0,
+                                    speed=self.random_traffic[veh]
+                                            [traci.constants.VAR_SPEED],
                                     typeID=(self.random_traffic[veh]
                                             [traci.constants.VAR_TYPE]))
             traci.vehicle.setRoute(vehID=veh,
