@@ -395,7 +395,10 @@ class Agent(object):
         """
         get car data from controller
         """
-        return self.dynamic.get_pos(), self.dynamic.get_info()
+        car_info = self.dynamic.get_info()
+        car_info.update(dict(Car_length=self.simulation_settings.car_length,
+                             Car_width=self.simulation_settings.car_width))
+        return self.dynamic.get_pos(), car_info
 
     # def plan_control_input(self):
     #     x, y, v, yaw=self.mission.pos

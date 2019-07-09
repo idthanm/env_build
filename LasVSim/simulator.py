@@ -275,7 +275,7 @@ class Simulation(object):
                              traffic_density=settings.traffic_lib,
                              step_length=step_length,
                              init_traffic=self.traffic_data.load_traffic(init_traffic_path))
-        self.traffic.init(settings.start_point)
+        self.traffic.init(settings.start_point, settings.car_length)
         self.other_vehicles = self.traffic.get_vehicles()
         # self.light_status = self.traffic.get_light_status()
 

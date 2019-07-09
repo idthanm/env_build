@@ -355,8 +355,7 @@ class Traffic(object):
         traci.close()
         pass
 
-    def init(self
-             , source):
+    def init(self, source, egocar_length):
         """Initiate traffic.
 
         Initiate traffic.
@@ -368,6 +367,7 @@ class Traffic(object):
         """
         self.sim_time = 0
         self.vehicles = [None] * VEHICLE_COUNT
+        self.egocar_length = egocar_length
 
         # SUMO_BINARY = checkBinary('sumo-gui')
         traci.start(
@@ -406,10 +406,10 @@ class Traffic(object):
         traci.vehicle.setLength('ego', 4.8)  # Sumo function
         traci.vehicle.setWidth('ego', 2.2)  # Sumo function
         traci.vehicle.moveToXY('ego', 'gneE20', 0, self.__own_x +
-                               OWN_CAR_START_LENGTH / 2 *
+                               self.egocar_length / 2 *
                                math.cos(math.radians(self.__own_a)),
-                               self.__own_y + OWN_CAR_START_LENGTH / 2 *
-                               math.sin(math.radians(self.__own_a)), -a+90, 0)  # 此处与gui不同
+                               self.__own_y + self.egocar_length / 2 *
+                               math.sin(math.radians(self.__own_a)), -self.__own_a+90, 0)  # 此处与gui不同
         traci.simulationStep()
         print('\nrandom traffic initialized')
 
@@ -599,9 +599,9 @@ class Traffic(object):
         """
         self.__own_x, self.__own_y, self.__own_v, self.__own_a = x, y, v, a  # 此处与package不同
         traci.vehicle.moveToXY('ego', 'gneE25', 0, self.__own_x +
-                               OWN_CAR_START_LENGTH / 2 *
+                               self.egocar_length / 2 *
                                math.cos(math.radians(self.__own_a)),
-                               self.__own_y + OWN_CAR_START_LENGTH / 2 *
+                               self.__own_y + self.egocar_length / 2 *
                                math.sin(math.radians(self.__own_a)),
                                -self.__own_a + 90, 0)
 

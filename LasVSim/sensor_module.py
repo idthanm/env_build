@@ -137,8 +137,8 @@ class Sensors(object):
             v = vehicle.object_velocity_detected
             if w < 1:
                 w = 1.0
-            if h < 1:
-                h = 1.0
+            if l < 1:
+                l = 1.0
             visible_vehicles.append({'id': id,
                                      'x': x,
                                      'y': y,

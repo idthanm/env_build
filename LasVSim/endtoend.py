@@ -1,9 +1,28 @@
 import gym
 from LasVSim import lasvsim
 from gym.utils import seeding
+import math
 
 
 # env_closer = closer.Closer()
+def shift_and_rotate(orig_x, orig_y, orig_d, coordi_shift_x, coordi_shift_y, coordi_rotate_d):
+    """
+    :param orig_x: original x
+    :param orig_y: original y
+    :param orig_d: original degree
+    :param coordi_shift_x: coordination shift x, positive if shift toward x axis
+    :param coordi_shift_y: coordination shift y, positive if shift toward y axis
+    :param coordi_rotate_d: coordination rotation d, positive if anti-clockwise, unit: deg
+    :return:
+    transformed_x, transformed_y, transformed_d
+    """
+    orig_x = orig_x - coordi_shift_x
+    orig_y = orig_y - coordi_shift_y
+    coordi_rotate_d_in_rad = coordi_rotate_d * 2 * math.pi / 180
+    transformed_x = orig_x * math.cos(coordi_rotate_d_in_rad) + orig_y * math.sin(coordi_rotate_d_in_rad)
+    transformed_y = -orig_x * math.sin(coordi_rotate_d_in_rad) + orig_y * math.cos(coordi_rotate_d_in_rad)
+    transformed_d = orig_d - coordi_rotate_d
+    return transformed_x, transformed_y, transformed_d
 
 
 class EndtoendEnv(gym.Env):
@@ -218,6 +237,7 @@ class EndtoendEnv(gym.Env):
 
     def _2d_grid_v2x_no_noise_obs_encoder(self):
         filtered_objects = self.v2x_pre_filter_for_2dgrid()
+        rela_info = self.cal_rela_info(filtered_objects)
 
         pass
 
@@ -240,19 +260,41 @@ class EndtoendEnv(gym.Env):
         #          'current_lane'],
         #      max_decel=other_veh_info[i]['max_decel'])
         for obj in range(len(self.all_objects)):
-            results.append({'x': self.all_objects[obj][x],
-                            'y': self.all_objects[obj][y],
-                            'v': self.all_objects[obj][y],
-                            'angle': self.all_objects[obj][angle],
-                            'width': w,
-                            'length': h})
-        return self.all_objects
+            results.append({'x': self.all_objects[obj]['x'],
+                            'y': self.all_objects[obj]['y'],
+                            'v': self.all_objects[obj]['v'],
+                            'heading': self.all_objects[obj]['angle'],
+                            'width': self.all_objects[obj]['width'],
+                            'length': self.all_objects[obj]['length']})
+        return results
 
     def sensors_pre_filter_for_2dgrid(self):
         return self.detected_objects
 
-    def cal_rela_info(self):
-        pass
+    def cal_info_in_transform_coordination(self, filtered_objects):
+        results = []
+        ego_x = self.ego_dynamics['x']
+        ego_y = self.ego_dynamics['y']
+        ego_v = self.ego_dynamics['v']
+        ego_heading = self.ego_dynamics['heading']
+        # egocar_length = self.ego_info['Car_length']
+        # egocar_width = self.ego_info['Car_width']
+        for obj in filtered_objects:
+            orig_x = obj['x']
+            orig_y = obj['y']
+            orig_v = obj['v']
+            orig_heading = obj['heading']
+            width = obj['width']
+            length = obj['length']
+            trans_x, trans_y, trans_heading = shift_and_rotate(orig_x, orig_y, orig_heading, ego_x, ego_y, ego_heading)
+            trans_v = orig_v - ego_v
+            results.append({'trans_x': trans_x,
+                            'trans_y': trans_y,
+                            'trans_v': trans_v,
+                            'trans_heading': trans_heading,
+                            'width': width,
+                            'length': length})
+        return results
 
     def rew_function(self):
         return 0
