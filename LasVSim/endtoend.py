@@ -247,11 +247,13 @@ class EndtoendEnv(gym.Env):
         return self.detected_vehicles, self.all_vehicles, self.ego_dynamics, self.ego_info
 
     def _3d_grid_v2x_no_noise_obs_encoder(self):
-        all_vehicles = self.v2x_unify_format_for_3dgrid()
-        info_in_ego_coordination, recover_orig_position_fn = self.cal_info_in_transform_coordination(all_vehicles)
-        name_list = ['position_x', 'position_y', 'velocity', 'length', 'width']
+        all_vehicles = self._v2x_unify_format_for_3dgrid()
+        info_in_ego_coordination, recover_orig_position_fn = self._cal_info_in_transform_coordination(all_vehicles)
+        name_list = ['position_x', 'position_y', 'velocity', 'heading', 'length', 'width']
         self.grid_3d = Grid_3D(back_dist=40, forward_dist=80, half_width=40, number_x=120, number_y=160, name_list=name_list)
-        vehicles_in_grid = [obj for obj in all_vehicles if self.grid_3d.is_in_2d_grid(obj['x'], obj['y'])]
+        vehicles_in_grid = [veh for veh in info_in_ego_coordination if self.grid_3d.is_in_2d_grid(veh['x'], veh['y'])]
+        self._add_vehicle_info_in_grid(vehicles_in_grid)
+        self._add_feasible_area_info_in_grid(recover_orig_position_fn)
 
 
 
@@ -270,7 +272,7 @@ class EndtoendEnv(gym.Env):
     def _highway_sensors_with_noise_obs_encoder(self):
         pass
 
-    def v2x_unify_format_for_3dgrid(self):  # unify output format
+    def _v2x_unify_format_for_3dgrid(self):  # unify output format
         results = []
         # dict(type=c_t, x=c_x, y=c_y, v=c_v, angle=c_a,
         #      rotation=c_r, winker=w, winker_time=wt,
@@ -279,19 +281,19 @@ class EndtoendEnv(gym.Env):
         #      lane_index=other_veh_info[i][
         #          'current_lane'],
         #      max_decel=other_veh_info[i]['max_decel'])
-        for obj in range(len(self.all_vehicles)):
-            results.append({'x': self.all_vehicles[obj]['x'],
-                            'y': self.all_vehicles[obj]['y'],
-                            'v': self.all_vehicles[obj]['v'],
-                            'heading': self.all_vehicles[obj]['angle'],
-                            'width': self.all_vehicles[obj]['width'],
-                            'length': self.all_vehicles[obj]['length']})
+        for veh in range(len(self.all_vehicles)):
+            results.append({'x': self.all_vehicles[veh]['x'],
+                            'y': self.all_vehicles[veh]['y'],
+                            'v': self.all_vehicles[veh]['v'],
+                            'heading': self.all_vehicles[veh]['angle'],
+                            'width': self.all_vehicles[veh]['width'],
+                            'length': self.all_vehicles[veh]['length']})
         return results
 
-    def sensors_pre_filter_for_3dgrid(self):
+    def _sensors_pre_filter_for_3dgrid(self):
         return self.detected_vehicles
 
-    def cal_info_in_transform_coordination(self, filtered_objects):
+    def _cal_info_in_transform_coordination(self, filtered_objects):
         results = []
         ego_x = self.ego_dynamics['x']
         ego_y = self.ego_dynamics['y']
@@ -324,10 +326,38 @@ class EndtoendEnv(gym.Env):
                             'length': length})
         return results, recover_orig_position_fn
 
-    def add_vehicle_info_in_grid(self, vehicles_in_grid):
-        POSITION_X = self.grid_3d.name2zindex('position_x')
-        POSITION_Y = self.grid_3d.name2zindex('position_y')
-        VELOCITY = self.grid_3d.name2zindex('velocity')
+    def _add_vehicle_info_in_grid(self, vehicles_in_grid):
+        for veh in vehicles_in_grid:
+            x = veh['x']
+            y = veh['y']
+            v = veh['v']
+            heading = veh['heading']
+            length = veh['length']
+            width = veh['width']
+            index_x, index_y = self.grid_3d.position2xyindex(x, y)
+            self.grid_3d.set_value(index_z=0, index_x=index_x, index_y=index_y, grid_value=x)
+            self.grid_3d.set_value(index_z=1, index_x=index_x, index_y=index_y, grid_value=y)
+            self.grid_3d.set_value(index_z=2, index_x=index_x, index_y=index_y, grid_value=v)
+            self.grid_3d.set_value(index_z=3, index_x=index_x, index_y=index_y, grid_value=heading)
+            self.grid_3d.set_value(index_z=4, index_x=index_x, index_y=index_y, grid_value=length)
+            self.grid_3d.set_value(index_z=5, index_x=index_x, index_y=index_y, grid_value=width)
+
+    def _add_feasible_area_info_in_grid(self, recover_orig_position_fn):
+        number_x = self.grid_3d.number_x
+        number_y = self.grid_3d.number_y
+        for index_x in range(number_x):
+            for index_y in range(number_y):
+                x_in_egocar_coordi, y_in_egocar_coordi = self.grid_3d.xyindex2centerposition(index_x, index_y)
+                orig_x, orig_y = recover_orig_position_fn(x_in_egocar_coordi, y_in_egocar_coordi)
+                if not self._judge_feasible(orig_x, orig_y):
+                    self.grid_3d.set_xy_value_in_all_z(index_x, index_y, )
+
+    def _judge_feasible(self, orig_x, orig_y):
+        if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150:
+            return True
+        else:
+            return False
+
 
 
 
@@ -360,7 +390,6 @@ class Grid_3D:
         self._encode_grid = np.zeros((self.number_z, self.number_x, self.number_y))
         self._encode_grid_flag = np.zeros((self.number_z, self.number_x, self.number_y), dtype=np.int)
 
-
     def xyindex2range(self, index_x, index_y):  # index_x: [0, number_x - 1]
         left_lower_point_coordination_of_the_indexed_grid \
             = shift_coordination(index_x * self.increment_x, index_y * self.increment_y,
@@ -372,6 +401,10 @@ class Grid_3D:
         upper_x, upper_y = right_upper_point_coordination_of_the_indexed_grid
         return lower_x, upper_x, lower_y, upper_y
 
+    def xyindex2centerposition(self, index_x, index_y):  # index_x: [0, number_x - 1]
+        lower_x, upper_x, lower_y, upper_y = self.xyindex2range(index_x, index_y)
+        return 0.5 * (lower_x + upper_x), 0.5 * (lower_y + upper_y)
+
     def position2xyindex(self, x, y):
         x, y = shift_coordination(x, y, -self.back_dist, -self.half_width)
         index_x = int(x//self.increment_x)
@@ -381,8 +414,11 @@ class Grid_3D:
     def name2zindex(self, name):
         return self.name_list.index(name)
 
+    def zindex2meaning(self, index_z):
+        return self.name_list[index_z]
+
     def is_in_2d_grid(self, x, y):
-        if x > -self.back_dist and x < self.forward_dist and y > -self.half_width and y < self.half_width:
+        if -self.back_dist < x < self.forward_dist and -self.half_width < y < self.half_width:
             return True
         else:
             return False
@@ -391,13 +427,21 @@ class Grid_3D:
         self._encode_grid = np.zeros((self.number_z, self.number_x, self.number_y))
         self._encode_grid_flag = np.zeros((self.number_z, self.number_x, self.number_y), dtype=np.int)
 
-    def set_value(self, index_z, index_x, index_y, grid_value, grid_flag_value):
+    def set_value(self, index_z, index_x, index_y, grid_value):
         self._encode_grid[index_z][index_x][index_y] = grid_value
-        self._encode_grid_flag[index_z][index_x][index_y] = grid_flag_value
+        self._encode_grid_flag[index_z][index_x][index_y] = 1
+
+    def set_xy_value_in_all_z(self, index_x, index_y, grid_value):
+        for i in range(self.number_z):
+            self.set_value(i, index_x, index_y, grid_value)
+
 
     def get_value(self, index_z, index_x, index_y):
         return self._encode_grid[index_z][index_x][index_y], \
                self._encode_grid_flag[index_z][index_x][index_y]
+
+    def get_encode_grid_and_flag(self):
+        return self._encode_grid, self._encode_grid_flag
 
 
 
