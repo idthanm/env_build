@@ -2,22 +2,33 @@ import gym
 from LasVSim import lasvsim
 from gym.utils import seeding
 import math
+import numpy as np
 
 
 # env_closer = closer.Closer()
-def shift_and_rotate(orig_x, orig_y, orig_d, coordi_shift_x, coordi_shift_y, coordi_rotate_d):
+def shift_coordination(orig_x, orig_y, coordi_shift_x, coordi_shift_y):
+    '''
+
+    :param orig_x: original x
+    :param orig_y: original y
+    :param coordi_shift_x: coordi_shift_x along x axis
+    :param coordi_shift_y: coordi_shift_y along y axis
+    :return:
+    '''
+    shifted_x = orig_x - coordi_shift_x
+    shifted_y = orig_y - coordi_shift_y
+    return shifted_x, shifted_y
+
+def rotate_coordination(orig_x, orig_y, orig_d, coordi_rotate_d):
     """
     :param orig_x: original x
     :param orig_y: original y
     :param orig_d: original degree
-    :param coordi_shift_x: coordination shift x, positive if shift toward x axis
-    :param coordi_shift_y: coordination shift y, positive if shift toward y axis
     :param coordi_rotate_d: coordination rotation d, positive if anti-clockwise, unit: deg
     :return:
     transformed_x, transformed_y, transformed_d
     """
-    orig_x = orig_x - coordi_shift_x
-    orig_y = orig_y - coordi_shift_y
+
     coordi_rotate_d_in_rad = coordi_rotate_d * 2 * math.pi / 180
     transformed_x = orig_x * math.cos(coordi_rotate_d_in_rad) + orig_y * math.sin(coordi_rotate_d_in_rad)
     transformed_y = -orig_x * math.sin(coordi_rotate_d_in_rad) + orig_y * math.cos(coordi_rotate_d_in_rad)
@@ -91,8 +102,8 @@ class EndtoendEnv(gym.Env):
         expected_acceleration, expected_steer = action
         lasvsim.set_steer_and_acc(expected_acceleration, expected_steer)
         lasvsim.sim_step()
-        self.detected_objects = lasvsim.get_detected_objects()  # coordination 2
-        self.all_objects = lasvsim.get_all_objects()  # coordination 2
+        self.detected_vehicles = lasvsim.get_detected_objects()  # coordination 2
+        self.all_vehicles = lasvsim.get_all_objects()  # coordination 2
         self.ego_dynamics, self.ego_info = lasvsim.get_self_car_info()
         obs = self.obs_encoder(0)
         rew = self.rew_function()
@@ -113,7 +124,7 @@ class EndtoendEnv(gym.Env):
         lasvsim.reset_simulation(overwrite_settings={'init_gear': init_gear, 'init_state': init_state},
                                  init_traffic_path='./Scenario/Highway_endtoend/')
         self.simulation = lasvsim.simulation
-        self.all_objects = lasvsim.get_all_objects()
+        self.all_vehicles = lasvsim.get_all_objects()
         # dict(type=c_t, x=c_x, y=c_y, v=c_v, angle=c_a,
         #      rotation=c_r, winker=w, winker_time=wt,
         #      render=render_flag, length=length,
@@ -121,7 +132,7 @@ class EndtoendEnv(gym.Env):
         #      lane_index=other_veh_info[i][
         #          'current_lane'],
         #      max_decel=other_veh_info[i]['max_decel'])
-        self.detected_objects = lasvsim.get_detected_objects()
+        self.detected_vehicles = lasvsim.get_detected_objects()
         # {'id': id,
         #  'x': x,
         #  'y': y,
@@ -233,15 +244,24 @@ class EndtoendEnv(gym.Env):
     #     return False
 
     def obs_encoder(self, type):
-        return self.detected_objects, self.all_objects, self.ego_dynamics, self.ego_info
+        return self.detected_vehicles, self.all_vehicles, self.ego_dynamics, self.ego_info
 
-    def _2d_grid_v2x_no_noise_obs_encoder(self):
-        filtered_objects = self.v2x_pre_filter_for_2dgrid()
-        rela_info = self.cal_rela_info(filtered_objects)
+    def _3d_grid_v2x_no_noise_obs_encoder(self):
+        all_vehicles = self.v2x_unify_format_for_3dgrid()
+        info_in_ego_coordination, recover_orig_position_fn = self.cal_info_in_transform_coordination(all_vehicles)
+        name_list = ['position_x', 'position_y', 'velocity', 'length', 'width']
+        self.grid_3d = Grid_3D(back_dist=40, forward_dist=80, half_width=40, number_x=120, number_y=160, name_list=name_list)
+        vehicles_in_grid = [obj for obj in all_vehicles if self.grid_3d.is_in_2d_grid(obj['x'], obj['y'])]
+
+
+
+
+
+
 
         pass
 
-    def _2d_grid_sensors_with_noise_obs_encoder(self):
+    def _3d_grid_sensors_with_noise_obs_encoder(self):
         pass
 
     def _highway_v2x_no_noise_obs_encoder(self):
@@ -250,7 +270,7 @@ class EndtoendEnv(gym.Env):
     def _highway_sensors_with_noise_obs_encoder(self):
         pass
 
-    def v2x_pre_filter_for_2dgrid(self):  # delete unnecessary cars and unify output format
+    def v2x_unify_format_for_3dgrid(self):  # unify output format
         results = []
         # dict(type=c_t, x=c_x, y=c_y, v=c_v, angle=c_a,
         #      rotation=c_r, winker=w, winker_time=wt,
@@ -259,17 +279,17 @@ class EndtoendEnv(gym.Env):
         #      lane_index=other_veh_info[i][
         #          'current_lane'],
         #      max_decel=other_veh_info[i]['max_decel'])
-        for obj in range(len(self.all_objects)):
-            results.append({'x': self.all_objects[obj]['x'],
-                            'y': self.all_objects[obj]['y'],
-                            'v': self.all_objects[obj]['v'],
-                            'heading': self.all_objects[obj]['angle'],
-                            'width': self.all_objects[obj]['width'],
-                            'length': self.all_objects[obj]['length']})
+        for obj in range(len(self.all_vehicles)):
+            results.append({'x': self.all_vehicles[obj]['x'],
+                            'y': self.all_vehicles[obj]['y'],
+                            'v': self.all_vehicles[obj]['v'],
+                            'heading': self.all_vehicles[obj]['angle'],
+                            'width': self.all_vehicles[obj]['width'],
+                            'length': self.all_vehicles[obj]['length']})
         return results
 
-    def sensors_pre_filter_for_2dgrid(self):
-        return self.detected_objects
+    def sensors_pre_filter_for_3dgrid(self):
+        return self.detected_vehicles
 
     def cal_info_in_transform_coordination(self, filtered_objects):
         results = []
@@ -279,6 +299,13 @@ class EndtoendEnv(gym.Env):
         ego_heading = self.ego_dynamics['heading']
         # egocar_length = self.ego_info['Car_length']
         # egocar_width = self.ego_info['Car_width']
+
+        def recover_orig_position_fn(transformed_x, transformed_y):
+            d = ego_heading * 2 * math.pi / 180
+            transformed_x, transformed_y, _ = rotate_coordination(transformed_x, transformed_y, 0, -d)
+            orig_x, orig_y = shift_coordination(transformed_x, transformed_y, -ego_x, -ego_y)
+            return orig_x, orig_y
+
         for obj in filtered_objects:
             orig_x = obj['x']
             orig_y = obj['y']
@@ -286,15 +313,23 @@ class EndtoendEnv(gym.Env):
             orig_heading = obj['heading']
             width = obj['width']
             length = obj['length']
-            trans_x, trans_y, trans_heading = shift_and_rotate(orig_x, orig_y, orig_heading, ego_x, ego_y, ego_heading)
-            trans_v = orig_v - ego_v
+            shifted_x, shifted_y = shift_coordination(orig_x, orig_y, ego_x, ego_y)
+            trans_x, trans_y, trans_heading = rotate_coordination(shifted_x, shifted_y, orig_heading, ego_heading)
+            trans_v = orig_v
             results.append({'trans_x': trans_x,
                             'trans_y': trans_y,
                             'trans_v': trans_v,
                             'trans_heading': trans_heading,
                             'width': width,
                             'length': length})
-        return results
+        return results, recover_orig_position_fn
+
+    def add_vehicle_info_in_grid(self, vehicles_in_grid):
+        POSITION_X = self.grid_3d.name2zindex('position_x')
+        POSITION_Y = self.grid_3d.name2zindex('position_y')
+        VELOCITY = self.grid_3d.name2zindex('velocity')
+
+
 
     def rew_function(self):
         return 0
@@ -304,7 +339,69 @@ class EndtoendEnv(gym.Env):
         return 0
         pass
 
-# class GoalEnv(Env):
+
+class Grid_3D:
+    '''
+    Consider coordination of ego car
+    '''
+
+    def __init__(self, back_dist, forward_dist, half_width, number_x, number_y, name_list):
+        self.back_dist = back_dist
+        self.forward_dist = forward_dist
+        self.half_width = half_width
+        self.length = self.back_dist + self.forward_dist
+        self.width = 2 * self.half_width
+        self.number_x = number_x
+        self.number_y = number_y
+        self.number_z = len(name_list)
+        self.increment_x = self.length / self.number_x
+        self.increment_y = self.width / self.number_y
+        self.name_list = name_list
+        self._encode_grid = np.zeros((self.number_z, self.number_x, self.number_y))
+        self._encode_grid_flag = np.zeros((self.number_z, self.number_x, self.number_y), dtype=np.int)
+
+
+    def xyindex2range(self, index_x, index_y):  # index_x: [0, number_x - 1]
+        left_lower_point_coordination_of_the_indexed_grid \
+            = shift_coordination(index_x * self.increment_x, index_y * self.increment_y,
+                                 self.back_dist, self.half_width)
+        right_upper_point_coordination_of_the_indexed_grid \
+            = shift_coordination((index_x + 1) * self.increment_x, (index_y + 1) * self.increment_y,
+                                 self.back_dist, self.half_width)
+        lower_x, lower_y = left_lower_point_coordination_of_the_indexed_grid
+        upper_x, upper_y = right_upper_point_coordination_of_the_indexed_grid
+        return lower_x, upper_x, lower_y, upper_y
+
+    def position2xyindex(self, x, y):
+        x, y = shift_coordination(x, y, -self.back_dist, -self.half_width)
+        index_x = int(x//self.increment_x)
+        index_y = int(y//self.increment_y)
+        return index_x, index_y
+
+    def name2zindex(self, name):
+        return self.name_list.index(name)
+
+    def is_in_2d_grid(self, x, y):
+        if x > -self.back_dist and x < self.forward_dist and y > -self.half_width and y < self.half_width:
+            return True
+        else:
+            return False
+
+    def reset_grid(self):
+        self._encode_grid = np.zeros((self.number_z, self.number_x, self.number_y))
+        self._encode_grid_flag = np.zeros((self.number_z, self.number_x, self.number_y), dtype=np.int)
+
+    def set_value(self, index_z, index_x, index_y, grid_value, grid_flag_value):
+        self._encode_grid[index_z][index_x][index_y] = grid_value
+        self._encode_grid_flag[index_z][index_x][index_y] = grid_flag_value
+
+    def get_value(self, index_z, index_x, index_y):
+        return self._encode_grid[index_z][index_x][index_y], \
+               self._encode_grid_flag[index_z][index_x][index_y]
+
+
+
+    # class GoalEnv(Env):
 #     """A goal-based environment. It functions just as any regular OpenAI Gym environment but it
 #     imposes a required structure on the observation_space. More concretely, the observation
 #     space is required to contain at least three elements, namely `observation`, `desired_goal`, and
