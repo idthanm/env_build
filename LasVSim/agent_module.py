@@ -7,6 +7,8 @@ from LasVSim.decision_module import *
 from LasVSim.navigation_module import *
 from LasVSim.default_value import *
 import threading
+from LasVSim.endtoend import rotate_coordination
+
 
 
 _WINKER_PERIOD=0.5
@@ -141,6 +143,7 @@ class Agent(object):
         self.winker_time = 0  # winker time for turn signal light
         self.length = settings.car_length  # car length, m
         self.width = settings.car_width  # car width, m
+        self.lw = (self.length - self.width) / 2  # used for collision check
         self.front_length = settings.car_center2head  # distance from car center to front end, m
         self.back_length = self.length - self.front_length  # distance from car center to back end, m
         self.weight = settings.car_weight  # unladen weight, kg
@@ -384,6 +387,22 @@ class Agent(object):
     #         return 'L'
     #     else:
     #         return 'R'
+
+    def _cal_corner_point_coordination(self):
+        x = self.dynamic.x
+        y = self.dynamic.y
+        heading = self.dynamic.heading
+        length = self.length
+        width = self.width
+        orig_front_left = [self.length / 2, self.width / 2]
+        orig_front_right = [self.length / 2, -self.width / 2]
+        orig_rear_left = [-self.length / 2, self.width / 2]
+        orig_rear_right = [-self.length / 2, -self.width / 2]
+        front_left_x, front_left_y, _ = rotate_coordination(orig_front_left[0], orig_front_left[1], 0, -heading)
+        front_right_x, front_right_y, _ = rotate_coordination(orig_front_right[0], orig_front_right[1], 0, -heading)
+        rear_left_x, rear_left_y, _ = rotate_coordination(orig_rear_left[0], orig_rear_left[1], 0, -heading)
+        rear_right_x, rear_right_y, _ = rotate_coordination(orig_rear_right[0], orig_rear_right[1], 0, -heading)
+        
 
     def get_control_info(self):
         """

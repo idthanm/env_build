@@ -395,6 +395,9 @@ class Simulation(object):
             if self.tick_count % self.settings.sensor_frequency == 0:
                 self.agent.update_info_from_sensor(self.other_vehicles)
 
+            if not self.__collision_check():
+                self.stopped = True
+
             # 如果自车达到目的地则退出仿真，loop路径下仿真会一直循环不会结束
             # if self.agent.mission.get_status() != MISSION_RUNNING:
             #     self.stop()
@@ -443,9 +446,9 @@ class Simulation(object):
     # def mission_update(self,pos):
     #     self.agent.mission.update(pos)
 
-    def stop(self):
-        self.stopped = True
-        self.data.close_file()
+    # def stop(self):
+    #     self.stopped = True
+    #     self.data.close_file()
 
     # def update_evaluation_data(self):
     #     x, y, v, a = self.get_pos()
@@ -498,26 +501,48 @@ class Simulation(object):
     #     return self.agent.mission.current_task
 
     def __collision_check(self):
-        ego_point1 = [self.agent.dynamic.x + cos(self.agent.dynamic.heading / 180 * pi) * (self.agent.length / 2 - self.agent.width / 2),
-                      self.agent.dynamic.y + sin(self.agent.dynamic.heading / 180 * pi) * (self.agent.length / 2 - self.agent.width / 2)]
-        ego_point2 = [self.agent.dynamic.x - cos(self.agent.dynamic.heading / 180 * pi) * (self.agent.length / 2 - self.agent.width / 2),
-                      self.agent.dynamic.y - sin(self.agent.dynamic.heading / 180 * pi) * (self.agent.length / 2 - self.agent.width / 2)]
-        for veh in self.other_vehicles:
-            if self.agent.dynamic.x - 10 < veh['x'] < self.agent.dynamic.x + 10:
-                if self.agent.dynamic.y - 10 < veh['y'] < self.agent.dynamic.y + 10:
-                    other_point1 = [veh['x'] + cos(veh['heading'] / 180 * pi) * (veh['length'] / 2 - veh['width'] / 2),
-                                    veh['y'] + sin(veh['heading'] / 180 * pi) * (veh['length'] / 2 - veh['width'] / 2)]
-                    other_point2 = [veh['x'] - cos(veh['heading'] / 180 * pi) * (veh['length'] / 2 - veh['width'] / 2),
-                                    veh['y'] - sin(veh['heading'] / 180 * pi) * (veh['length'] / 2 - veh['width'] / 2)]
-                    if (other_point1[0] - ego_point1[0]) ** 2 + (other_point1[1] - ego_point1[1]) ** 2 < (self.agent.width / 2 + veh['width'] / 2) ** 2:
-                        return True
-                    if (other_point2[0] - ego_point1[0]) ** 2 + (other_point2[1] - ego_point1[1]) ** 2 < (self.agent.width / 2 + veh['width'] / 2) ** 2:
-                        return True
-                    if (other_point2[0] - ego_point2[0]) ** 2 + (other_point2[1] - ego_point2[1]) ** 2 < (self.agent.width / 2 + veh['width'] / 2) ** 2:
-                        return True
-                    if (other_point1[0] - ego_point2[0]) ** 2 + (other_point1[1] - ego_point2[1]) ** 2 < (self.agent.width / 2 + veh['width'] / 2) ** 2:
-                        return True
-        return False
+        for vehs in self.other_vehicles:
+            if (fabs(vehs['x']-self.agent.dynamic.x) < 10 and
+               fabs(vehs['y']-self.agent.dynamic.y) < 2):
+                self.ego_x0 = (self.agent.dynamic.x +
+                               cos(self.agent.dynamic.heading/180*pi)*self.agent.lw)
+                self.ego_y0 = (self.agent.dynamic.y +
+                               sin(self.agent.dynamic.heading/180*pi)*self.agent.lw)
+                self.ego_x1 = (self.agent.dynamic.x -
+                               cos(self.agent.dynamic.heading/180*pi)*self.agent.lw)
+                self.ego_y1 = (self.agent.dynamic.y -
+                               sin(self.agent.dynamic.heading/180*pi)*self.agent.lw)
+                self.surrounding_lw = (vehs['length']-vehs['width'])/2
+                self.surrounding_x0 = (
+                    vehs['x'] + cos(
+                        vehs['angle'] / 180 * pi) * self.surrounding_lw)
+                self.surrounding_y0 = (
+                    vehs['y'] + sin(
+                        vehs['angle'] / 180 * pi) * self.surrounding_lw)
+                self.surrounding_x1 = (
+                    vehs['x'] - cos(
+                        vehs['angle'] / 180 * pi) * self.surrounding_lw)
+                self.surrounding_y1 = (
+                    vehs['y'] - sin(
+                        vehs['angle'] / 180 * pi) * self.surrounding_lw)
+                self.collision_check_dis = ((vehs['width']+self.agent.width)/2+0.5)**2
+                if ((self.ego_x0-self.surrounding_x0)**2 +
+                    (self.ego_y0-self.surrounding_y0)**2
+                        < self.collision_check_dis):
+                    return False
+                if ((self.ego_x0-self.surrounding_x1)**2 +
+                    (self.ego_y0-self.surrounding_y1)**2
+                        < self.collision_check_dis):
+                    return False
+                if ((self.ego_x1-self.surrounding_x1)**2 +
+                    (self.ego_y1-self.surrounding_y1)**2
+                        < self.collision_check_dis):
+                    return False
+                if ((self.ego_x1-self.surrounding_x0)**2 +
+                    (self.ego_y1-self.surrounding_y0)**2
+                        < self.collision_check_dis):
+                    return False
+        return True
 
 
 class Settings:  # 可以直接和package版本的Settings类替换,需要转换路径点的yaw坐标

@@ -19,6 +19,7 @@ def shift_coordination(orig_x, orig_y, coordi_shift_x, coordi_shift_y):
     shifted_y = orig_y - coordi_shift_y
     return shifted_x, shifted_y
 
+
 def rotate_coordination(orig_x, orig_y, orig_d, coordi_rotate_d):
     """
     :param orig_x: original x
@@ -26,13 +27,19 @@ def rotate_coordination(orig_x, orig_y, orig_d, coordi_rotate_d):
     :param orig_d: original degree
     :param coordi_rotate_d: coordination rotation d, positive if anti-clockwise, unit: deg
     :return:
-    transformed_x, transformed_y, transformed_d
+    transformed_x, transformed_y, transformed_d(range:[-180 deg, 180 deg])
     """
 
-    coordi_rotate_d_in_rad = coordi_rotate_d * 2 * math.pi / 180
+    coordi_rotate_d_in_rad = coordi_rotate_d * math.pi / 180
     transformed_x = orig_x * math.cos(coordi_rotate_d_in_rad) + orig_y * math.sin(coordi_rotate_d_in_rad)
     transformed_y = -orig_x * math.sin(coordi_rotate_d_in_rad) + orig_y * math.cos(coordi_rotate_d_in_rad)
     transformed_d = orig_d - coordi_rotate_d
+    if transformed_d > 180:
+        transformed_d = transformed_d - 360
+    elif transformed_d < -180:
+        transformed_d = transformed_d + 360
+    else:
+        transformed_d = transformed_d
     return transformed_x, transformed_y, transformed_d
 
 
@@ -79,6 +86,7 @@ class EndtoendEnv(gym.Env):
         self.simulation = None
         self.init_state = []
         self.goal_state = []
+        self.reference = Reference()
 
         self.seed()
         lasvsim.create_simulation(setting_path)
@@ -150,6 +158,7 @@ class EndtoendEnv(gym.Env):
         #  'length': l}
         self.ego_dynamics, self.ego_info = lasvsim.get_self_car_info()
         obs = self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.goal_state
+        self.reference.reset_reference_path(init_state, goal_state)
         return obs
 
     def generate_init_and_goal_state(self):
@@ -258,16 +267,55 @@ class EndtoendEnv(gym.Env):
     def _generate_reference(self):
         pass
 
-    def judge_done(self):
+    def _judge_done(self):
+        '''
+        :return:
+         0: bad done: violate road constrain
+         1: bad done: violate traffic constrain (collision)
+         2: bad done: task failed
+         3: good done: task succeed
+        '''
+        if self.simulation.stopped == True:
+            return 0
+        elif:
         return 0
         pass
 
+
 class Reference:
-    def __init__(self, orig_init_state, orig_goal_state):
-        self.orig_init_x, self.orig_init_y, self.orig_init_v, self.orig_init_heading =  orig_init_state
+    def __init__(self):
+        self.orig_init_x = None
+        self.orig_init_y = None
+        self.orig_init_v = None
+        self.orig_init_heading = None
+        self.orig_goal_x = None
+        self.orig_goal_y = None
+        self.orig_goal_v = None
+        self.orig_goal_heading = None  # heading in deg
+        self.goalx_in_ref = None
+        self.goaly_in_ref = None
+        self.goalv_in_ref = None
+        self.goalheading_in_ref = None
+        self.index_mode = None
+        self.reference_path = None
+        # self.reset_reference_path(orig_init_state, orig_goal_state)
+
+    def reset_reference_path(self, orig_init_state, orig_goal_state):
+        self.orig_init_x, self.orig_init_y, self.orig_init_v, self.orig_init_heading = orig_init_state
         self.orig_goal_x, self.orig_goal_y, self.orig_goal_v, self.orig_goal_heading = orig_goal_state  # heading in deg
-        self.goalx_in_ref, self.goaly_in_ref, self.goalv_in_ref, self.goalheading_in_ref =\
+        self.goalx_in_ref, self.goaly_in_ref, self.goalv_in_ref, self.goalheading_in_ref = \
             self.orig2ref(self.orig_init_x, self.orig_init_y, self.orig_init_v, self.orig_init_heading)
+        assert (self.goalx_in_ref > 0 and abs(self.goalheading_in_ref) < 180)
+        if self.goaly_in_ref >= 0:
+            assert (-90 < self.goalheading_in_ref < 180)
+        else:
+            assert (-180 < self.goalheading_in_ref < 90)
+        self.goalheading_in_ref = self.goalheading_in_ref - 1 \
+            if 90 - 0.1 < self.goalheading_in_ref < 90 + 0.1 else self.goalheading_in_ref
+        self.goalheading_in_ref = self.goalheading_in_ref + 1 \
+            if -90 - 0.1 < self.goalheading_in_ref < -90 + 0.1 else self.goalheading_in_ref
+        self.index_mode = 'indexed_by_x' if abs(self.goalheading_in_ref) < 90 else 'indexed_by_y'
+        self.reference_path = self.generate_reference_path()
 
     def orig2ref(self, orig_x, orig_y, orig_v, orig_heading):
         orig_x, orig_y = shift_coordination(orig_x, orig_y, self.orig_init_x, self.orig_init_y)
@@ -275,17 +323,58 @@ class Reference:
         v_in_ref = orig_v
         return x_in_ref, y_in_ref, v_in_ref, heading_in_ref
 
+    def is_pose_achieve_goal(self, orig_x, orig_y, orig_heading, distance_tolerance=1, heading_tolerance=15):
+        x_in_ref, y_in_ref, _, heading_in_ref = self.orig2ref(orig_x, orig_y, 0, orig_heading)
+        return True if abs(orig_x - self.goalx_in_ref) < distance_tolerance and \
+                       abs(orig_y - self.goaly_in_ref) < distance_tolerance and \
+                       abs(orig_heading - self.goalheading_in_ref) < heading_tolerance else False
+
+    def is_legit(self, orig_x, orig_y):
+        x_in_ref, y_in_ref, v_in_ref, heading_in_ref = self.orig2ref(orig_x, orig_y, 0, 0)
+        return True if 0 < x_in_ref < self.goalx_in_ref or abs(y_in_ref) < abs(self.goaly_in_ref) else False
+
     def generate_reference_path(self):
-        a0 = 0
-        a1 = 0
-        slope = self._deg2slope(self.goalheading_in_ref)
-        a3 = (slope - 2 * self.goaly_in_ref / self.goalx_in_ref) / self.goalx_in_ref ** 2
-        a2 = self.goaly_in_ref / self.goalx_in_ref ** 2 - a3 * self.goalx_in_ref
-        reference_path = [a0, a1, a2, a3]
+        reference_path = []
+        if self.index_mode == 'indexed_by_x':
+            a0 = 0
+            a1 = 0
+            slope = self._deg2slope(self.goalheading_in_ref)
+            a3 = (slope - 2 * self.goaly_in_ref / self.goalx_in_ref) / self.goalx_in_ref**2
+            a2 = self.goaly_in_ref / self.goalx_in_ref**2 - a3 * self.goalx_in_ref
+            reference_path = [a0, a1, a2, a3]
+        elif self.index_mode == 'indexed_by_y':
+            trans_x, trans_y, trans_d = rotate_coordination(self.goalx_in_ref, self.goaly_in_ref, self.goalheading_in_ref, -90)
+            a0 = 0
+            a1 = -math.tan((90 - 1) * math.pi / 180) if trans_x <= 0 else math.tan((90 - 1) * math.pi / 180)
+            a3 = (self._deg2slope(trans_d) - a1 - 2 * (trans_y - a1 * trans_x) / trans_x) / trans_x**2
+            a2 = (trans_y - a1 * trans_x - a3 * trans_x ** 3) / trans_x**2
+            reference_path = [a0, a1, a2, a3]
+        else:
+            assert()
         return reference_path
 
+    def generate_reference_velocity(self):
+        pass
+
+    def access_path_point_indexed_by_x(self, x):
+        assert(self.index_mode == 'indexed_by_x')
+        assert(0 < x < self.goalx_in_ref)
+        a0, a1, a2, a3 = self.reference_path
+        y = a0 + a1 * x + a2 * x**2 + a3 * x**3
+        return x, y
+
+    def access_path_point_indexed_by_y(self, y):
+        assert (self.index_mode == 'indexed_by_y')
+        assert (0 < y < self.goaly_in_ref)
+        a0, a1, a2, a3 = self.reference_path
+        x = a0 + a1 * (-y) + a2 * (-y) ** 2 + a3 * (-y) ** 3
+        return x, y
+
     def _deg2slope(self, deg):
-        return math.tanh(deg * 2 * math.pi / 180)
+        return math.tan(deg * math.pi / 180)
+    
+    def _slope2deg(self, slope):
+        return 180 * math.atan(slope) / math.pi
 
 
 class Grid_3D:
@@ -360,8 +449,6 @@ class Grid_3D:
 
     def get_encode_grid_and_flag(self):
         return self._encode_grid, self._encode_grid_flag
-
-
 
 # class GoalEnv(Env):
 #     """A goal-based environment. It functions just as any regular OpenAI Gym environment but it
@@ -461,8 +548,12 @@ class Grid_3D:
 #     @property
 #     def unwrapped(self):
 #         return self.env.unwrapped
-#
-#
+
+
+def judge_feasible(orig_x, orig_y):  # map dependant
+    return True if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150 else False
+
+
 class ObservationWrapper(gym.Wrapper):
     def __init__(self, env):
         super().__init__(env)
@@ -539,7 +630,7 @@ class ObservationWrapper(gym.Wrapper):
         # egocar_width = self.ego_info['Car_width']
 
         def recover_orig_position_fn(transformed_x, transformed_y):
-            d = ego_heading * 2 * math.pi / 180
+            d = ego_heading * math.pi / 180
             transformed_x, transformed_y, _ = rotate_coordination(transformed_x, transformed_y, 0, -d)
             orig_x, orig_y = shift_coordination(transformed_x, transformed_y, -ego_x, -ego_y)
             return orig_x, orig_y
@@ -585,16 +676,12 @@ class ObservationWrapper(gym.Wrapper):
             for index_y in range(number_y):
                 x_in_egocar_coordi, y_in_egocar_coordi = self.grid_3d.xyindex2centerposition(index_x, index_y)
                 orig_x, orig_y = recover_orig_position_fn(x_in_egocar_coordi, y_in_egocar_coordi)
-                if not self._judge_feasible(orig_x, orig_y):
+                if not judge_feasible(orig_x, orig_y):
                     self.grid_3d.set_xy_value_in_all_z(index_x, index_y, self._INFEASIBLE_VALUE)
                 elif not self.grid_3d.get_value(0, index_x, index_y):
                     self.grid_3d.set_xy_value_in_all_z(index_x, index_y, self._FEASIBLE_VALUE)
 
-    def _judge_feasible(self, orig_x, orig_y):
-        if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150:
-            return True
-        else:
-            return False
+
 #
 #
 # class RewardWrapper(Wrapper):
