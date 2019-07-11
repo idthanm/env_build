@@ -432,7 +432,7 @@ class Simulation(object):
         return self.agent.get_control_info()
 
     def get_self_car_info(self):
-        return self.agent.get_info()
+        return self.agent.get_info(), self.traffic.get_road_related_info_of_ego()
 
     def get_time(self):
         return self.traffic.sim_time

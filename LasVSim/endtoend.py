@@ -83,6 +83,7 @@ class EndtoendEnv(gym.Env):
         self.all_vehicles = None
         self.ego_dynamics = None
         self.ego_info = None
+        self.road_related_info = None
         self.simulation = None
         self.init_state = []
         self.goal_state = []
@@ -120,27 +121,45 @@ class EndtoendEnv(gym.Env):
         lasvsim.sim_step()
         self.detected_vehicles = lasvsim.get_detected_objects()  # coordination 2
         self.all_vehicles = lasvsim.get_all_objects()  # coordination 2
-        self.ego_dynamics, self.ego_info = lasvsim.get_self_car_info()
-        rew = self.compute_reward()
-        done = self.judge_done()
-        info = self.ego_info
-        obs = self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.goal_state
-        return obs, rew, done, info
+        (self.ego_dynamics, self.ego_info), self.road_related_info = lasvsim.get_self_car_info()
+        # ego_dynamics
+        # {'x': self.x,
+        #  'y': self.y,
+        #  'v': self.v,
+        #  'heading': self.heading,  # (deg)
+        #  'acceleration': self.acc,
+        #  'engine_speed': self.engine_speed,  # 发动机转速(rad/s), # CVT range: [78.5, 680.5]
+        #  'transmission_gear_ratio': self.drive_ratio}  # CVT range: [0.32, 2.25]
 
-    def reset(self):
-        """Resets the state of the environment and returns an initial observation.
+        # ego_info
+        # {'Steer_wheel_angle': self.car_info.Steer_SW,  # 方向盘转角(deg)
+        #  'Throttle': self.car_info.Throttle,  # 节气门开度 (0-100)
+        #  'Bk_Pressure': self.car_info.Bk_Pressure,  # 制动压力(Mpa)
+        #  'Transmission_gear_ratio': self.car_info.Rgear_Tr,  # 变速器ratio, CVT range: [0.32, 2.25]
+        #  'Engine_crankshaft_spin': self.car_info.AV_Eng,  # 发动机转速(rpm), CVT range: [750, 6500]
+        #  'Engine_output_torque': self.car_info.M_EngOut,  # 发动机输出转矩(N*m)
+        #  'A': self.car_info.A,  # 车辆加速度(m^2/s)
+        #  'beta_angle': self.car_info.Beta / pi * 180,  # 质心侧偏角(deg)
+        #  'Yaw_rate': self.car_info.AV_Y / pi * 180,  # 横摆角速度(deg/s)
+        #  'Lateral_speed': self.car_info.Vy,  # 横向速度(m/s)
+        #  'Longitudinal_speed': self.car_info.Vx,  # 纵向速度(m/s)
+        #  'Steer_L1': self.car_info.Steer_L1 / pi * 180,  # 自行车模型前轮转角(deg)
+        #  'StrAV_SW': self.car_info.StrAV_SW,  # 方向盘角速度(deg/s）
+        #  'Mass_of_fuel_consumed': self.car_info.Mfuel,  # 燃料消耗质量(g)
+        #  'Longitudinal_acc': self.car_info.Ax,  # 纵向加速度(m^2/s)
+        #  'Lateral_acc': self.car_info.Ay,  # 横向加速度(m^2/s)
+        #  'Fuel_rate': self.car_info.Qfuel, # 燃料消耗率(g/s)
+        #  'Car_length' = self.simulation_settings.car_length,
+        #  'Car_width' = self.simulation_settings.car_width,
+        #  'Corner_point' = self._cal_corner_point_coordination()
+        # }
 
-        Returns:
-            observation (object): the initial observation love my baby.
-        """
-        init_state, goal_state, init_gear = self.generate_init_and_goal_state()  # output two list, [x, y, v, heading]
-        # and initial transmission ratio
-        self.init_state = init_state  # a list
-        self.goal_state = goal_state
-        lasvsim.reset_simulation(overwrite_settings={'init_gear': init_gear, 'init_state': init_state},
-                                 init_traffic_path='./Scenario/Highway_endtoend/')
-        self.simulation = lasvsim.simulation
-        self.all_vehicles = lasvsim.get_all_objects()
+        # road_related_info
+        # {'dist2current_lane_center' = dis2center_line,
+        #  'egolane_index' = egolane_index
+        # }
+
+        # all_vehicles
         # dict(type=c_t, x=c_x, y=c_y, v=c_v, angle=c_a,
         #      rotation=c_r, winker=w, winker_time=wt,
         #      render=render_flag, length=length,
@@ -148,7 +167,8 @@ class EndtoendEnv(gym.Env):
         #      lane_index=other_veh_info[i][
         #          'current_lane'],
         #      max_decel=other_veh_info[i]['max_decel'])
-        self.detected_vehicles = lasvsim.get_detected_objects()
+
+        # detected_vehicles
         # {'id': id,
         #  'x': x,
         #  'y': y,
@@ -156,12 +176,47 @@ class EndtoendEnv(gym.Env):
         #  'angle': a,
         #  'width': w,
         #  'length': l}
-        self.ego_dynamics, self.ego_info = lasvsim.get_self_car_info()
-        obs = self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.goal_state
-        self.reference.reset_reference_path(init_state, goal_state)
+        done = self._judge_done()  # 0 1 2 3 4
+        rew = self.compute_reward(done)
+        info = self.ego_info.update(self.road_related_info)
+        obs = self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.road_related_info, self.goal_state
+        return obs, rew, done is not 4, info
+
+    def reset(self, **kwargs):
+        """Resets the state of the environment and returns an initial observation.
+
+        Returns:
+            observation (object): the initial observation love my baby.
+        """
+        def initspeed2initgear(init_v):
+            if 0 <= init_v < 10:
+                init_gear = 2.25
+            elif 10 <= init_v < 20:
+                init_gear = 1.20
+            else:
+                init_gear = 0.80
+            return init_gear
+
+        if kwargs is None:
+            init_state, goal_state = self.generate_init_and_goal_state()  # output two list, [x, y, v, heading]
+            # and initial transmission ratio
+            self.init_state = init_state  # a list
+            self.goal_state = goal_state
+        else:
+            self.init_state = kwargs['init_state']
+            self.goal_state = kwargs['goal_state']
+        self.init_gear = initspeed2initgear(self.init_state[2])
+        lasvsim.reset_simulation(overwrite_settings={'init_gear': self.init_gear, 'init_state': self.init_state},
+                                 init_traffic_path='./Scenario/Highway_endtoend/')
+        self.simulation = lasvsim.simulation
+        self.all_vehicles = lasvsim.get_all_objects()
+        self.detected_vehicles = lasvsim.get_detected_objects()
+        (self.ego_dynamics, self.ego_info), self.road_related_info = lasvsim.get_self_car_info()
+        obs = self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.road_related_info, self.goal_state
+        self.reference.reset_reference_path(self.init_state, self.goal_state)
         return obs
 
-    def generate_init_and_goal_state(self):
+    def generate_init_and_goal_state(self):  # task and map dependent, hard coded TODO
         init_x = self.np_random.uniform(-900.0, 500.0)
         init_lane = self.np_random.randint(4)
         lane2y_dict = {0: -150 - 3.75 * 7.0 / 2, 1: -150 - 3.75 * 5.0 / 2, 2: -150 - 3.75 * 3.0 / 2,
@@ -178,18 +233,7 @@ class EndtoendEnv(gym.Env):
         goal_v = self.np_random.uniform(0.0, 34.0)
         goal_heading = 0.0
         goal_state = [goal_x, goal_y, goal_v, goal_heading]
-
-        def initspeed2initgear(init_v):
-            if init_v >= 0 and init_v < 10:
-                init_gear = 2.25
-            elif init_v >= 10 and init_v < 20:
-                init_gear = 1.20
-            else:
-                init_gear = 0.80
-            return init_gear
-
-        init_gear = initspeed2initgear(init_v)
-        return init_state, goal_state, init_gear
+        return init_state, goal_state
 
     # def render(self, mode='human'):
     #     """Renders the environment.
@@ -261,11 +305,13 @@ class EndtoendEnv(gym.Env):
     #     # propagate exception
     #     return False
 
-    def compute_reward(self):
-        pass
-
-    def _generate_reference(self):
-        pass
+    def compute_reward(self, done):
+        if done == 4:
+            return -1
+        elif done == 3:
+            return 10
+        else:
+            return -10
 
     def _judge_done(self):
         '''
@@ -274,12 +320,27 @@ class EndtoendEnv(gym.Env):
          1: bad done: violate traffic constrain (collision)
          2: bad done: task failed
          3: good done: task succeed
+         4: not done
         '''
-        if self.simulation.stopped == True:
+        if self._is_road_violation():
             return 0
-        elif:
-        return 0
-        pass
+        elif self.simulation.stopped:
+            return 1
+        elif not self.reference.is_legit(self.ego_dynamics['x'], self.ego_dynamics['y']):
+            return 2
+        elif self.reference.is_pose_achieve_goal(self.ego_dynamics['x'], self.ego_dynamics['y'],
+                                                 self.ego_dynamics['heading']):
+            return 3
+        else:
+            return 4
+
+    def _is_road_violation(self):
+        corner_points = self.ego_info['Corner_point']
+        for corner_point in corner_points:
+            if not judge_feasible(corner_point[0], corner_point[1]):
+                return True
+        return False
+
 
 
 class Reference:
@@ -343,7 +404,8 @@ class Reference:
             a2 = self.goaly_in_ref / self.goalx_in_ref**2 - a3 * self.goalx_in_ref
             reference_path = [a0, a1, a2, a3]
         elif self.index_mode == 'indexed_by_y':
-            trans_x, trans_y, trans_d = rotate_coordination(self.goalx_in_ref, self.goaly_in_ref, self.goalheading_in_ref, -90)
+            trans_x, trans_y, trans_d = rotate_coordination(self.goalx_in_ref, self.goaly_in_ref,
+                                                            self.goalheading_in_ref, -90)
             a0 = 0
             a1 = -math.tan((90 - 1) * math.pi / 180) if trans_x <= 0 else math.tan((90 - 1) * math.pi / 180)
             a3 = (self._deg2slope(trans_d) - a1 - 2 * (trans_y - a1 * trans_x) / trans_x) / trans_x**2
@@ -550,7 +612,7 @@ class Grid_3D:
 #         return self.env.unwrapped
 
 
-def judge_feasible(orig_x, orig_y):  # map dependant
+def judge_feasible(orig_x, orig_y):  # map dependant TODO
     return True if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150 else False
 
 
@@ -561,24 +623,40 @@ class ObservationWrapper(gym.Wrapper):
         self.detected_vehicles = None
         self.ego_dynamics = None
         self.ego_info = None
+        self.road_related_info = None
         self.goal_state = None
         self._FEASIBLE_VALUE = 1
         self._INFEASIBLE_VALUE = 0
 
     def reset(self, **kwargs):
         observation = self.env.reset(**kwargs)
-        self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.goal_state = observation
+        self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.road_related_info, self.goal_state = observation
         return self.observation(encoder_type=0)
 
     def step(self, action):
         observation, reward, done, info = self.env.step(action)
-        self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.goal_state = observation
+        self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.road_related_info, self.goal_state = observation
         return self.observation(encoder_type=0), reward, done, info
 
     def observation(self, encoder_type=0):
         self.grid_3d.reset_grid()
-        if encoder_type == 0:
-            self._3d_grid_v2x_no_noise_obs_encoder()
+        if encoder_type == 0:  # type 0: 3d grid + vector
+            return self._3d_grid_v2x_no_noise_obs_encoder(), self._vector_encoder
+
+    def _vector_encoder(self):  # encode road structure and task related info, it is hard coded and map and task dependent TODO
+        dist2left_road_border = -150 - self.ego_dynamics['y']
+        dist2right_road_border = self.ego_dynamics['y'] - (-150 - 3.75 * 4)
+        left_lane_number = 3 - self.road_related_info['egolane_index']
+        right_lane_number = self.road_related_info['egolane_index']
+        dist2current_lane_center = self.road_related_info['dist2current_lane_center']
+        vector_dict = dict(dist2left_road_border=dist2left_road_border,
+                           dist2right_road_border=dist2right_road_border,
+                           left_lane_number=left_lane_number,
+                           right_lane_number=right_lane_number,
+                           dist2current_lane_center=dist2current_lane_center
+                           )
+        return vector_dict.values()
+
 
     def _3d_grid_v2x_no_noise_obs_encoder(self):
         all_vehicles = self._v2x_unify_format_for_3dgrid()

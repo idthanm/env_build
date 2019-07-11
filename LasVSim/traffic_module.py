@@ -614,6 +614,15 @@ class Traffic(object):
     def get_dis2center_line(self):  # 此处与gui不同 左正右负
         return traci.vehicle.getLateralLanePosition('ego')
 
+    def get_egolane_index(self):  # 此处与gui不同 左正右负
+        return traci.vehicle.getLaneIndex('ego')
+
+    def get_road_related_info_of_ego(self):
+        dis2center_line = self.get_dis2center_line()
+        egolane_index = self.get_egolane_index()
+        return dict(dist2current_lane_center=dis2center_line,
+                    egolane_index=egolane_index)
+
     def __generate_random_traffic(self):  # 该部分可直接与package相替换
         """生成仿真初始时刻的随机交通流
 

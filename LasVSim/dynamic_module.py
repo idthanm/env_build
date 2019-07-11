@@ -104,7 +104,7 @@ class VehicleDynamicModel(object):  # 可以直接与gui版本替换
                 'heading': self.heading,  # (deg)
                 'acceleration': self.acc,
                 'engine_speed': self.engine_speed,  # 发动机转速(rad/s), # CVT range: [78.5, 680.5]
-                'Transmission_gear_ratio': self.drive_ratio}  # CVT range: [0.32, 2.25]
+                'transmission_gear_ratio': self.drive_ratio}  # CVT range: [0.32, 2.25]
 
     def set_control_input(self, eng_torque, brake_pressure, steer_wheel):
         self.engine_torque = eng_torque

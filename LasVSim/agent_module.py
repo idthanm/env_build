@@ -402,6 +402,8 @@ class Agent(object):
         front_right_x, front_right_y, _ = rotate_coordination(orig_front_right[0], orig_front_right[1], 0, -heading)
         rear_left_x, rear_left_y, _ = rotate_coordination(orig_rear_left[0], orig_rear_left[1], 0, -heading)
         rear_right_x, rear_right_y, _ = rotate_coordination(orig_rear_right[0], orig_rear_right[1], 0, -heading)
+        return [(front_left_x + x, front_left_y + y), (front_right_x + x, front_right_y + y),
+                (rear_left_x + x, rear_left_y + y), (rear_right_x + x, rear_right_y + y)]
         
 
     def get_control_info(self):
@@ -416,7 +418,8 @@ class Agent(object):
         """
         car_info = self.dynamic.get_info()
         car_info.update(dict(Car_length=self.simulation_settings.car_length,
-                             Car_width=self.simulation_settings.car_width))
+                             Car_width=self.simulation_settings.car_width,
+                             Corner_point=self._cal_corner_point_coordination()))
         return self.dynamic.get_pos(), car_info
 
     # def plan_control_input(self):
