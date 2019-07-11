@@ -72,6 +72,14 @@ class EndtoendEnv(gym.Env):
     def __init__(self, setting_path):
         self.action_space = None
         self.observation_space = None
+        self.detected_vehicles = None
+        self.all_vehicles = None
+        self.ego_dynamics = None
+        self.ego_info = None
+        self.simulation = None
+        self.init_state = []
+        self.goal_state = []
+
         self.seed()
         lasvsim.create_simulation(setting_path)
         self.reset()
@@ -105,10 +113,10 @@ class EndtoendEnv(gym.Env):
         self.detected_vehicles = lasvsim.get_detected_objects()  # coordination 2
         self.all_vehicles = lasvsim.get_all_objects()  # coordination 2
         self.ego_dynamics, self.ego_info = lasvsim.get_self_car_info()
-        obs = self.obs_encoder(0)
-        rew = self.rew_function()
+        rew = self.compute_reward()
         done = self.judge_done()
         info = self.ego_info
+        obs = self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.goal_state
         return obs, rew, done, info
 
     def reset(self):
@@ -141,7 +149,8 @@ class EndtoendEnv(gym.Env):
         #  'width': w,
         #  'length': l}
         self.ego_dynamics, self.ego_info = lasvsim.get_self_car_info()
-        return self.obs_encoder(0)
+        obs = self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.goal_state
+        return obs
 
     def generate_init_and_goal_state(self):
         init_x = self.np_random.uniform(-900.0, 500.0)
@@ -243,131 +252,40 @@ class EndtoendEnv(gym.Env):
     #     # propagate exception
     #     return False
 
-    def obs_encoder(self, type):
-        return self.detected_vehicles, self.all_vehicles, self.ego_dynamics, self.ego_info
-
-    def _3d_grid_v2x_no_noise_obs_encoder(self):
-        all_vehicles = self._v2x_unify_format_for_3dgrid()
-        info_in_ego_coordination, recover_orig_position_fn = self._cal_info_in_transform_coordination(all_vehicles)
-        name_list = ['position_x', 'position_y', 'velocity', 'heading', 'length', 'width']
-        self.grid_3d = Grid_3D(back_dist=40, forward_dist=80, half_width=40, number_x=120, number_y=160, name_list=name_list)
-        vehicles_in_grid = [veh for veh in info_in_ego_coordination if self.grid_3d.is_in_2d_grid(veh['x'], veh['y'])]
-        self._add_vehicle_info_in_grid(vehicles_in_grid)
-        self._add_feasible_area_info_in_grid(recover_orig_position_fn)
-
-
-
-
-
-
-
+    def compute_reward(self):
         pass
 
-    def _3d_grid_sensors_with_noise_obs_encoder(self):
-        pass
-
-    def _highway_v2x_no_noise_obs_encoder(self):
-        pass
-
-    def _highway_sensors_with_noise_obs_encoder(self):
-        pass
-
-    def _v2x_unify_format_for_3dgrid(self):  # unify output format
-        results = []
-        # dict(type=c_t, x=c_x, y=c_y, v=c_v, angle=c_a,
-        #      rotation=c_r, winker=w, winker_time=wt,
-        #      render=render_flag, length=length,
-        #      width=width,
-        #      lane_index=other_veh_info[i][
-        #          'current_lane'],
-        #      max_decel=other_veh_info[i]['max_decel'])
-        for veh in range(len(self.all_vehicles)):
-            results.append({'x': self.all_vehicles[veh]['x'],
-                            'y': self.all_vehicles[veh]['y'],
-                            'v': self.all_vehicles[veh]['v'],
-                            'heading': self.all_vehicles[veh]['angle'],
-                            'width': self.all_vehicles[veh]['width'],
-                            'length': self.all_vehicles[veh]['length']})
-        return results
-
-    def _sensors_pre_filter_for_3dgrid(self):
-        return self.detected_vehicles
-
-    def _cal_info_in_transform_coordination(self, filtered_objects):
-        results = []
-        ego_x = self.ego_dynamics['x']
-        ego_y = self.ego_dynamics['y']
-        ego_v = self.ego_dynamics['v']
-        ego_heading = self.ego_dynamics['heading']
-        # egocar_length = self.ego_info['Car_length']
-        # egocar_width = self.ego_info['Car_width']
-
-        def recover_orig_position_fn(transformed_x, transformed_y):
-            d = ego_heading * 2 * math.pi / 180
-            transformed_x, transformed_y, _ = rotate_coordination(transformed_x, transformed_y, 0, -d)
-            orig_x, orig_y = shift_coordination(transformed_x, transformed_y, -ego_x, -ego_y)
-            return orig_x, orig_y
-
-        for obj in filtered_objects:
-            orig_x = obj['x']
-            orig_y = obj['y']
-            orig_v = obj['v']
-            orig_heading = obj['heading']
-            width = obj['width']
-            length = obj['length']
-            shifted_x, shifted_y = shift_coordination(orig_x, orig_y, ego_x, ego_y)
-            trans_x, trans_y, trans_heading = rotate_coordination(shifted_x, shifted_y, orig_heading, ego_heading)
-            trans_v = orig_v
-            results.append({'trans_x': trans_x,
-                            'trans_y': trans_y,
-                            'trans_v': trans_v,
-                            'trans_heading': trans_heading,
-                            'width': width,
-                            'length': length})
-        return results, recover_orig_position_fn
-
-    def _add_vehicle_info_in_grid(self, vehicles_in_grid):
-        for veh in vehicles_in_grid:
-            x = veh['x']
-            y = veh['y']
-            v = veh['v']
-            heading = veh['heading']
-            length = veh['length']
-            width = veh['width']
-            index_x, index_y = self.grid_3d.position2xyindex(x, y)
-            self.grid_3d.set_value(index_z=0, index_x=index_x, index_y=index_y, grid_value=x)
-            self.grid_3d.set_value(index_z=1, index_x=index_x, index_y=index_y, grid_value=y)
-            self.grid_3d.set_value(index_z=2, index_x=index_x, index_y=index_y, grid_value=v)
-            self.grid_3d.set_value(index_z=3, index_x=index_x, index_y=index_y, grid_value=heading)
-            self.grid_3d.set_value(index_z=4, index_x=index_x, index_y=index_y, grid_value=length)
-            self.grid_3d.set_value(index_z=5, index_x=index_x, index_y=index_y, grid_value=width)
-
-    def _add_feasible_area_info_in_grid(self, recover_orig_position_fn):
-        number_x = self.grid_3d.number_x
-        number_y = self.grid_3d.number_y
-        for index_x in range(number_x):
-            for index_y in range(number_y):
-                x_in_egocar_coordi, y_in_egocar_coordi = self.grid_3d.xyindex2centerposition(index_x, index_y)
-                orig_x, orig_y = recover_orig_position_fn(x_in_egocar_coordi, y_in_egocar_coordi)
-                if not self._judge_feasible(orig_x, orig_y):
-                    self.grid_3d.set_xy_value_in_all_z(index_x, index_y, )
-
-    def _judge_feasible(self, orig_x, orig_y):
-        if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150:
-            return True
-        else:
-            return False
-
-
-
-
-    def rew_function(self):
-        return 0
+    def _generate_reference(self):
         pass
 
     def judge_done(self):
         return 0
         pass
+
+class Reference:
+    def __init__(self, orig_init_state, orig_goal_state):
+        self.orig_init_x, self.orig_init_y, self.orig_init_v, self.orig_init_heading =  orig_init_state
+        self.orig_goal_x, self.orig_goal_y, self.orig_goal_v, self.orig_goal_heading = orig_goal_state  # heading in deg
+        self.goalx_in_ref, self.goaly_in_ref, self.goalv_in_ref, self.goalheading_in_ref =\
+            self.orig2ref(self.orig_init_x, self.orig_init_y, self.orig_init_v, self.orig_init_heading)
+
+    def orig2ref(self, orig_x, orig_y, orig_v, orig_heading):
+        orig_x, orig_y = shift_coordination(orig_x, orig_y, self.orig_init_x, self.orig_init_y)
+        x_in_ref, y_in_ref, heading_in_ref = rotate_coordination(orig_x, orig_y, orig_heading, self.orig_init_heading)
+        v_in_ref = orig_v
+        return x_in_ref, y_in_ref, v_in_ref, heading_in_ref
+
+    def generate_reference_path(self):
+        a0 = 0
+        a1 = 0
+        slope = self._deg2slope(self.goalheading_in_ref)
+        a3 = (slope - 2 * self.goaly_in_ref / self.goalx_in_ref) / self.goalx_in_ref ** 2
+        a2 = self.goaly_in_ref / self.goalx_in_ref ** 2 - a3 * self.goalx_in_ref
+        reference_path = [a0, a1, a2, a3]
+        return reference_path
+
+    def _deg2slope(self, deg):
+        return math.tanh(deg * 2 * math.pi / 180)
 
 
 class Grid_3D:
@@ -445,7 +363,7 @@ class Grid_3D:
 
 
 
-    # class GoalEnv(Env):
+# class GoalEnv(Env):
 #     """A goal-based environment. It functions just as any regular OpenAI Gym environment but it
 #     imposes a required structure on the observation_space. More concretely, the observation
 #     space is required to contain at least three elements, namely `observation`, `desired_goal`, and
@@ -545,17 +463,138 @@ class Grid_3D:
 #         return self.env.unwrapped
 #
 #
-# class ObservationWrapper(Wrapper):
-#     def reset(self, **kwargs):
-#         observation = self.env.reset(**kwargs)
-#         return self.observation(observation)
-#
-#     def step(self, action):
-#         observation, reward, done, info = self.env.step(action)
-#         return self.observation(observation), reward, done, info
-#
-#     def observation(self, observation):
-#         raise NotImplementedError
+class ObservationWrapper(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.all_vehicles = None
+        self.detected_vehicles = None
+        self.ego_dynamics = None
+        self.ego_info = None
+        self.goal_state = None
+        self._FEASIBLE_VALUE = 1
+        self._INFEASIBLE_VALUE = 0
+
+    def reset(self, **kwargs):
+        observation = self.env.reset(**kwargs)
+        self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.goal_state = observation
+        return self.observation(encoder_type=0)
+
+    def step(self, action):
+        observation, reward, done, info = self.env.step(action)
+        self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.goal_state = observation
+        return self.observation(encoder_type=0), reward, done, info
+
+    def observation(self, encoder_type=0):
+        self.grid_3d.reset_grid()
+        if encoder_type == 0:
+            self._3d_grid_v2x_no_noise_obs_encoder()
+
+    def _3d_grid_v2x_no_noise_obs_encoder(self):
+        all_vehicles = self._v2x_unify_format_for_3dgrid()
+        info_in_ego_coordination, recover_orig_position_fn = self._cal_info_in_transform_coordination(all_vehicles)
+        name_list = ['position_x', 'position_y', 'velocity', 'heading', 'length', 'width']
+        self.grid_3d = Grid_3D(back_dist=40, forward_dist=80, half_width=40, number_x=120, number_y=160, name_list=name_list)
+        vehicles_in_grid = [veh for veh in info_in_ego_coordination if self.grid_3d.is_in_2d_grid(veh['x'], veh['y'])]
+        self._add_vehicle_info_in_grid(vehicles_in_grid)
+        self._add_feasible_area_info_in_grid(recover_orig_position_fn)
+        return self.grid_3d.get_encode_grid_and_flag()[0]
+
+    def _3d_grid_sensors_with_noise_obs_encoder(self):
+        pass
+
+    def _highway_v2x_no_noise_obs_encoder(self):
+        pass
+
+    def _highway_sensors_with_noise_obs_encoder(self):
+        pass
+
+    def _v2x_unify_format_for_3dgrid(self):  # unify output format
+        results = []
+        # dict(type=c_t, x=c_x, y=c_y, v=c_v, angle=c_a,
+        #      rotation=c_r, winker=w, winker_time=wt,
+        #      render=render_flag, length=length,
+        #      width=width,
+        #      lane_index=other_veh_info[i][
+        #          'current_lane'],
+        #      max_decel=other_veh_info[i]['max_decel'])
+        for veh in range(len(self.all_vehicles)):
+            results.append({'x': self.all_vehicles[veh]['x'],
+                            'y': self.all_vehicles[veh]['y'],
+                            'v': self.all_vehicles[veh]['v'],
+                            'heading': self.all_vehicles[veh]['angle'],
+                            'width': self.all_vehicles[veh]['width'],
+                            'length': self.all_vehicles[veh]['length']})
+        return results
+
+    def _sensors_pre_filter_for_3dgrid(self):
+        pass
+
+    def _cal_info_in_transform_coordination(self, filtered_objects):
+        results = []
+        ego_x = self.ego_dynamics['x']
+        ego_y = self.ego_dynamics['y']
+        ego_v = self.ego_dynamics['v']
+        ego_heading = self.ego_dynamics['heading']
+        # egocar_length = self.ego_info['Car_length']
+        # egocar_width = self.ego_info['Car_width']
+
+        def recover_orig_position_fn(transformed_x, transformed_y):
+            d = ego_heading * 2 * math.pi / 180
+            transformed_x, transformed_y, _ = rotate_coordination(transformed_x, transformed_y, 0, -d)
+            orig_x, orig_y = shift_coordination(transformed_x, transformed_y, -ego_x, -ego_y)
+            return orig_x, orig_y
+
+        for obj in filtered_objects:
+            orig_x = obj['x']
+            orig_y = obj['y']
+            orig_v = obj['v']
+            orig_heading = obj['heading']
+            width = obj['width']
+            length = obj['length']
+            shifted_x, shifted_y = shift_coordination(orig_x, orig_y, ego_x, ego_y)
+            trans_x, trans_y, trans_heading = rotate_coordination(shifted_x, shifted_y, orig_heading, ego_heading)
+            trans_v = orig_v
+            results.append({'trans_x': trans_x,
+                            'trans_y': trans_y,
+                            'trans_v': trans_v,
+                            'trans_heading': trans_heading,
+                            'width': width,
+                            'length': length})
+        return results, recover_orig_position_fn
+
+    def _add_vehicle_info_in_grid(self, vehicles_in_grid):
+        for veh in vehicles_in_grid:
+            x = veh['x']
+            y = veh['y']
+            v = veh['v']
+            heading = veh['heading']
+            length = veh['length']
+            width = veh['width']
+            index_x, index_y = self.grid_3d.position2xyindex(x, y)
+            self.grid_3d.set_value(index_z=0, index_x=index_x, index_y=index_y, grid_value=x)
+            self.grid_3d.set_value(index_z=1, index_x=index_x, index_y=index_y, grid_value=y)
+            self.grid_3d.set_value(index_z=2, index_x=index_x, index_y=index_y, grid_value=v)
+            self.grid_3d.set_value(index_z=3, index_x=index_x, index_y=index_y, grid_value=heading)
+            self.grid_3d.set_value(index_z=4, index_x=index_x, index_y=index_y, grid_value=length)
+            self.grid_3d.set_value(index_z=5, index_x=index_x, index_y=index_y, grid_value=width)
+
+    def _add_feasible_area_info_in_grid(self, recover_orig_position_fn):
+        number_x = self.grid_3d.number_x
+        number_y = self.grid_3d.number_y
+        for index_x in range(number_x):
+            for index_y in range(number_y):
+                x_in_egocar_coordi, y_in_egocar_coordi = self.grid_3d.xyindex2centerposition(index_x, index_y)
+                orig_x, orig_y = recover_orig_position_fn(x_in_egocar_coordi, y_in_egocar_coordi)
+                if not self._judge_feasible(orig_x, orig_y):
+                    self.grid_3d.set_xy_value_in_all_z(index_x, index_y, self._INFEASIBLE_VALUE)
+                elif not self.grid_3d.get_value(0, index_x, index_y):
+                    self.grid_3d.set_xy_value_in_all_z(index_x, index_y, self._FEASIBLE_VALUE)
+
+    def _judge_feasible(self, orig_x, orig_y):
+        if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150:
+            return True
+        else:
+            return False
 #
 #
 # class RewardWrapper(Wrapper):
