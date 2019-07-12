@@ -238,6 +238,10 @@ class Simulation(object):
         self.traffic_data = TrafficData()  # 初始交通流数据对象
         self.settings = Settings(file_path=default_setting_path)  # 仿真设置对象
         self.external_control_flag = False  # 外部控制输入标识，若外部输入会覆盖内部控制器
+        self.traffic = None
+        self.agent = None
+        self.ego_history = None
+        self.data = None
 
         # self.reset(settings=self.settings, overwrite_settings=overwrite_settings, init_traffic_path=init_traffic_path)
         # self.sim_step()
@@ -271,10 +275,10 @@ class Simulation(object):
         """Load traffic module."""
         step_length = self.settings.step_length * self.settings.traffic_frequency
         self.traffic = Traffic(path=settings.map,
-                             traffic_type=settings.traffic_type,
-                             traffic_density=settings.traffic_lib,
-                             step_length=step_length,
-                             init_traffic=self.traffic_data.load_traffic(init_traffic_path))
+                               traffic_type=settings.traffic_type,
+                               traffic_density=settings.traffic_lib,
+                               step_length=step_length,
+                               init_traffic=self.traffic_data.load_traffic(init_traffic_path))
         self.traffic.init(settings.start_point, settings.car_length)
         self.other_vehicles = self.traffic.get_vehicles()
         # self.light_status = self.traffic.get_light_status()

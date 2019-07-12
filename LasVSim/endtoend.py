@@ -3,44 +3,11 @@ from LasVSim import lasvsim
 from gym.utils import seeding
 import math
 import numpy as np
+from LasVSim.endtoend_env_utils import shift_coordination, rotate_coordination
 
 
 # env_closer = closer.Closer()
-def shift_coordination(orig_x, orig_y, coordi_shift_x, coordi_shift_y):
-    '''
 
-    :param orig_x: original x
-    :param orig_y: original y
-    :param coordi_shift_x: coordi_shift_x along x axis
-    :param coordi_shift_y: coordi_shift_y along y axis
-    :return:
-    '''
-    shifted_x = orig_x - coordi_shift_x
-    shifted_y = orig_y - coordi_shift_y
-    return shifted_x, shifted_y
-
-
-def rotate_coordination(orig_x, orig_y, orig_d, coordi_rotate_d):
-    """
-    :param orig_x: original x
-    :param orig_y: original y
-    :param orig_d: original degree
-    :param coordi_rotate_d: coordination rotation d, positive if anti-clockwise, unit: deg
-    :return:
-    transformed_x, transformed_y, transformed_d(range:[-180 deg, 180 deg])
-    """
-
-    coordi_rotate_d_in_rad = coordi_rotate_d * math.pi / 180
-    transformed_x = orig_x * math.cos(coordi_rotate_d_in_rad) + orig_y * math.sin(coordi_rotate_d_in_rad)
-    transformed_y = -orig_x * math.sin(coordi_rotate_d_in_rad) + orig_y * math.cos(coordi_rotate_d_in_rad)
-    transformed_d = orig_d - coordi_rotate_d
-    if transformed_d > 180:
-        transformed_d = transformed_d - 360
-    elif transformed_d < -180:
-        transformed_d = transformed_d + 360
-    else:
-        transformed_d = transformed_d
-    return transformed_x, transformed_y, transformed_d
 
 
 class EndtoendEnv(gym.Env):
@@ -77,6 +44,7 @@ class EndtoendEnv(gym.Env):
     # Set these in ALL subclasses
 
     def __init__(self, setting_path):
+        self.setting_path = setting_path
         self.action_space = None
         self.observation_space = None
         self.detected_vehicles = None
@@ -90,7 +58,7 @@ class EndtoendEnv(gym.Env):
         self.reference = Reference()
 
         self.seed()
-        lasvsim.create_simulation(setting_path)
+        lasvsim.create_simulation(setting_path + 'simulation_setting_file.xml')
         self.reset()
 
     def seed(self, seed=None):
@@ -179,7 +147,8 @@ class EndtoendEnv(gym.Env):
         done = self._judge_done()  # 0 1 2 3 4
         rew = self.compute_reward(done)
         info = self.ego_info.update(self.road_related_info)
-        obs = self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.road_related_info, self.goal_state
+        obs = self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info,\
+              self.road_related_info, self.goal_state
         return obs, rew, done is not 4, info
 
     def reset(self, **kwargs):
@@ -197,9 +166,8 @@ class EndtoendEnv(gym.Env):
                 init_gear = 0.80
             return init_gear
 
-        if kwargs is None:
+        if not kwargs:
             init_state, goal_state = self.generate_init_and_goal_state()  # output two list, [x, y, v, heading]
-            # and initial transmission ratio
             self.init_state = init_state  # a list
             self.goal_state = goal_state
         else:
@@ -207,7 +175,7 @@ class EndtoendEnv(gym.Env):
             self.goal_state = kwargs['goal_state']
         self.init_gear = initspeed2initgear(self.init_state[2])
         lasvsim.reset_simulation(overwrite_settings={'init_gear': self.init_gear, 'init_state': self.init_state},
-                                 init_traffic_path='./Scenario/Highway_endtoend/')
+                                 init_traffic_path=self.setting_path)
         self.simulation = lasvsim.simulation
         self.all_vehicles = lasvsim.get_all_objects()
         self.detected_vehicles = lasvsim.get_detected_objects()
@@ -306,9 +274,9 @@ class EndtoendEnv(gym.Env):
     #     return False
 
     def compute_reward(self, done):
-        if done == 4:
+        if done == 5:
             return -1
-        elif done == 3:
+        elif done == 4:
             return 10
         else:
             return -10
@@ -317,33 +285,43 @@ class EndtoendEnv(gym.Env):
         '''
         :return:
          0: bad done: violate road constrain
-         1: bad done: violate traffic constrain (collision)
-         2: bad done: task failed
-         3: good done: task succeed
-         4: not done
+         1: bad done: ego lose control
+         2: bad done: violate traffic constrain (collision)
+         3: bad done: task failed
+         4: good done: task succeed
+         5: not done
         '''
-        if self._is_road_violation():
+        if self._is_road_violation_or_lose_control():
             return 0
-        elif self.simulation.stopped:
+        elif self._is_lose_control():
             return 1
-        elif not self.reference.is_legit(self.ego_dynamics['x'], self.ego_dynamics['y']):
+        elif self.simulation.stopped:
             return 2
+        elif not self.reference.is_legit(self.ego_dynamics['x'], self.ego_dynamics['y']):
+            return 3
         elif self.reference.is_pose_achieve_goal(self.ego_dynamics['x'], self.ego_dynamics['y'],
                                                  self.ego_dynamics['heading']):
-            return 3
-        else:
             return 4
+        else:
+            return 5
 
-    def _is_road_violation(self):
+    def _is_road_violation_or_lose_control(self):
         corner_points = self.ego_info['Corner_point']
         for corner_point in corner_points:
             if not judge_feasible(corner_point[0], corner_point[1]):
-                return True
+                return True  # violate road constrain
         return False
 
+    def _is_lose_control(self):
+        yaw_rate = self.ego_info['Yaw_rate']
+        lateral_acc = self.ego_info['Lateral_acc']
+        if yaw_rate > 18 or lateral_acc > 1.2:  # 正常120km/h测试最大为13deg/s和0.7m/s^2
+            return True  # lose control
+        else:
+            return False
 
 
-class Reference:
+class Reference(object):
     def __init__(self):
         self.orig_init_x = None
         self.orig_init_y = None
@@ -353,19 +331,21 @@ class Reference:
         self.orig_goal_y = None
         self.orig_goal_v = None
         self.orig_goal_heading = None  # heading in deg
+        self.goal_in_ref = None
         self.goalx_in_ref = None
         self.goaly_in_ref = None
         self.goalv_in_ref = None
         self.goalheading_in_ref = None
         self.index_mode = None
         self.reference_path = None
+        self.reference_velocity = None
         # self.reset_reference_path(orig_init_state, orig_goal_state)
 
     def reset_reference_path(self, orig_init_state, orig_goal_state):
         self.orig_init_x, self.orig_init_y, self.orig_init_v, self.orig_init_heading = orig_init_state
         self.orig_goal_x, self.orig_goal_y, self.orig_goal_v, self.orig_goal_heading = orig_goal_state  # heading in deg
-        self.goalx_in_ref, self.goaly_in_ref, self.goalv_in_ref, self.goalheading_in_ref = \
-            self.orig2ref(self.orig_init_x, self.orig_init_y, self.orig_init_v, self.orig_init_heading)
+        self.goal_in_ref = self.orig2ref(self.orig_goal_x, self.orig_goal_y, self.orig_goal_v, self.orig_goal_heading)
+        self.goalx_in_ref, self.goaly_in_ref, self.goalv_in_ref, self.goalheading_in_ref = self.goal_in_ref
         assert (self.goalx_in_ref > 0 and abs(self.goalheading_in_ref) < 180)
         if self.goaly_in_ref >= 0:
             assert (-90 < self.goalheading_in_ref < 180)
@@ -377,6 +357,7 @@ class Reference:
             if -90 - 0.1 < self.goalheading_in_ref < -90 + 0.1 else self.goalheading_in_ref
         self.index_mode = 'indexed_by_x' if abs(self.goalheading_in_ref) < 90 else 'indexed_by_y'
         self.reference_path = self.generate_reference_path()
+        self.reference_velocity = self.generate_reference_velocity()
 
     def orig2ref(self, orig_x, orig_y, orig_v, orig_heading):
         orig_x, orig_y = shift_coordination(orig_x, orig_y, self.orig_init_x, self.orig_init_y)
@@ -394,8 +375,22 @@ class Reference:
         x_in_ref, y_in_ref, v_in_ref, heading_in_ref = self.orig2ref(orig_x, orig_y, 0, 0)
         return True if 0 < x_in_ref < self.goalx_in_ref or abs(y_in_ref) < abs(self.goaly_in_ref) else False
 
-    def generate_reference_path(self):
-        reference_path = []
+    def cal_bias(self, orig_x, orig_y, orig_v, orig_heading):
+        assert self.index_mode == 'indexed_by_x' or self.index_mode == 'indexed_by_y'
+        x_in_ref, y_in_ref, v_in_ref, heading_in_ref = self.orig2ref(orig_x, orig_y, orig_v, orig_heading)
+        if self.index_mode == 'indexed_by_x':
+            refer_point = self.access_path_point_indexed_by_x(x_in_ref) if x_in_ref < self.goalx_in_ref else self.goal_in_ref
+        else:
+            refer_point = self.access_path_point_indexed_by_y(y_in_ref) if y_in_ref < self.goaly_in_ref else self.goal_in_ref
+        ref_x, ref_y, _, ref_heading = refer_point  # for now, we use goalv_in_ref instead ref_v
+        position_bias = math.sqrt((ref_x - x_in_ref)**2 + (ref_y - y_in_ref)**2)
+        velocity_bias = abs(self.goalv_in_ref - v_in_ref)
+        heading_bias = abs(ref_heading - heading_in_ref)
+        return position_bias, velocity_bias, heading_bias
+
+    def generate_reference_path(self):  # for now, path is three order poly
+        reference_path = []  # list of coefficient
+        assert self.index_mode == 'indexed_by_x' or self.index_mode == 'indexed_by_y'
         if self.index_mode == 'indexed_by_x':
             a0 = 0
             a1 = 0
@@ -403,7 +398,7 @@ class Reference:
             a3 = (slope - 2 * self.goaly_in_ref / self.goalx_in_ref) / self.goalx_in_ref**2
             a2 = self.goaly_in_ref / self.goalx_in_ref**2 - a3 * self.goalx_in_ref
             reference_path = [a0, a1, a2, a3]
-        elif self.index_mode == 'indexed_by_y':
+        else:
             trans_x, trans_y, trans_d = rotate_coordination(self.goalx_in_ref, self.goaly_in_ref,
                                                             self.goalheading_in_ref, -90)
             a0 = 0
@@ -411,26 +406,41 @@ class Reference:
             a3 = (self._deg2slope(trans_d) - a1 - 2 * (trans_y - a1 * trans_x) / trans_x) / trans_x**2
             a2 = (trans_y - a1 * trans_x - a3 * trans_x ** 3) / trans_x**2
             reference_path = [a0, a1, a2, a3]
-        else:
-            assert()
         return reference_path
 
-    def generate_reference_velocity(self):
-        pass
+    def generate_reference_velocity(self):  # for now, path is linear function
+        reference_velocity = []  # list of weight (no bias)
+        assert self.index_mode == 'indexed_by_x' or self.index_mode == 'indexed_by_y'
+        if self.index_mode == 'indexed_by_x':
+            reference_velocity.append(self.goalv_in_ref / self.goalx_in_ref)
+        else:
+            reference_velocity.append(self.goalv_in_ref / self.goalx_in_ref)
+        return reference_velocity
 
-    def access_path_point_indexed_by_x(self, x):
+    def access_path_point_indexed_by_x(self, x_in_ref):
         assert(self.index_mode == 'indexed_by_x')
-        assert(0 < x < self.goalx_in_ref)
+        assert(0 < x_in_ref < self.goalx_in_ref)
         a0, a1, a2, a3 = self.reference_path
-        y = a0 + a1 * x + a2 * x**2 + a3 * x**3
-        return x, y
+        w = self.reference_velocity[0]
+        y_in_ref = a0 + a1 * x_in_ref + a2 * x_in_ref**2 + a3 * x_in_ref**3
+        v = w * x_in_ref
+        slope = a1 + 2 * a2 * x_in_ref + 3 * a3 * x_in_ref**2
+        heading_in_ref = self._slope2deg(slope)
+        return x_in_ref, y_in_ref, v, heading_in_ref
 
-    def access_path_point_indexed_by_y(self, y):
+    def access_path_point_indexed_by_y(self, y_in_ref):
         assert (self.index_mode == 'indexed_by_y')
-        assert (0 < y < self.goaly_in_ref)
         a0, a1, a2, a3 = self.reference_path
-        x = a0 + a1 * (-y) + a2 * (-y) ** 2 + a3 * (-y) ** 3
-        return x, y
+        w = self.reference_velocity[0]
+        x_in_ref = a0 + a1 * (-y_in_ref) + a2 * (-y_in_ref) ** 2 + a3 * (-y_in_ref) ** 3
+        v = w * abs(y_in_ref)
+        slope = a1 + 2 * a2 * (-y_in_ref) + 3 * a3 * (-y_in_ref) ** 2
+        temp_heading = self._slope2deg(slope)
+        if self.goaly_in_ref > 0:
+            heading_in_ref = temp_heading + 90
+        else:
+            heading_in_ref = temp_heading - 90
+        return x_in_ref, y_in_ref, v, heading_in_ref
 
     def _deg2slope(self, deg):
         return math.tan(deg * math.pi / 180)
@@ -439,12 +449,12 @@ class Reference:
         return 180 * math.atan(slope) / math.pi
 
 
-class Grid_3D:
+class Grid_3D(object):
     '''
     Consider coordination of ego car
     '''
 
-    def __init__(self, back_dist, forward_dist, half_width, number_x, number_y, name_list):
+    def __init__(self, back_dist, forward_dist, half_width, number_x, number_y, axis_z_type):
         self.back_dist = back_dist
         self.forward_dist = forward_dist
         self.half_width = half_width
@@ -452,22 +462,33 @@ class Grid_3D:
         self.width = 2 * self.half_width
         self.number_x = number_x
         self.number_y = number_y
-        self.number_z = len(name_list)
-        self.increment_x = self.length / self.number_x
+        self.axis_z_name_dict = self.get_axis_z_name_dict(axis_z_type)
+        self.number_z = len(self.axis_z_name_dict)
+        self.increment_x = self.length / self.number_x  # increment in x axis of car coordination
         self.increment_y = self.width / self.number_y
-        self.name_list = name_list
         self._encode_grid = np.zeros((self.number_z, self.number_x, self.number_y))
         self._encode_grid_flag = np.zeros((self.number_z, self.number_x, self.number_y), dtype=np.int)
 
+    def get_axis_z_name_dict(self, axis_z_type):  # dict from name to index
+        if axis_z_type == 'highway':
+            return dict(position_x=0,
+                        position_y=1,
+                        v=2,
+                        heading=3,
+                        length=4,
+                        width=5)
+
     def xyindex2range(self, index_x, index_y):  # index_x: [0, number_x - 1]
-        left_lower_point_coordination_of_the_indexed_grid \
-            = shift_coordination(index_x * self.increment_x, index_y * self.increment_y,
-                                 self.back_dist, self.half_width)
-        right_upper_point_coordination_of_the_indexed_grid \
-            = shift_coordination((index_x + 1) * self.increment_x, (index_y + 1) * self.increment_y,
-                                 self.back_dist, self.half_width)
-        lower_x, lower_y = left_lower_point_coordination_of_the_indexed_grid
-        upper_x, upper_y = right_upper_point_coordination_of_the_indexed_grid
+        index_x_in_car_coordi = index_y
+        index_y_in_car_coordi = index_x
+        left_upper_point_coordination_of_the_indexed_grid \
+            = shift_coordination(index_x_in_car_coordi * self.increment_x, -index_y_in_car_coordi * self.increment_y,
+                                 self.back_dist, -self.half_width)
+        right_lower_point_coordination_of_the_indexed_grid \
+            = shift_coordination((index_y + 1) * self.increment_y, -(index_x + 1) * self.increment_x,
+                                 self.back_dist, -self.half_width)
+        lower_x, upper_y = left_upper_point_coordination_of_the_indexed_grid
+        upper_x, lower_y = right_lower_point_coordination_of_the_indexed_grid
         return lower_x, upper_x, lower_y, upper_y
 
     def xyindex2centerposition(self, index_x, index_y):  # index_x: [0, number_x - 1]
@@ -475,16 +496,10 @@ class Grid_3D:
         return 0.5 * (lower_x + upper_x), 0.5 * (lower_y + upper_y)
 
     def position2xyindex(self, x, y):
-        x, y = shift_coordination(x, y, -self.back_dist, -self.half_width)
-        index_x = int(x//self.increment_x)
-        index_y = int(y//self.increment_y)
+        x, y = shift_coordination(x, y, -self.back_dist, self.half_width)
+        index_y = int(x//self.increment_y)
+        index_x = int((-y)//self.increment_x)
         return index_x, index_y
-
-    def name2zindex(self, name):
-        return self.name_list.index(name)
-
-    def zindex2meaning(self, index_z):
-        return self.name_list[index_z]
 
     def is_in_2d_grid(self, x, y):
         if -self.back_dist < x < self.forward_dist and -self.half_width < y < self.half_width:
@@ -503,7 +518,6 @@ class Grid_3D:
     def set_xy_value_in_all_z(self, index_x, index_y, grid_value):
         for i in range(self.number_z):
             self.set_value(i, index_x, index_y, grid_value)
-
 
     def get_value(self, index_z, index_x, index_y):
         return self._encode_grid[index_z][index_x][index_y], \
@@ -617,7 +631,7 @@ def judge_feasible(orig_x, orig_y):  # map dependant TODO
 
 
 class ObservationWrapper(gym.Wrapper):
-    def __init__(self, env):
+    def __init__(self, env, encoder_type=0, **kwargs):
         super().__init__(env)
         self.all_vehicles = None
         self.detected_vehicles = None
@@ -625,67 +639,98 @@ class ObservationWrapper(gym.Wrapper):
         self.ego_info = None
         self.road_related_info = None
         self.goal_state = None
-        self._FEASIBLE_VALUE = 1
-        self._INFEASIBLE_VALUE = 0
+        self.encoder_type = encoder_type  # 0: one or more grids + one or more supplementary vectors;
+                                          # 1: one or more vectors
+        self.grid_setting_dict = dict(fill_type='single',  # single or cover
+                                      size_list=[dict(back_dist=40, forward_dist=80, half_width=40)],
+                                      number_x=240,
+                                      number_y=160,
+                                      axis_z_type='highway')
+
+        if kwargs:
+            self.grid_setting_dict = kwargs['grid_setting_dict']
+        if self.encoder_type == 0:
+            self.grid_3d = None
+            self.grid_fill_type = self.grid_setting_dict['fill_type']
+            self.grid_size_list = self.grid_setting_dict['size_list']
+            self.grid_number_x = self.grid_setting_dict['number_x']
+            self.grid_number_y = self.grid_setting_dict['number_y']
+            self.gird_axis_z_type = self.grid_setting_dict['axis_z_type']
+
+        self._FEASIBLE_VALUE = 100
+        self._INFEASIBLE_VALUE = 300
 
     def reset(self, **kwargs):
         observation = self.env.reset(**kwargs)
-        self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.road_related_info, self.goal_state = observation
-        return self.observation(encoder_type=0)
+        self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, \
+        self.road_related_info, self.goal_state = observation
+        return self.observation()
 
     def step(self, action):
         observation, reward, done, info = self.env.step(action)
-        self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.road_related_info, self.goal_state = observation
-        return self.observation(encoder_type=0), reward, done, info
+        self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, \
+        self.road_related_info, self.goal_state = observation
+        return self.observation(), reward, done, info
 
-    def observation(self, encoder_type=0):
-        self.grid_3d.reset_grid()
-        if encoder_type == 0:  # type 0: 3d grid + vector
-            return self._3d_grid_v2x_no_noise_obs_encoder(), self._vector_encoder
+    def observation(self):
+        if self.encoder_type == 0:  # type 0: 3d grid + vector
+            return self._3d_grid_v2x_no_noise_obs_encoder(), self._vector_supplement_for_grid_encoder()
 
-    def _vector_encoder(self):  # encode road structure and task related info, it is hard coded and map and task dependent TODO
+    def _vector_supplement_for_grid_encoder(self):  # func for supplement vector of grid
+        # encode road structure and task related info, hard coded for now TODO
+
         dist2left_road_border = -150 - self.ego_dynamics['y']
         dist2right_road_border = self.ego_dynamics['y'] - (-150 - 3.75 * 4)
         left_lane_number = 3 - self.road_related_info['egolane_index']
         right_lane_number = self.road_related_info['egolane_index']
         dist2current_lane_center = self.road_related_info['dist2current_lane_center']
+        ego_v = self.ego_dynamics['v']
+        ego_length = self.ego_info['Car_length']
+        ego_width = self.ego_info['Car_width']
+        # calculate relative goal
+        goal_x, goal_y, goal_v, goal_heading = self.goal_state
+        shift_x, shift_y = shift_coordination(goal_x, goal_y, self.ego_dynamics['x'], self.ego_dynamics['y'])
+        rela_goal_x, rela_goal_y, rela_goal_heading \
+            = rotate_coordination(shift_x, shift_y, goal_heading, self.ego_dynamics['heading'])
+        # construct vector dict
         vector_dict = dict(dist2left_road_border=dist2left_road_border,
                            dist2right_road_border=dist2right_road_border,
                            left_lane_number=left_lane_number,
                            right_lane_number=right_lane_number,
-                           dist2current_lane_center=dist2current_lane_center
-                           )
+                           dist2current_lane_center=dist2current_lane_center,
+                           ego_v=ego_v,
+                           ego_length=ego_length,
+                           ego_width=ego_width,
+                           rela_goal_x=rela_goal_x,
+                           rela_goal_y=rela_goal_y,
+                           goal_v=goal_v,
+                           rela_goal_heading=rela_goal_heading)
         return vector_dict.values()
 
-
-    def _3d_grid_v2x_no_noise_obs_encoder(self):
+    def _3d_grid_v2x_no_noise_obs_encoder(self):  # func for grid encoder
+        encoded_grid_list = []
         all_vehicles = self._v2x_unify_format_for_3dgrid()
         info_in_ego_coordination, recover_orig_position_fn = self._cal_info_in_transform_coordination(all_vehicles)
-        name_list = ['position_x', 'position_y', 'velocity', 'heading', 'length', 'width']
-        self.grid_3d = Grid_3D(back_dist=40, forward_dist=80, half_width=40, number_x=120, number_y=160, name_list=name_list)
-        vehicles_in_grid = [veh for veh in info_in_ego_coordination if self.grid_3d.is_in_2d_grid(veh['x'], veh['y'])]
-        self._add_vehicle_info_in_grid(vehicles_in_grid)
-        self._add_feasible_area_info_in_grid(recover_orig_position_fn)
-        return self.grid_3d.get_encode_grid_and_flag()[0]
+        for size_dict in self.grid_size_list:
+            self.grid_3d = Grid_3D(size_dict['back_dist'], size_dict['forward_dist'], size_dict['half_width'],
+                                   self.grid_number_x, self.grid_number_y, self.gird_axis_z_type)
+            vehicles_in_grid = [veh for veh in info_in_ego_coordination if self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
+            self._add_vehicle_info_in_grid(vehicles_in_grid)
+            self._add_feasible_area_info_in_grid(recover_orig_position_fn)
+            encoded_grid_list.append(self.grid_3d.get_encode_grid_and_flag()[0])
+        return encoded_grid_list
 
-    def _3d_grid_sensors_with_noise_obs_encoder(self):
+    def _3d_grid_sensors_with_noise_obs_encoder(self):  # func for grid encoder
         pass
 
-    def _highway_v2x_no_noise_obs_encoder(self):
+    def _highway_v2x_no_noise_obs_encoder(self):  # func for vector encoder
         pass
 
-    def _highway_sensors_with_noise_obs_encoder(self):
+    def _highway_sensors_with_noise_obs_encoder(self):  # func for vector encoder
         pass
 
     def _v2x_unify_format_for_3dgrid(self):  # unify output format
         results = []
-        # dict(type=c_t, x=c_x, y=c_y, v=c_v, angle=c_a,
-        #      rotation=c_r, winker=w, winker_time=wt,
-        #      render=render_flag, length=length,
-        #      width=width,
-        #      lane_index=other_veh_info[i][
-        #          'current_lane'],
-        #      max_decel=other_veh_info[i]['max_decel'])
         for veh in range(len(self.all_vehicles)):
             results.append({'x': self.all_vehicles[veh]['x'],
                             'y': self.all_vehicles[veh]['y'],
@@ -695,7 +740,7 @@ class ObservationWrapper(gym.Wrapper):
                             'length': self.all_vehicles[veh]['length']})
         return results
 
-    def _sensors_pre_filter_for_3dgrid(self):
+    def _sensors_unify_format_for_3dgrid(self):  # unify output format
         pass
 
     def _cal_info_in_transform_coordination(self, filtered_objects):
@@ -732,20 +777,21 @@ class ObservationWrapper(gym.Wrapper):
         return results, recover_orig_position_fn
 
     def _add_vehicle_info_in_grid(self, vehicles_in_grid):
-        for veh in vehicles_in_grid:
-            x = veh['x']
-            y = veh['y']
-            v = veh['v']
-            heading = veh['heading']
-            length = veh['length']
-            width = veh['width']
-            index_x, index_y = self.grid_3d.position2xyindex(x, y)
-            self.grid_3d.set_value(index_z=0, index_x=index_x, index_y=index_y, grid_value=x)
-            self.grid_3d.set_value(index_z=1, index_x=index_x, index_y=index_y, grid_value=y)
-            self.grid_3d.set_value(index_z=2, index_x=index_x, index_y=index_y, grid_value=v)
-            self.grid_3d.set_value(index_z=3, index_x=index_x, index_y=index_y, grid_value=heading)
-            self.grid_3d.set_value(index_z=4, index_x=index_x, index_y=index_y, grid_value=length)
-            self.grid_3d.set_value(index_z=5, index_x=index_x, index_y=index_y, grid_value=width)
+        if self.grid_fill_type == 'single':
+            for veh in vehicles_in_grid:
+                x = veh['trans_x']
+                y = veh['trans_y']
+                v = veh['trans_v']
+                heading = veh['trans_heading']
+                length = veh['length']
+                width = veh['width']
+                index_x, index_y = self.grid_3d.position2xyindex(x, y)
+                self.grid_3d.set_value(index_z=0, index_x=index_x, index_y=index_y, grid_value=x)
+                self.grid_3d.set_value(index_z=1, index_x=index_x, index_y=index_y, grid_value=y)
+                self.grid_3d.set_value(index_z=2, index_x=index_x, index_y=index_y, grid_value=v)
+                self.grid_3d.set_value(index_z=3, index_x=index_x, index_y=index_y, grid_value=heading)
+                self.grid_3d.set_value(index_z=4, index_x=index_x, index_y=index_y, grid_value=length)
+                self.grid_3d.set_value(index_z=5, index_x=index_x, index_y=index_y, grid_value=width)
 
     def _add_feasible_area_info_in_grid(self, recover_orig_position_fn):
         number_x = self.grid_3d.number_x
@@ -760,20 +806,25 @@ class ObservationWrapper(gym.Wrapper):
                     self.grid_3d.set_xy_value_in_all_z(index_x, index_y, self._FEASIBLE_VALUE)
 
 
-#
-#
-# class RewardWrapper(Wrapper):
-#     def reset(self, **kwargs):
-#         return self.env.reset(**kwargs)
-#
-#     def step(self, action):
-#         observation, reward, done, info = self.env.step(action)
-#         return observation, self.reward(reward), done, info
-#
-#     def reward(self, reward):
-#         raise NotImplementedError
-#
-#
+class RewardWrapper(gym.Wrapper):
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
+    def step(self, action):
+        observation, reward, done, info = self.env.step(action)
+        return observation, self.reward(observation, reward), done, info
+
+    def reward(self, observation, reward):
+        coeff_pos = -0.1
+        coeff_vel = -0.1
+        coeff_heading = -0.05
+        _, _, ego_dynamics, _, _, _ = observation
+        reference = Reference()
+        reference = self.env.reference
+        position_bias, velocity_bias, heading_bias = \
+            reference.cal_bias(ego_dynamics['x'], ego_dynamics['y'], ego_dynamics['v'], ego_dynamics['heading'])
+        reward += coeff_pos * position_bias + coeff_vel * velocity_bias + coeff_heading * heading_bias
+
 # class ActionWrapper(Wrapper):
 #     def reset(self, **kwargs):
 #         return self.env.reset(**kwargs)

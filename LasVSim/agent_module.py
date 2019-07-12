@@ -7,7 +7,7 @@ from LasVSim.decision_module import *
 from LasVSim.navigation_module import *
 from LasVSim.default_value import *
 import threading
-from LasVSim.endtoend import rotate_coordination
+from LasVSim.endtoend_env_utils import rotate_coordination
 
 
 
