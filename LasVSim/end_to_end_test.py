@@ -5,7 +5,7 @@ import numpy as np
 import os
 
 def action_fn(obs):
-    grid_list, supplement_vector = obs
+    # grid_list, supplement_vector = obs
     return np.array([1, 0])
 
 
@@ -35,8 +35,14 @@ if __name__ == '__main__':
     for i in range(episode_num):  # run episode_num episodes
         done = 0
         obs = env.reset()
+        ret = 0
         while not done:
             action = action_fn(obs)
-            obs, rew, done, info = env.step(action)
+            obs, (position_bias, velocity_bias, heading_bias, rew), done, info = env.step(action)
+            ret += rew
+
+            print('reward: ', rew, 'other: ', position_bias, velocity_bias, heading_bias)
+
+        print('return: ', ret)
 
 

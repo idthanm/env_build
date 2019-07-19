@@ -144,12 +144,12 @@ class EndtoendEnv(gym.Env):
         #  'angle': a,
         #  'width': w,
         #  'length': l}
-        done = self._judge_done()  # 0 1 2 3 4
+        done = self._judge_done()  # 0 1 2 3 4 5
         rew = self.compute_reward(done)
         info = self.ego_info.update(self.road_related_info)
         obs = self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info,\
               self.road_related_info, self.goal_state
-        return obs, rew, done is not 4, info
+        return obs, rew, done is not 5, info
 
     def reset(self, **kwargs):
         """Resets the state of the environment and returns an initial observation.
@@ -277,9 +277,9 @@ class EndtoendEnv(gym.Env):
         if done == 5:
             return -1
         elif done == 4:
-            return 10
+            return 20
         else:
-            return -10
+            return -20
 
     def _judge_done(self):
         '''
@@ -291,7 +291,7 @@ class EndtoendEnv(gym.Env):
          4: good done: task succeed
          5: not done
         '''
-        if self._is_road_violation_or_lose_control():
+        if self._is_road_violation():
             return 0
         elif self._is_lose_control():
             return 1
@@ -305,7 +305,7 @@ class EndtoendEnv(gym.Env):
         else:
             return 5
 
-    def _is_road_violation_or_lose_control(self):
+    def _is_road_violation(self):
         corner_points = self.ego_info['Corner_point']
         for corner_point in corner_points:
             if not judge_feasible(corner_point[0], corner_point[1]):
@@ -359,6 +359,22 @@ class Reference(object):
         self.reference_path = self.generate_reference_path()
         self.reference_velocity = self.generate_reference_velocity()
 
+    def cal_path_maxx_maxy_miny(self):
+        if self.index_mode == 'indexed_by_x':
+            a0, a1, a2, a3 = self.reference_path
+            x = np.linspace(0, self.goalx_in_ref, 100)
+            y = a0 + a1 * x + a2 * x**2 + a3 * x**3
+            return self.goalx_in_ref, max(y), min(y)
+        else:
+            a0, a1, a2, a3 = self.reference_path
+            y = np.linspace(0, -self.goaly_in_ref, 100)
+            x = a0 + a1 * y + a2 * y**2 + a3 * y**3
+            maxx = max(x)
+            if self.goaly_in_ref >= 0:
+                return maxx, self.goaly_in_ref, 0
+            else:
+                return maxx, 0, self.goaly_in_ref
+
     def orig2ref(self, orig_x, orig_y, orig_v, orig_heading):
         orig_x, orig_y = shift_coordination(orig_x, orig_y, self.orig_init_x, self.orig_init_y)
         x_in_ref, y_in_ref, heading_in_ref = rotate_coordination(orig_x, orig_y, orig_heading, self.orig_init_heading)
@@ -372,8 +388,9 @@ class Reference(object):
                        abs(orig_heading - self.goalheading_in_ref) < heading_tolerance else False
 
     def is_legit(self, orig_x, orig_y):
+        maxx, maxy, miny = self.cal_path_maxx_maxy_miny()
         x_in_ref, y_in_ref, v_in_ref, heading_in_ref = self.orig2ref(orig_x, orig_y, 0, 0)
-        return True if 0 < x_in_ref < self.goalx_in_ref or abs(y_in_ref) < abs(self.goaly_in_ref) else False
+        return True if 0 < x_in_ref < maxx + 5 and miny-5 < y_in_ref < maxy + 5 else False
 
     def cal_bias(self, orig_x, orig_y, orig_v, orig_heading):
         assert self.index_mode == 'indexed_by_x' or self.index_mode == 'indexed_by_y'
@@ -460,14 +477,16 @@ class Grid_3D(object):
         self.half_width = half_width
         self.length = self.back_dist + self.forward_dist
         self.width = 2 * self.half_width
-        self.number_x = number_x
+        self.number_x = number_x  # in car coordination ! not in matrix index
         self.number_y = number_y
+        self.matrix_x = number_y
+        self.matrix_y = number_x
         self.axis_z_name_dict = self.get_axis_z_name_dict(axis_z_type)
         self.number_z = len(self.axis_z_name_dict)
         self.increment_x = self.length / self.number_x  # increment in x axis of car coordination
         self.increment_y = self.width / self.number_y
-        self._encode_grid = np.zeros((self.number_z, self.number_x, self.number_y))
-        self._encode_grid_flag = np.zeros((self.number_z, self.number_x, self.number_y), dtype=np.int)
+        self._encode_grid = np.zeros((self.number_z, self.matrix_x, self.matrix_y))
+        self._encode_grid_flag = np.zeros((self.number_z, self.matrix_x, self.matrix_y), dtype=np.int)
 
     def get_axis_z_name_dict(self, axis_z_type):  # dict from name to index
         if axis_z_type == 'highway':
@@ -478,27 +497,29 @@ class Grid_3D(object):
                         length=4,
                         width=5)
 
-    def xyindex2range(self, index_x, index_y):  # index_x: [0, number_x - 1]
+    def xyindex2range(self, index_x, index_y):  # index_x: [0, matrix_x - 1]
         index_x_in_car_coordi = index_y
         index_y_in_car_coordi = index_x
         left_upper_point_coordination_of_the_indexed_grid \
             = shift_coordination(index_x_in_car_coordi * self.increment_x, -index_y_in_car_coordi * self.increment_y,
                                  self.back_dist, -self.half_width)
         right_lower_point_coordination_of_the_indexed_grid \
-            = shift_coordination((index_y + 1) * self.increment_y, -(index_x + 1) * self.increment_x,
+            = shift_coordination((index_x_in_car_coordi + 1) * self.increment_y, -(index_y_in_car_coordi + 1) * self.increment_x,
                                  self.back_dist, -self.half_width)
         lower_x, upper_y = left_upper_point_coordination_of_the_indexed_grid
         upper_x, lower_y = right_lower_point_coordination_of_the_indexed_grid
         return lower_x, upper_x, lower_y, upper_y
 
-    def xyindex2centerposition(self, index_x, index_y):  # index_x: [0, number_x - 1]
+    def xyindex2centerposition(self, index_x, index_y):  # index_x: [0, matrix_x - 1]
         lower_x, upper_x, lower_y, upper_y = self.xyindex2range(index_x, index_y)
         return 0.5 * (lower_x + upper_x), 0.5 * (lower_y + upper_y)
 
     def position2xyindex(self, x, y):
         x, y = shift_coordination(x, y, -self.back_dist, self.half_width)
-        index_y = int(x//self.increment_y)
-        index_x = int((-y)//self.increment_x)
+        index_x_in_car_coordi = int(x//self.increment_x)
+        index_y_in_car_coordi = int((-y)//self.increment_y)
+        index_x = index_y_in_car_coordi
+        index_y = index_x_in_car_coordi
         return index_x, index_y
 
     def is_in_2d_grid(self, x, y):
@@ -508,16 +529,21 @@ class Grid_3D(object):
             return False
 
     def reset_grid(self):
-        self._encode_grid = np.zeros((self.number_z, self.number_x, self.number_y))
-        self._encode_grid_flag = np.zeros((self.number_z, self.number_x, self.number_y), dtype=np.int)
+        self._encode_grid = np.zeros((self.number_z, self.matrix_x, self.matrix_y))
+        self._encode_grid_flag = np.zeros((self.number_z, self.matrix_x, self.matrix_y), dtype=np.int)
 
     def set_value(self, index_z, index_x, index_y, grid_value):
         self._encode_grid[index_z][index_x][index_y] = grid_value
         self._encode_grid_flag[index_z][index_x][index_y] = 1
 
-    def set_xy_value_in_all_z(self, index_x, index_y, grid_value):
+    def set_same_xy_value_in_all_z(self, index_x, index_y, grid_value):
         for i in range(self.number_z):
             self.set_value(i, index_x, index_y, grid_value)
+
+    def set_xy_value_with_list(self, index_x, index_y, z_list):
+        assert len(z_list) == self.number_z
+        for i in range(self.number_z):
+            self.set_value(i, index_x, index_y, z_list[i])
 
     def get_value(self, index_z, index_x, index_y):
         return self._encode_grid[index_z][index_x][index_y], \
@@ -642,9 +668,9 @@ class ObservationWrapper(gym.Wrapper):
         self.encoder_type = encoder_type  # 0: one or more grids + one or more supplementary vectors;
                                           # 1: one or more vectors
         self.grid_setting_dict = dict(fill_type='single',  # single or cover
-                                      size_list=[dict(back_dist=40, forward_dist=80, half_width=40)],
-                                      number_x=240,
-                                      number_y=160,
+                                      size_list=[dict(back_dist=20, forward_dist=60, half_width=20)],
+                                      number_x=160,
+                                      number_y=80,
                                       axis_z_type='highway')
 
         if kwargs:
@@ -656,9 +682,11 @@ class ObservationWrapper(gym.Wrapper):
             self.grid_number_x = self.grid_setting_dict['number_x']
             self.grid_number_y = self.grid_setting_dict['number_y']
             self.gird_axis_z_type = self.grid_setting_dict['axis_z_type']
+            if self.gird_axis_z_type == 'highway':
+                self._FEASIBLE_VALUE = 0
+                self._INFEASIBLE_VALUE = -1
 
-        self._FEASIBLE_VALUE = 100
-        self._INFEASIBLE_VALUE = 300
+
 
     def reset(self, **kwargs):
         observation = self.env.reset(**kwargs)
@@ -794,16 +822,16 @@ class ObservationWrapper(gym.Wrapper):
                 self.grid_3d.set_value(index_z=5, index_x=index_x, index_y=index_y, grid_value=width)
 
     def _add_feasible_area_info_in_grid(self, recover_orig_position_fn):
-        number_x = self.grid_3d.number_x
+        number_x = self.grid_3d.number_x  # number_x is matrix_y
         number_y = self.grid_3d.number_y
-        for index_x in range(number_x):
-            for index_y in range(number_y):
+        for index_x in range(number_y):
+            for index_y in range(number_x):
                 x_in_egocar_coordi, y_in_egocar_coordi = self.grid_3d.xyindex2centerposition(index_x, index_y)
                 orig_x, orig_y = recover_orig_position_fn(x_in_egocar_coordi, y_in_egocar_coordi)
                 if not judge_feasible(orig_x, orig_y):
-                    self.grid_3d.set_xy_value_in_all_z(index_x, index_y, self._INFEASIBLE_VALUE)
-                elif not self.grid_3d.get_value(0, index_x, index_y):
-                    self.grid_3d.set_xy_value_in_all_z(index_x, index_y, self._FEASIBLE_VALUE)
+                    self.grid_3d.set_same_xy_value_in_all_z(index_x, index_y, self._INFEASIBLE_VALUE)
+                elif not self.grid_3d.get_value(0, index_x, index_y)[1]:
+                    self.grid_3d.set_same_xy_value_in_all_z(index_x, index_y, self._FEASIBLE_VALUE)
 
 
 class RewardWrapper(gym.Wrapper):
@@ -824,6 +852,7 @@ class RewardWrapper(gym.Wrapper):
         position_bias, velocity_bias, heading_bias = \
             reference.cal_bias(ego_dynamics['x'], ego_dynamics['y'], ego_dynamics['v'], ego_dynamics['heading'])
         reward += coeff_pos * position_bias + coeff_vel * velocity_bias + coeff_heading * heading_bias
+        return position_bias, velocity_bias, heading_bias, reward
 
 # class ActionWrapper(Wrapper):
 #     def reset(self, **kwargs):
