@@ -17,191 +17,187 @@ import kdtree
 import time
 from LasVSim import data_structures
 from LasVSim.traffic_module import TrafficData
+from math import cos, sin, pi, fabs
 
-class Data:
-    """
-    Simulation Data Manager
-    """
-    def __init__(self):
-        self.data=[]
-        self.file=open('tmp.bin','wb')
-
-        self.vehicle_count = 0
-        self.trajectory_count = 0
-        self.max_path_points = 100
-        
-
-    def __del__(self):
-        self.file.close()
-
-    def append(self, self_status, self_info, vehicles, light_values=None,
-               trajectory=None, dis=None, speed_limit=None):
-        if self.file.closed:
-            return
-        t, x, y, v, a = self_status
-        data_line = [t, x, y, v, a]
-        data_line.extend(list(self_info))
-        self.data.append(data_line)
-
-        self.file.write(struct.pack('5f', *self_status))
-        self.file.write(struct.pack('17f', *self_info))
-        self.file.write(struct.pack('2f', *[dis, speed_limit]))
-        self.vehicle_count = len(vehicles)
-        for v in vehicles:
-            self.file.write(struct.pack('4f3if', *[v['x'],
-                                                   v['y'],
-                                                   v['v'],
-                                                   v['angle'],
-                                                   v['type'],
-                                                   v['rotation'],
-                                                   v['lane_index'],
-                                                   v['max_decel']]))
-        self.trajectory_count = len(trajectory)
-        self.file.write(struct.pack('2i', *light_values))
-        for i in range(100):
-            if i < self.trajectory_count:
-                self.file.write(
-                    struct.pack('5f', *trajectory[i]))
-            else:
-                self.file.write(
-                    struct.pack('5f', *[0, 0, 0, 0, 0]))
-        self.file.write(struct.pack('i', *[self.trajectory_count]))
-
-    def __get_time(self):
-        return [d[0] for d in self.data]
-
-    def __get_speed(self):
-        return [d[3]*3.6 for d in self.data]
-
-    def __get_x(self):
-        return [d[1] for d in self.data]
-
-    def __get_y(self):
-        return [d[2] for d in self.data]
-
-    def __get_yaw(self):
-        return [d[4] for d in self.data]
-
-    def __get_accel(self):
-        # if len(self.data)==0:
-        #     return []
-        # elif len(self.data)==1:
-        #     return [0]
-        # else:
-        #     dt=self.data[1][0]-self.data[0][0]
-        #     accel=[(self.data[i+1][3]-self.data[i][3])/dt for i in range(len(self.data)-1)]
-        #     accel.insert(0,0)
-        #     return accel
-        return [d[11] for d in self.data]
-
-    def get_data(self, type):
-        if type =='Time':
-            return self.__get_time()
-        elif type =='Vehicle Speed':
-            return self.__get_speed()
-        elif type =='Position X':
-            return self.__get_x()
-        elif type =='Position Y':
-            return self.__get_y()
-        elif type =='Heading Angle':
-            return self.__get_yaw()
-        elif type =='Acceleration':
-            return self.__get_accel()
-        elif type =='Steering Wheel':
-            return [d[5] for d in self.data]
-        elif type =='Throttle':
-            return [d[6] for d in self.data]
-        elif type =='Brake Pressure':
-            return [d[7] for d in self.data]
-        elif type =='Gear':
-            return [d[8] for d in self.data]
-        elif type =='Engine Speed':
-            return [d[9] for d in self.data]
-        elif type =='Engine Torque':
-            return [d[10] for d in self.data]
-        elif type =='Side Slip':
-            return [d[12] for d in self.data]
-        elif type =='Yaw Rate':
-            return [d[13] for d in self.data]
-        elif type =='Lateral Velocity':
-            return [d[14] for d in self.data]
-        elif type =='Longitudinal Velocity':
-            return [d[15] for d in self.data]
-        elif type =='Front Wheel Angle':
-            return [d[16] for d in self.data]
-        elif type =='Steering Rate':
-            return [d[17] for d in self.data]
-        elif type =='Fuel Consumption':
-            return [d[18] for d in self.data]
-        elif type =='Longitudinal Acceleration':
-            return [d[19] for d in self.data]
-        elif type =='Lateral Acceleration':
-            return [d[20] for d in self.data]
-        elif type =='Fuel Rate':
-            return [d[21] for d in self.data]
-        else:
-            return None
-
-    def close_file(self):
-        self.file.close()
-
-    def export_csv(self, path):
-        self.close_file()
-        with open(path, 'w') as f:
-            f.write('t(s),self_x(m),self_y(m),self_speed(m/s),self_yaw(degree)')
-            f.write(',Steering Wheel(degree),Throttle(%),Brake Pressure(MPa),'
-                    'Gear,Engine Speed(rpm)')
-            f.write(',Engine Torque(N*m),Accelerate(m/s2),Side Slip(degree), '
-                    'Yaw Rate(degree/s)')
-            f.write(',Lateral Velocity(m/s),Longitudinal Velocity(m/s)')
-            f.write(',Front Wheel Angle(deg),Steering Rate(deg/s)')
-            f.write(',Fuel Consumption(L),Longitudinal Acceleration(m/s^2)')
-            f.write(',Lateral Acceleration(m/s^2),Fuel Rate(L/s)')
-            f.write(',Distance To Stop Line(m),Speed Limit(m/s)')
-            for i in range(self.vehicle_count):
-                f.write(',vehicle%d_x(m),vehicle%d_y(m),vehicle%d_speed(m/s),'
-                        'vehicle%d_yaw(degree),vehicle%d_type,'
-                        'vehicle%d_signals,vehicle%d_lane_index,'
-                        'vehicle%d_max_decel(m/s^2)'
-                        % (i+1, i+1, i+1, i+1, i+1, i+1, i+1, i+1))
-            f.write(',light_horizontal,light_vertical')
-            for i in range(100):
-                f.write(',path point%d_t(m),path point%d_x(m),path point%d_y, '
-                        'path point%d_v, path_point%d_heading'
-                        % (i+1, i+1, i+1, i+1, i+1))
-            f.write(',valid trajectory point number\n')
-
-            with open('tmp.bin','rb') as fbin:
-                fmt='5f'
-                buffer=fbin.read(struct.calcsize(fmt))
-                while len(buffer) > 0:
-                    f.write('%.6f,%.2f,%.2f,%.2f,%.1f'
-                            % struct.unpack(fmt, buffer))
-                    fmt = '17f'
-                    f.write(',%.0f,%.0f,%.1f,%.1f,%.0f,%.1f,%.2f,%.1f,%.2f,%.2f,'
-                            '%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f'
-                            % struct.unpack(fmt, fbin.read(struct.calcsize(fmt))))
-                    fmt = '2f'
-                    f.write(',%.2f,%.2f'
-                            % struct.unpack(fmt, fbin.read(struct.calcsize(fmt))))
-                    for i in range(self.vehicle_count):
-                        fmt = '4f3if'
-                        f.write(',%.2f,%.2f,%.2f,%.1f,%d,%d,%d,%.2f'
-                                % struct.unpack(fmt, fbin.read(struct.calcsize(fmt))))
-                    fmt = '2i'
-                    f.write(',%d,%d'%struct.unpack(fmt, fbin.read(struct.calcsize(fmt))))
-                    for i in range(100):
-                        fmt='5f'
-                        f.write(',%.2f,%.2f,%.2f,%.2f,%.2f'%struct.unpack(fmt, fbin.read(struct.calcsize(fmt))))
-                    fmt = 'i'
-                    f.write(',%d\n'%struct.unpack(fmt, fbin.read(struct.calcsize(fmt))))
-                    fmt = '5f'
-                    buffer=fbin.read(struct.calcsize(fmt))
-
-
-PLANNER_FREQUENCY = 2
-CONTROLLER_FREQUENCY = 1
-SENSOR_FREQUENCY = 1
+# class Data:
+#     """
+#     Simulation Data Manager
+#     """
+#     def __init__(self):
+#         self.data=[]
+#         self.file=open('tmp.bin','wb')
+#
+#         self.vehicle_count = 0
+#         self.trajectory_count = 0
+#         self.max_path_points = 100
+#
+#
+#     def __del__(self):
+#         self.file.close()
+#
+#     def append(self, self_status, self_info, vehicles, light_values=None,
+#                trajectory=None, dis=None, speed_limit=None):
+#         if self.file.closed:
+#             return
+#         t, x, y, v, a = self_status
+#         data_line = [t, x, y, v, a]
+#         data_line.extend(list(self_info))
+#         self.data.append(data_line)
+#
+#         self.file.write(struct.pack('5f', *self_status))
+#         self.file.write(struct.pack('17f', *self_info))
+#         self.file.write(struct.pack('2f', *[dis, speed_limit]))
+#         self.vehicle_count = len(vehicles)
+#         for v in vehicles:
+#             self.file.write(struct.pack('4f3if', *[v['x'],
+#                                                    v['y'],
+#                                                    v['v'],
+#                                                    v['angle'],
+#                                                    v['type'],
+#                                                    v['rotation'],
+#                                                    v['lane_index'],
+#                                                    v['max_decel']]))
+#         self.trajectory_count = len(trajectory)
+#         self.file.write(struct.pack('2i', *light_values))
+#         for i in range(100):
+#             if i < self.trajectory_count:
+#                 self.file.write(
+#                     struct.pack('5f', *trajectory[i]))
+#             else:
+#                 self.file.write(
+#                     struct.pack('5f', *[0, 0, 0, 0, 0]))
+#         self.file.write(struct.pack('i', *[self.trajectory_count]))
+#
+#     def __get_time(self):
+#         return [d[0] for d in self.data]
+#
+#     def __get_speed(self):
+#         return [d[3]*3.6 for d in self.data]
+#
+#     def __get_x(self):
+#         return [d[1] for d in self.data]
+#
+#     def __get_y(self):
+#         return [d[2] for d in self.data]
+#
+#     def __get_yaw(self):
+#         return [d[4] for d in self.data]
+#
+#     def __get_accel(self):
+#         # if len(self.data)==0:
+#         #     return []
+#         # elif len(self.data)==1:
+#         #     return [0]
+#         # else:
+#         #     dt=self.data[1][0]-self.data[0][0]
+#         #     accel=[(self.data[i+1][3]-self.data[i][3])/dt for i in range(len(self.data)-1)]
+#         #     accel.insert(0,0)
+#         #     return accel
+#         return [d[11] for d in self.data]
+#
+#     def get_data(self, type):
+#         if type =='Time':
+#             return self.__get_time()
+#         elif type =='Vehicle Speed':
+#             return self.__get_speed()
+#         elif type =='Position X':
+#             return self.__get_x()
+#         elif type =='Position Y':
+#             return self.__get_y()
+#         elif type =='Heading Angle':
+#             return self.__get_yaw()
+#         elif type =='Acceleration':
+#             return self.__get_accel()
+#         elif type =='Steering Wheel':
+#             return [d[5] for d in self.data]
+#         elif type =='Throttle':
+#             return [d[6] for d in self.data]
+#         elif type =='Brake Pressure':
+#             return [d[7] for d in self.data]
+#         elif type =='Gear':
+#             return [d[8] for d in self.data]
+#         elif type =='Engine Speed':
+#             return [d[9] for d in self.data]
+#         elif type =='Engine Torque':
+#             return [d[10] for d in self.data]
+#         elif type =='Side Slip':
+#             return [d[12] for d in self.data]
+#         elif type =='Yaw Rate':
+#             return [d[13] for d in self.data]
+#         elif type =='Lateral Velocity':
+#             return [d[14] for d in self.data]
+#         elif type =='Longitudinal Velocity':
+#             return [d[15] for d in self.data]
+#         elif type =='Front Wheel Angle':
+#             return [d[16] for d in self.data]
+#         elif type =='Steering Rate':
+#             return [d[17] for d in self.data]
+#         elif type =='Fuel Consumption':
+#             return [d[18] for d in self.data]
+#         elif type =='Longitudinal Acceleration':
+#             return [d[19] for d in self.data]
+#         elif type =='Lateral Acceleration':
+#             return [d[20] for d in self.data]
+#         elif type =='Fuel Rate':
+#             return [d[21] for d in self.data]
+#         else:
+#             return None
+#
+#     def close_file(self):
+#         self.file.close()
+#
+#     def export_csv(self, path):
+#         self.close_file()
+#         with open(path, 'w') as f:
+#             f.write('t(s),self_x(m),self_y(m),self_speed(m/s),self_yaw(degree)')
+#             f.write(',Steering Wheel(degree),Throttle(%),Brake Pressure(MPa),'
+#                     'Gear,Engine Speed(rpm)')
+#             f.write(',Engine Torque(N*m),Accelerate(m/s2),Side Slip(degree), '
+#                     'Yaw Rate(degree/s)')
+#             f.write(',Lateral Velocity(m/s),Longitudinal Velocity(m/s)')
+#             f.write(',Front Wheel Angle(deg),Steering Rate(deg/s)')
+#             f.write(',Fuel Consumption(L),Longitudinal Acceleration(m/s^2)')
+#             f.write(',Lateral Acceleration(m/s^2),Fuel Rate(L/s)')
+#             f.write(',Distance To Stop Line(m),Speed Limit(m/s)')
+#             for i in range(self.vehicle_count):
+#                 f.write(',vehicle%d_x(m),vehicle%d_y(m),vehicle%d_speed(m/s),'
+#                         'vehicle%d_yaw(degree),vehicle%d_type,'
+#                         'vehicle%d_signals,vehicle%d_lane_index,'
+#                         'vehicle%d_max_decel(m/s^2)'
+#                         % (i+1, i+1, i+1, i+1, i+1, i+1, i+1, i+1))
+#             f.write(',light_horizontal,light_vertical')
+#             for i in range(100):
+#                 f.write(',path point%d_t(m),path point%d_x(m),path point%d_y, '
+#                         'path point%d_v, path_point%d_heading'
+#                         % (i+1, i+1, i+1, i+1, i+1))
+#             f.write(',valid trajectory point number\n')
+#
+#             with open('tmp.bin','rb') as fbin:
+#                 fmt='5f'
+#                 buffer=fbin.read(struct.calcsize(fmt))
+#                 while len(buffer) > 0:
+#                     f.write('%.6f,%.2f,%.2f,%.2f,%.1f'
+#                             % struct.unpack(fmt, buffer))
+#                     fmt = '17f'
+#                     f.write(',%.0f,%.0f,%.1f,%.1f,%.0f,%.1f,%.2f,%.1f,%.2f,%.2f,'
+#                             '%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f'
+#                             % struct.unpack(fmt, fbin.read(struct.calcsize(fmt))))
+#                     fmt = '2f'
+#                     f.write(',%.2f,%.2f'
+#                             % struct.unpack(fmt, fbin.read(struct.calcsize(fmt))))
+#                     for i in range(self.vehicle_count):
+#                         fmt = '4f3if'
+#                         f.write(',%.2f,%.2f,%.2f,%.1f,%d,%d,%d,%.2f'
+#                                 % struct.unpack(fmt, fbin.read(struct.calcsize(fmt))))
+#                     fmt = '2i'
+#                     f.write(',%d,%d'%struct.unpack(fmt, fbin.read(struct.calcsize(fmt))))
+#                     for i in range(100):
+#                         fmt='5f'
+#                         f.write(',%.2f,%.2f,%.2f,%.2f,%.2f'%struct.unpack(fmt, fbin.read(struct.calcsize(fmt))))
+#                     fmt = 'i'
+#                     f.write(',%d\n'%struct.unpack(fmt, fbin.read(struct.calcsize(fmt))))
+#                     fmt = '5f'
+#                     buffer=fbin.read(struct.calcsize(fmt))
 
 
 class Simulation(object):
@@ -266,11 +262,8 @@ class Simulation(object):
             self.settings.car_para.R_GEAR_TR1 = overwrite_settings['init_gear']
             self.settings.start_point = overwrite_settings['init_state']
         self.stopped = False
-        self.data = Data()
+        # self.data = Data()
         self.ego_history = {}
-
-        """Load vehicle module library"""
-        vehicle_models = VehicleModels('./Library/vehicle_model_library.csv')
 
         """Load traffic module."""
         step_length = self.settings.step_length * self.settings.traffic_frequency
@@ -281,12 +274,9 @@ class Simulation(object):
                                init_traffic=self.traffic_data.load_traffic(init_traffic_path))
         self.traffic.init(settings.start_point, settings.car_length)
         self.other_vehicles = self.traffic.get_vehicles()
-        # self.light_status = self.traffic.get_light_status()
 
         """Load agent module."""
-        self.agent=Agent(settings)
-        self.agent.sensors.setVehicleModel(vehicle_models)
-        self.agent.update_info_from_sensor(self.other_vehicles)
+        self.agent = Agent(settings)
 
     def load_scenario(self, path, overwrite_settings=None):
         """Load an existing LasVSim simulation configuration file.
@@ -315,60 +305,6 @@ class Simulation(object):
     def export_data(self, path):
         self.data.export_csv(path)
 
-    # def sim_step_internal(self, steps=None):
-    #     if steps is None:
-    #         steps = 1
-    #     for step in range(steps):
-    #         if self.stopped:
-    #             print("Simulation Finished")
-    #             return False
-    #
-    #         # 传感器线程
-    #         if self.tick_count % self.settings.sensor_frequency == 0:
-    #             self.agent.update_info_from_sensor(self.other_vehicles)
-    #
-    #         # 决策线程
-    #         if self.tick_count % self.settings.router_frequency == 0:
-    #             self.agent.update_plan_output(self.light_status)
-    #
-    #         # 控制器线程
-    #         if self.tick_count % self.settings.controller_frequency == 0:
-    #             self.agent.update_control_input()
-    #
-    #         # 动力学线程
-    #         if self.tick_count % self.settings.dynamic_frequency == 0:
-    #             self.agent.update_dynamic_state()
-    #
-    #         # 交通流线程
-    #         if self.tick_count % self.settings.traffic_frequency == 0:
-    #             self.traffic.set_own_car(self.agent.dynamic.x,
-    #                                      self.agent.dynamic.y,
-    #                                      self.agent.dynamic.v,
-    #                                      self.agent.dynamic.heading)
-    #             self.traffic.sim_step()
-    #             self.other_vehicles = self.traffic.get_vehicles()
-    #             self.light_status = self.traffic.get_light_status()
-    #
-    #         # 如果自车达到目的地则退出仿真，loop路径下仿真会一直循环不会结束
-    #         if self.agent.mission.get_status() != MISSION_RUNNING:
-    #             self.stop()
-    #
-    #         # 保存当前步仿真数据
-    #         self.data.append(
-    #             self_status=[self.tick_count * float(self.settings.step_length),
-    #                          self.agent.dynamic.x,
-    #                          self.agent.dynamic.y,
-    #                          self.agent.dynamic.v,
-    #                          self.agent.dynamic.heading],
-    #             self_info=self.agent.dynamic.get_info(),
-    #             vehicles=self.other_vehicles,
-    #             light_values=self.traffic.get_light_values(),
-    #             trajectory=self.agent.route,
-    #             dis=self.traffic.get_current_distance_to_stopline(),
-    #             speed_limit=self.traffic.get_current_lane_speed_limit())
-    #         self.tick_count += 1
-    #     return True
-
     def sim_step(self, steps=None):
         if steps is None:
             steps = 1
@@ -377,34 +313,18 @@ class Simulation(object):
                 print("Simulation Finished")
                 return False
 
-            # 控制器线程
-            if self.tick_count % self.settings.controller_frequency == 0:
-                self.agent.update_control_input()
-
-            # 动力学线程
-            if self.tick_count % self.settings.dynamic_frequency == 0:
-                self.agent.update_dynamic_state()
-
-            # 交通流线程
+            # traffic
             if self.tick_count % self.settings.traffic_frequency == 0:
-                self.traffic.set_own_car(self.agent.dynamic.x,
-                                         self.agent.dynamic.y,
-                                         self.agent.dynamic.v,
-                                         self.agent.dynamic.heading)
+                self.traffic.set_own_car(self.agent.x,
+                                         self.agent.y,
+                                         self.agent.v,
+                                         self.agent.heading)
                 self.traffic.sim_step()
                 self.other_vehicles = self.traffic.get_vehicles()
-                # self.light_status = self.traffic.get_light_status()
-
-            # 传感器线程
-            if self.tick_count % self.settings.sensor_frequency == 0:
-                self.agent.update_info_from_sensor(self.other_vehicles)
 
             if not self.__collision_check():
                 self.stopped = True
 
-            # 如果自车达到目的地则退出仿真，loop路径下仿真会一直循环不会结束
-            # if self.agent.mission.get_status() != MISSION_RUNNING:
-            #     self.stop()
 
             # 保存当前步仿真数据
             # self.data.append(
@@ -426,83 +346,14 @@ class Simulation(object):
     def get_all_objects(self):
         return self.other_vehicles
 
-    def get_detected_objects(self):
-       return self.agent.detected_objects
+    def get_ego_info(self):
+        return self.agent.get_info()
 
-    def get_ego_position(self):
-        return self.agent.dynamic.x, self.agent.dynamic.y
-
-    def get_self_car_control_info(self):
-        return self.agent.get_control_info()
-
-    def get_self_car_info(self):
-        return self.agent.get_info(), self.traffic.get_road_related_info_of_ego()
+    def get_ego_road_related_info(self):
+        return self.traffic.get_road_related_info_of_ego()
 
     def get_time(self):
         return self.traffic.sim_time
-
-    # def get_pos(self):
-    #     return self.mission.pos
-
-    def get_controller_type(self):
-        return self.agent.controller.model_type
-
-    # def mission_update(self,pos):
-    #     self.agent.mission.update(pos)
-
-    # def stop(self):
-    #     self.stopped = True
-    #     self.data.close_file()
-
-    # def update_evaluation_data(self):
-    #     x, y, v, a = self.get_pos()
-    #     speed = v
-    #     plan_pos = self.agent.controller.get_plan_pos()
-    #     if plan_pos is not None:
-    #         plan_x, plan_y = plan_pos[1:3]
-    #     else:
-    #         plan_x, plan_y = x, y
-    #
-    #     is_in_cross, is_change_lane, lane_x, lane_y, car2border = self.agent.get_drive_status()
-    #
-    #     front_d=1000
-    #     front_speed=-1
-    #     front_x, front_y = plan_x, plan_y+1000
-    #     if (not is_change_lane) and not (is_in_cross):
-    #         status,lane_info=self.map.map_position(x,y)
-    #         for vehicle in self.other_vehicles:
-    #             vx,vy=vehicle['x'],vehicle['y']
-    #             if get_distance((x,y),(vx,vy))>100:
-    #                 continue
-    #             vehicle_status,vehicle_lane_info=self.map.map_position(vx,vy)
-    #             if vehicle_status is not MAP_IN_ROAD:
-    #                 continue
-    #             if lane_info!=vehicle_lane_info:
-    #                 continue
-    #             if lane_info['direction'] in 'NS':
-    #                 ds=vy-y
-    #             else:
-    #                 ds=vx-x
-    #             if lane_info['direction'] in 'SW':
-    #                 ds=-ds
-    #             if ds<0 or ds>front_d:
-    #                 continue
-    #             front_x,front_y=vx,vy
-    #             front_d=ds
-    #             front_speed=vehicle['v']
-    #
-    #     steering_wheel,throttle, brake, gear, engine_speed, engine_torque, accl, \
-    #     sideslip, yaw_rate, lateralvelocity, longitudinalvelocity, \
-    #     frontwheel, steerrate, fuel, acc_lon, acc_lat, fuel_rate = self.agent.dynamic.get_info()
-    #
-    #     evaluation_data=(x,y),(plan_x,plan_y),(lane_x, lane_y),(front_x,front_y),is_in_cross,is_change_lane, \
-    #                     frontwheel, throttle/100, brake, longitudinalvelocity, lateralvelocity, accl, \
-    #                     car2border, steerrate, fuel ,acc_lon, acc_lat, front_speed, \
-    #                     speed, yaw_rate, steering_wheel, engine_speed, engine_torque, gear
-    #     self.evaluator.update(evaluation_data)
-
-    # def get_current_task(self):
-    #     return self.agent.mission.current_task
 
     def __collision_check(self):
         for vehs in self.other_vehicles:
@@ -555,7 +406,6 @@ class Settings:  # 可以直接和package版本的Settings类替换,需要转换
     """
 
     def __init__(self, file_path=None):
-        self.car_para = data_structures.CarParameter()  # 自车动力学模型参数
         self.load(file_path)
 
     def __del__(self):
@@ -568,12 +418,7 @@ class Settings:  # 可以直接和package版本的Settings类替换,需要转换
         self.__load_step_length()
         self.__load_map()
         self.__load_self_car()
-        # self.__load_mission()
-        self.__load_controller()
         self.__load_traffic()
-        self.__load_sensors()
-        self.__load_router()
-        self.__load_dynamic()
         self.__load_start_point()
 
     def __parse_xml(self, path):
@@ -592,25 +437,6 @@ class Settings:  # 可以直接和package版本的Settings类替换,需要转换
                             float(self.root.Start_point.Speed.cdata),
                             float(self.root.Start_point.Yaw.cdata)]
 
-    # def __load_mission(self):
-    #     self.mission_type = str(self.root.Mission.Type.cdata)
-    #     self.points = []
-    #     for i in range(len(self.root.Mission.Point)):
-    #         self.points.append([float(self.root.Mission.Point[i].X.cdata),
-    #                             float(self.root.Mission.Point[i].Y.cdata),
-    #                             float(self.root.Mission.Point[i].Speed.cdata),
-    #                             float(self.root.Mission.Point[i].Yaw.cdata)])
-
-    def __load_controller(self):
-        self.controller_type = str(self.root.Controller.Type.cdata)
-        self.controller_lib = str(self.root.Controller.Lib.cdata)
-        self.controller_frequency = int(self.root.Controller.Frequency.cdata)
-        self.controller_file_type = str(self.root.Controller.FileType.cdata)
-
-    def __load_dynamic(self):
-        self.dynamic_type=str(self.root.Dynamic.Type.cdata)
-        self.dynamic_lib=str(self.root.Dynamic.Lib.cdata)
-        self.dynamic_frequency = int(self.root.Dynamic.Frequency.cdata)
 
     def __load_traffic(self):
         self.traffic_type = str(self.root.Traffic.Type.cdata)
@@ -624,60 +450,6 @@ class Settings:  # 可以直接和package版本的Settings类替换,需要转换
         self.car_center2head = float(self.root.SelfCar.CenterToHead.cdata)
         self.car_faxle2center = float(self.root.SelfCar.FAxleToCenter.cdata)
         self.car_raxle2center = float(self.root.SelfCar.RAxleToCenter.cdata)
-        self.car_para.LX_AXLE = self.car_faxle2center + self.car_raxle2center
-        self.car_para.LX_CG_SU = self.car_faxle2center
-        self.car_para.M_SU = float(self.root.SelfCar.M_SU.cdata)
-        self.car_para.IZZ_SU = float(self.root.SelfCar.IZZ_SU.cdata)
-        self.car_para.A = float(self.root.SelfCar.A.cdata)
-        self.car_para.CFx = float(self.root.SelfCar.CFx.cdata)
-        self.car_para.AV_ENGINE_IDLE = float(self.root.SelfCar.AV_ENGINE_IDLE.cdata)
-        self.car_para.IENG = float(self.root.SelfCar.IENG.cdata)
-        self.car_para.TAU = float(self.root.SelfCar.TAU.cdata)
-        self.car_para.R_GEAR_TR1 = float(self.root.SelfCar.R_GEAR_TR1.cdata)
-        self.car_para.R_GEAR_FD = float(self.root.SelfCar.R_GEAR_FD.cdata)
-        self.car_para.BRAK_COEF = float(self.root.SelfCar.BRAK_COEF.cdata)
-        self.car_para.Steer_FACTOR = float(self.root.SelfCar.Steer_FACTOR.cdata)
-        self.car_para.M_US = float(self.root.SelfCar.M_US.cdata)
-        self.car_para.RRE = float(self.root.SelfCar.RRE.cdata)
-        self.car_para.CF = float(self.root.SelfCar.CF.cdata)
-        self.car_para.CR = float(self.root.SelfCar.CR.cdata)
-        self.car_para.ROLL_RESISTANCE = float(self.root.SelfCar.ROLL_RESISTANCE.cdata)
-
-    def __load_sensors(self):
-        self.sensor_model_type = str(self.root.Sensors.Type.cdata)
-        self.sensor_model_lib = str(self.root.Sensors.Lib.cdata)
-        self.sensor_frequency = int(self.root.Sensors.Frequency.cdata)
-        sensor_array = SensorInfo * len(self.root.Sensors.Sensor)
-        self.sensors = sensor_array()
-        types = ['int', 'int', 'float', 'float', 'float', 'float', 'float',
-                 'float', 'float', 'float', 'float', 'float', 'float', 'float']
-        attrs = ['id',
-                 'type',
-                 'detection_angle',
-                 'detection_range',
-                 'installation_lateral_bias',
-                 'installation_longitudinal_bias',
-                 'installation_orientation_angle',
-                 'accuracy_velocity',
-                 'accuracy_location',
-                 'accuracy_heading',
-                 'accuracy_width',
-                 'accuracy_length',
-                 'accuracy_height',
-                 'accuracy_radius']
-        for i in range(len(self.sensors)):
-            for j in range(len(attrs)):
-                attr = attrs[j]
-                dtype = types[j]
-                exec(('self.sensors[i].%s=%s(self.root.Sensors.Sensor[i].%'
-                      's.cdata)') % (attr, dtype, attr))
-
-    def __load_router(self):
-        self.router_output_type = str(self.root.Router.OutputType.cdata)
-        self.router_type = str(self.root.Router.Type.cdata)
-        self.router_lib = str(self.root.Router.Lib.cdata)
-        self.router_frequency = int(self.root.Router.Frequency.cdata)
-        self.router_file_type = str(self.root.Router.FileType.cdata)
 
     # def save(self,path):
     #     file_name=re.split(r'[\\/]',str(path))[-1].split('.')[0]
@@ -995,27 +767,4 @@ class Settings:  # 可以直接和package版本的Settings类替换,需要转换
     #                  buffer.getvalue())
     #     open(path, 'w').write(txt)
 
-
-MAP_MIN_X=-933.0
-MAP_MAX_X=933.0
-MAP_MIN_Y=-933.0
-MAP_MAX_Y=933.0
-MAP_REGION_LEN=622.0
-MAP_CROSS_WIDTH=36.0
-MAP_ROAD_WIDTH=7.5
-MAP_IN_FIELD=0
-MAP_IN_ROAD=1
-MAP_IN_CROSS=2
-
-MISSION_GOTO_TARGET=0
-MISSION_GOTO_CROSS=1
-MISSION_TURNTO_ROAD=2
-
-MISSION_START = -1
-MISSION_RUNNING = 0
-MISSION_COMPLETE = 1
-MISSION_FAILED = 2
-
-MISSION_LEFT_LANE = 'L'
-MISSION_RIGHT_LANE = 'R'
 

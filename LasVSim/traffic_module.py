@@ -618,7 +618,7 @@ class Traffic(object):
         return traci.vehicle.getLaneIndex('ego')
 
     def get_road_related_info_of_ego(self):
-        dis2center_line = self.get_dis2center_line()
+        dis2center_line = self.get_dis2center_line()  # 左正右负
         egolane_index = self.get_egolane_index()
         return dict(dist2current_lane_center=dis2center_line,
                     egolane_index=egolane_index)
