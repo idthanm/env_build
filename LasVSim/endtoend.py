@@ -286,6 +286,8 @@ class ObservationWrapper(gym.Wrapper):
             self.interested_vehicles = [veh for veh in all_vehicles
                                         if self._is_in_interested_area(ego_x, veh['x'], veh['y'])
                                         and veh['lane_index'] in self._interested_lane_index(egolane_index)]
+            self._divide_6parts_and_encode()
+
 
 
 
@@ -301,7 +303,14 @@ class ObservationWrapper(gym.Wrapper):
         center_y_list = [-150-7*3.75/2, -150-5*3.75/2, -150-3*3.75/2, -150-1*3.75/2]
         return center_y_list[lane_index]
 
+    def _laneindex2disttoroadedgy(self, lane_index, dist2current_lane_center):  # dist2current_lane_center 左正右负
+        lane_center2road_left = [3.75*3+3.75/2, 3.75*2+3.75/2, 3.75*1+3.75/2, 3.75*0+3.75/2]
+        lane_center2road_right = [3.75*0+3.75/2, 3.75*1+3.75/2, 3.75*2+3.75/2, 3.75*3+3.75/2]
+        return lane_center2road_left[lane_index] - dist2current_lane_center, lane_center2road_right[lane_index]
+
+
     def _divide_6parts_and_encode(self, ego_x, ego_y, ego_v, ego_heading, ego_length, ego_width, dist2current_lane_center, egolane_index):
+        EGO_ENCODED_VECTOR = [ego_v, ego_heading, ego_length, ego_width, dist2current_lane_center, egolane_index, ]
         if egolane_index != 3:
             center_y = self._laneindex2centery(self._interested_lane_index(egolane_index)[0])
             LEFT_FRONT_NO_CAR_ENCODED_VECTOR = [self.interested_front_dist, center_y-ego_y, ego_v, 0, ego_length, ego_width]  # delta_x, delta_y, v, heading(in coord2), length, width
@@ -313,15 +322,201 @@ class ObservationWrapper(gym.Wrapper):
         MIDDLE_FRONT_NO_CAR_ENCODED_VECTOR = [self.interested_front_dist, -dist2current_lane_center, ego_v, 0, ego_length, ego_width]
         MIDDLE_REAR_NO_CAR_ENCODED_VECTOR = [self.interested_rear_dist, -dist2current_lane_center, 0, 0, ego_length, ego_width]
 
-        NO_ROAD_ENCODED_VECTOR = []
+        NO_ROAD_ENCODED_VECTOR = [0, 0, ego_v, 0, ego_length, ego_width]
         left_front = []
         left_rear = []
         middle_front = []
         middle_rear = []
         right_front = []
         right_rear = []
+        # divide 6 parts
+        if egolane_index == 3:
+            for veh in self.interested_vehicles:
+                delta_x = veh['x'] - ego_x
+                delta_y = veh['y'] - ego_y
+                v = veh['v']
+                heading = veh['angle']
+                length = veh['length']
+                width = veh['width']
+                if veh['lane_index'] == 3 and veh['x'] > ego_x:
+                    middle_front.append([delta_x, delta_y, v, heading, length, width])
+                elif veh['lane_index'] == 3 and veh['x'] < ego_x:
+                    middle_rear.append([delta_x, delta_y, v, heading, length, width])
+                elif veh['lane_index'] == 2 and veh['x'] > ego_x:
+                    right_front.append([delta_x, delta_y, v, heading, length, width])
+                elif veh['lane_index'] == 2 and veh['x'] < ego_x:
+                    right_rear.append([delta_x, delta_y, v, heading, length, width])
+                else:
+                    assert 0, 'interested vehicles error'
+        elif egolane_index == 0:
+            for veh in self.interested_vehicles:
+                delta_x = veh['x'] - ego_x
+                delta_y = veh['y'] - ego_y
+                v = veh['v']
+                heading = veh['angle']
+                length = veh['length']
+                width = veh['width']
+                if veh['lane_index'] == 0 and veh['x'] > ego_x:
+                    middle_front.append([delta_x, delta_y, v, heading, length, width])
+                elif veh['lane_index'] == 0 and veh['x'] < ego_x:
+                    middle_rear.append([delta_x, delta_y, v, heading, length, width])
+                elif veh['lane_index'] == 1 and veh['x'] > ego_x:
+                    left_front.append([delta_x, delta_y, v, heading, length, width])
+                elif veh['lane_index'] == 1 and veh['x'] < ego_x:
+                    left_rear.append([delta_x, delta_y, v, heading, length, width])
+                else:
+                    assert 0, 'interested vehicles error'
+        else:  # ego car in 1 or 2 lane
+            for veh in self.interested_vehicles:
+                delta_x = veh['x'] - ego_x
+                delta_y = veh['y'] - ego_y
+                v = veh['v']
+                heading = veh['angle']
+                length = veh['length']
+                width = veh['width']
+                if veh['lane_index'] == self._interested_lane_index(egolane_index)[0] and veh['x'] > ego_x:
+                    left_front.append([delta_x, delta_y, v, heading, length, width])
+                elif veh['lane_index'] == self._interested_lane_index(egolane_index)[0] and veh['x'] < ego_x:
+                    left_rear.append([delta_x, delta_y, v, heading, length, width])
+                elif veh['lane_index'] == egolane_index and veh['x'] > ego_x:
+                    middle_front.append([delta_x, delta_y, v, heading, length, width])
+                elif veh['lane_index'] == egolane_index and veh['x'] < ego_x:
+                    middle_rear.append([delta_x, delta_y, v, heading, length, width])
+                elif veh['lane_index'] == self._interested_lane_index(egolane_index)[2] and veh['x'] > ego_x:
+                    right_front.append([delta_x, delta_y, v, heading, length, width])
+                elif veh['lane_index'] == self._interested_lane_index(egolane_index)[2] and veh['x'] < ego_x:
+                    right_rear.append([delta_x, delta_y, v, heading, length, width])
+                else:
+                    assert 0, 'interested vehicles error'
 
-        # for veh in self.interested_vehicles:
+        # sort 6 parts
+        if left_front:
+            left_front.sort(key=lambda y: y[0])
+        if left_rear:
+            left_rear.sort(key=lambda y: y[0], reverse=True)
+        if middle_front:
+            middle_front.sort(key=lambda y: y[0])
+        if middle_rear:
+            middle_rear.sort(key=lambda y: y[0], reverse=True)
+        if right_front:
+            right_front.sort(key=lambda y: y[0])
+        if right_rear:
+            right_rear.sort(key=lambda y: y[0], reverse=True)
+
+        if egolane_index == 3:
+            # encode left front
+            encode_left_front = NO_ROAD_ENCODED_VECTOR + NO_ROAD_ENCODED_VECTOR
+
+            # encode left rear
+            encode_left_rear = NO_ROAD_ENCODED_VECTOR
+
+            # encode middle front
+            if not middle_front:
+                encode_middle_front = MIDDLE_FRONT_NO_CAR_ENCODED_VECTOR
+            else:
+                encode_middle_front = middle_front[0]
+
+            # encode middle rear
+            if not middle_rear:
+                encode_middle_rear = MIDDLE_REAR_NO_CAR_ENCODED_VECTOR
+            else:
+                encode_middle_rear = middle_rear[0]
+
+            # encode right front
+            if not right_front:
+                encode_right_front = RIGHT_FRONT_NO_CAR_ENCODED_VECTOR
+            elif len(right_front) == 1:
+                encode_right_front = RIGHT_FRONT_NO_CAR_ENCODED_VECTOR + right_front[0]
+            else:
+                assert len(right_front) >= 2
+                encode_right_front = right_front[1] + right_front[0]
+
+            # encode right rear
+            if not right_rear:
+                encode_right_rear = RIGHT_REAR_NO_CAR_ENCODED_VECTOR
+            else:
+                encode_right_rear = right_rear[0]
+        elif egolane_index == 0:
+            # encode left front
+            if not left_front:
+                encode_left_front = LEFT_FRONT_NO_CAR_ENCODED_VECTOR + LEFT_FRONT_NO_CAR_ENCODED_VECTOR
+            elif len(left_front) == 1:
+                encode_left_front = LEFT_FRONT_NO_CAR_ENCODED_VECTOR + left_front[0]
+            else:
+                assert len(left_front) >= 2
+                encode_left_front = left_front[1] + left_front[0]
+
+            # encode left rear
+            if not left_rear:
+                encode_left_rear = LEFT_REAR_NO_CAR_ENCODED_VECTOR
+            else:
+                encode_left_rear = left_rear[0]
+
+            # encode middle front
+            if not middle_front:
+                encode_middle_front = MIDDLE_FRONT_NO_CAR_ENCODED_VECTOR
+            else:
+                encode_middle_front = middle_front[0]
+
+            # encode middle rear
+            if not middle_rear:
+                encode_middle_rear = MIDDLE_REAR_NO_CAR_ENCODED_VECTOR
+            else:
+                encode_middle_rear = middle_rear[0]
+
+            # encode right front
+            encode_right_front = NO_ROAD_ENCODED_VECTOR + NO_ROAD_ENCODED_VECTOR
+
+            # encode right rear
+            encode_right_rear = NO_ROAD_ENCODED_VECTOR
+
+        else:
+            # encode left front
+            if not left_front:
+                encode_left_front = LEFT_FRONT_NO_CAR_ENCODED_VECTOR + LEFT_FRONT_NO_CAR_ENCODED_VECTOR
+            elif len(left_front) == 1:
+                encode_left_front = LEFT_FRONT_NO_CAR_ENCODED_VECTOR + left_front[0]
+            else:
+                encode_left_front = left_front[1] + left_front[0]
+
+            # encode left rear
+            if not left_rear:
+                encode_left_rear = LEFT_REAR_NO_CAR_ENCODED_VECTOR
+            else:
+                encode_left_rear = left_rear[0]
+
+            # encode middle front
+            if not middle_front:
+                encode_middle_front = MIDDLE_FRONT_NO_CAR_ENCODED_VECTOR
+            else:
+                encode_middle_front = middle_front[0]
+
+            # encode middle rear
+            if not middle_rear:
+                encode_middle_rear = MIDDLE_REAR_NO_CAR_ENCODED_VECTOR
+            else:
+                encode_middle_rear = middle_rear[0]
+
+            # encode right front
+            if not right_front:
+                encode_right_front = RIGHT_FRONT_NO_CAR_ENCODED_VECTOR + RIGHT_FRONT_NO_CAR_ENCODED_VECTOR
+            elif len(right_front) == 1:
+                encode_right_front = RIGHT_FRONT_NO_CAR_ENCODED_VECTOR + right_front[0]
+            else:
+                encode_right_front = right_front[1] + right_front[0]
+
+            # encode right rear
+            if not right_rear:
+                encode_right_rear = RIGHT_REAR_NO_CAR_ENCODED_VECTOR
+            else:
+                encode_right_rear = right_rear[0]
+
+        combined = encode_left_front + encode_left_rear + \
+                   encode_middle_front + encode_middle_rear + encode_right_front + encode_right_rear
+        return np.array(combined)
+
+
+
 
 
 
