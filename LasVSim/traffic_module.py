@@ -536,52 +536,6 @@ class Traffic(object):
                 self.vehicles[i]['type'] = 0
         return self.vehicles[VEHICLE_INDEX_START:]  # 返回的x,y是车辆形心，自车x，y传入也被sumo当做形心
 
-    # def get_light_status(self):  # 该部分可直接与package相替换
-    #     """
-    #     get traffic light status strings
-    #     """
-    #     index = _getcenterindex(self.__own_x, self.__own_y)
-    #     if self.__map_type == MAPS[0]:
-    #         trafficLight = traci.trafficlight.getPhase(TLS[str(int(index))])
-    #     elif self.__map_type == MAPS[1]:
-    #         trafficLight = 0
-    #
-    #
-    #     if trafficLight == 0:
-    #         h=1
-    #         v=0
-    #     else:
-    #         h =0
-    #         v= 1
-    #     s=['red','green','yellow']
-    #     return dict(h=s[h],v=s[v])
-
-    # def get_light_values(self):  # 该部分可直接与gui相替换
-    #     """Get current intersection's traffic light state.
-    #
-    #     Only indicating allowed or disallowed.
-    #
-    #     Returns:
-    #         Two int variables indicating right of way of two directions.
-    #         Variable 'h' indicating horizontal direction's right of way.
-    #         Variable 'v' indicating vertical direction's right of way.
-    #
-    #     Raises:
-    #     """
-    #     index = _getcenterindex(self.__own_x, self.__own_y)
-    #     if self.__map_type == MAPS[0]:
-    #         trafficLight = traci.trafficlight.getPhase(TLS[str(int(index))])
-    #     elif self.__map_type == MAPS[1]:
-    #         trafficLight = 0
-    #
-    #     if trafficLight == 0:
-    #         h = 1
-    #         v = 0
-    #     else:
-    #         h = 0
-    #         v = 1
-    #     return h, v
-
     def sim_step(self):  # 该部分可直接与package相替换
         self.sim_time += SIM_PERIOD
         traci.simulationStep()

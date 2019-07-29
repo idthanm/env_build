@@ -1,5 +1,4 @@
 # coding=utf-8
-from LasVSim.sensor_module import *
 from LasVSim.traffic_module import *
 import threading
 from LasVSim.endtoend_env_utils import rotate_coordination
@@ -82,7 +81,7 @@ class Agent(object):
                     v=self.v,
                     heading=self.heading,
                     length=self.length,
-                    width=self.width)
+                    width=self.width), self._cal_corner_point_coordination()
 
 if __name__ == "__main__":
     f= open("data.txt",'r')

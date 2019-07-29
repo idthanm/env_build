@@ -233,6 +233,7 @@ class Simulation(object):
         self.simulation_loaded = False  # 仿真载入标志位
         self.traffic_data = TrafficData()  # 初始交通流数据对象
         self.settings = Settings(file_path=default_setting_path)  # 仿真设置对象
+        self.step_length = self.settings.step_length
         self.external_control_flag = False  # 外部控制输入标识，若外部输入会覆盖内部控制器
         self.traffic = None
         self.agent = None
@@ -259,7 +260,6 @@ class Simulation(object):
         self.tick_count = 0
         self.settings = settings
         if overwrite_settings is not None:
-            self.settings.car_para.R_GEAR_TR1 = overwrite_settings['init_gear']
             self.settings.start_point = overwrite_settings['init_state']
         self.stopped = False
         # self.data = Data()
@@ -357,16 +357,16 @@ class Simulation(object):
 
     def __collision_check(self):
         for vehs in self.other_vehicles:
-            if (fabs(vehs['x']-self.agent.dynamic.x) < 10 and
-               fabs(vehs['y']-self.agent.dynamic.y) < 2):
-                self.ego_x0 = (self.agent.dynamic.x +
-                               cos(self.agent.dynamic.heading/180*pi)*self.agent.lw)
-                self.ego_y0 = (self.agent.dynamic.y +
-                               sin(self.agent.dynamic.heading/180*pi)*self.agent.lw)
-                self.ego_x1 = (self.agent.dynamic.x -
-                               cos(self.agent.dynamic.heading/180*pi)*self.agent.lw)
-                self.ego_y1 = (self.agent.dynamic.y -
-                               sin(self.agent.dynamic.heading/180*pi)*self.agent.lw)
+            if (fabs(vehs['x']-self.agent.x) < 10 and
+               fabs(vehs['y']-self.agent.y) < 2):
+                self.ego_x0 = (self.agent.x +
+                               cos(self.agent.heading/180*pi)*self.agent.lw)
+                self.ego_y0 = (self.agent.y +
+                               sin(self.agent.heading/180*pi)*self.agent.lw)
+                self.ego_x1 = (self.agent.x -
+                               cos(self.agent.heading/180*pi)*self.agent.lw)
+                self.ego_y1 = (self.agent.y -
+                               sin(self.agent.heading/180*pi)*self.agent.lw)
                 self.surrounding_lw = (vehs['length']-vehs['width'])/2
                 self.surrounding_x0 = (
                     vehs['x'] + cos(

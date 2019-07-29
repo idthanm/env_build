@@ -1,9 +1,10 @@
 import math
 from LasVSim.endtoend_env_utils import shift_coordination, rotate_coordination
-
+import copy
 
 class Reference(object):
-    def __init__(self):
+    def __init__(self, step_length, horizon):
+        self.horizon = horizon
         self.orig_init_x = None
         self.orig_init_y = None
         self.orig_init_v = None
@@ -20,13 +21,14 @@ class Reference(object):
         self.index_mode = None
         self.reference_path = None
         self.reference_velocity = None
-        self.step_length = 100  # ms
+        self.step_length = step_length  # ms
         self.sim_times = 0
         self.x = None  # in origin coordination
         self.y = None
         self.v = None
         self.heading = None
         self.orig_path_points = [] # in origin coordination
+        self.horizon_path_points = []
         # self.reset_reference_path(orig_init_state, orig_goal_state)
 
     def reset_reference_path(self, orig_init_state, orig_goal_state):
@@ -52,6 +54,7 @@ class Reference(object):
         self.reference_path = self.generate_reference_path()
         self.reference_velocity = self.generate_reference_velocity()
         self.orig_path_points = self._generate_orig_path_points()
+        self.horizon_path_points = self._generate_horizon_path_points()
 
     def orig2ref(self, orig_x, orig_y, orig_v, orig_heading):
         orig_x, orig_y = shift_coordination(orig_x, orig_y, self.orig_init_x, self.orig_init_y)
@@ -114,9 +117,9 @@ class Reference(object):
         reference_velocity = []  # list of weight (no bias)
         assert self.index_mode == 'indexed_by_x' or self.index_mode == 'indexed_by_y'
         if self.index_mode == 'indexed_by_x':
-            reference_velocity.append(self.goalv_in_ref / self.goalx_in_ref)
+            reference_velocity.append((self.goalv_in_ref - self.orig_init_v) / self.goalx_in_ref)
         else:
-            reference_velocity.append(self.goalv_in_ref / self.goalx_in_ref)
+            reference_velocity.append((self.goalv_in_ref - self.orig_init_v) / self.goalx_in_ref)
         return reference_velocity
 
     def access_path_point_indexed_by_x(self, x_in_ref):
@@ -125,7 +128,7 @@ class Reference(object):
         a0, a1, a2, a3 = self.reference_path
         w = self.reference_velocity[0]
         y_in_ref = a0 + a1 * x_in_ref + a2 * x_in_ref ** 2 + a3 * x_in_ref ** 3
-        v = w * x_in_ref
+        v = w * x_in_ref + self.orig_init_v
         slope = a1 + 2 * a2 * x_in_ref + 3 * a3 * x_in_ref ** 2
         heading_in_ref = self._slope2deg(slope)
         return x_in_ref, y_in_ref, v, heading_in_ref
@@ -159,7 +162,7 @@ class Reference(object):
             self.sim_times += 1
             return self.x, self.y, self.v, self.heading
         else:
-            self.x += self.v * self.step_length
+            self.x += self.v * self.step_length/1000
             self.heading = 0
             self.sim_times += 1
             return self.x, self.y, self.v, self.heading
@@ -168,8 +171,8 @@ class Reference(object):
         orig_path_points = []
         if self.index_mode == 'indexed_by_x':
             x_in_ref, y_in_ref, v_x, heading_in_ref = 0, 0, self.v, 0
+            x_in_ref += v_x * self.step_length / 1000.0
             while x_in_ref < self.goalx_in_ref:
-                x_in_ref += v_x * self.step_length / 1000.0
                 x_in_ref, y_in_ref, v, heading_in_ref = self.access_path_point_indexed_by_x(x_in_ref)
                 v_x = v * math.cos(self._deg2slope(heading_in_ref))
                 orig_x, orig_y, orig_v, orig_heading = self.ref2orig(x_in_ref, y_in_ref, v, heading_in_ref)
@@ -178,6 +181,27 @@ class Reference(object):
                                              v=orig_v,
                                              heading=orig_heading
                                              ))
+                x_in_ref += v_x * self.step_length / 1000.0
         return orig_path_points
+
+    def _generate_horizon_path_points(self):
+        horizon_path_points = []
+        if len(self.orig_path_points) >= self.horizon:
+            horizon_path_points = self.orig_path_points[0:self.horizon]
+        else:
+            horizon_path_points = copy.deepcopy(self.orig_path_points)
+            x = horizon_path_points[-1]['x']
+            y = horizon_path_points[-1]['y']
+            v = horizon_path_points[-1]['v']
+            heading = horizon_path_points[-1]['heading']
+            while len(horizon_path_points) < self.horizon:
+                x = x + v * self.step_length/1000
+                horizon_path_points.append(dict(x=x,
+                                                y=y,
+                                                v=v,
+                                                heading=0
+                                                ))
+        assert len(horizon_path_points) == self.horizon
+        return horizon_path_points
 
 
