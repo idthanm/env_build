@@ -9,6 +9,7 @@ from LasVSim.reference import Reference
 from matplotlib import pyplot as plt
 from matplotlib.pyplot import MultipleLocator
 from math import pi
+from collections import OrderedDict
 
 # env_closer = closer.Closer()
 
@@ -70,6 +71,7 @@ class EndtoendEnv(gym.Env):
         self.interested_vehicles_4lane_list = []
         self.ego_dynamics_list = []
         self.interested_4lane_vehicles = []
+        self.all_vehicles_list = []
 
 
 
@@ -98,7 +100,7 @@ class EndtoendEnv(gym.Env):
             done (bool): whether the episode has ended, in which case further step() calls will return undefined results
             info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
         """
-        self.interested_vehicles_4lane_list = []
+        self.all_vehicles_list = []
         self.ego_dynamics_list = []
         goal_delta_x, goal_y, goal_delta_v = action
         state_on_begin_of_step = [self.ego_dynamics['x'], self.ego_dynamics['y'], self.ego_dynamics['v'], self.ego_dynamics['heading']]
@@ -139,10 +141,9 @@ class EndtoendEnv(gym.Env):
 
             done, done_type = self._judge_done()
             reward += self.compute_done_reward(done_type)
-            self.ego_dynamics_list.append(self.ego_dynamics.values())
-            self.interested_4lane_vehicles = [veh for veh in self.all_vehicles
-                                        if self.is_in_interested_area(self.ego_dynamics['x'], veh['x'], veh['y'])]
-            self.interested_vehicles_4lane_list.append(self.interested_4lane_vehicles)
+            self.ego_dynamics_list.append(self.ego_dynamics)
+            self.all_vehicles_list.append(self.all_vehicles)
+
             if done:
                 break
         longitudinal_reward = 0
@@ -179,10 +180,18 @@ class EndtoendEnv(gym.Env):
         return True if ego_x - self.interested_rear_dist < pos_x < ego_x + self.interested_front_dist and -150 - 3.75 * 4 < pos_y < -150 else False
 
     def render(self, mode='human', **kwargs):
+        self.interested_vehicles_4lane_list = []
+        for index, all_vehicles in enumerate(self.all_vehicles_list):
+            self.interested_4lane_vehicles = [veh for veh in all_vehicles
+                                              if self.is_in_interested_area(self.ego_dynamics_list[index]['x'], veh['x'], veh['y'])]
+            self.interested_vehicles_4lane_list.append(self.interested_4lane_vehicles)
         assert len(self.ego_dynamics_list) == len(self.interested_vehicles_4lane_list)
         path_points = self.reference.horizon_path_points
         for index, interested_vehicles in enumerate(self.interested_vehicles_4lane_list):
-            ego_x, ego_y, ego_v, ego_heading, ego_length, ego_width = self.ego_dynamics_list[index]
+            ego_x, ego_y, ego_v, ego_heading, \
+            ego_length, ego_width = self.ego_dynamics_list[index]['x'], self.ego_dynamics_list[index]['y'],\
+                                    self.ego_dynamics_list[index]['v'], self.ego_dynamics_list[index]['heading'],\
+                                    self.ego_dynamics_list[index]['length'], self.ego_dynamics_list[index]['width']
             shifted_x, shifted_y = shift_coordination(ego_x, ego_y, ego_x, -150 - 3.75 * 2)
             ego_car = {'ego_y': shifted_y, 'ego_width': ego_length, 'ego_height': ego_width,
                        'ego_angle': ego_heading * pi / 180}
@@ -202,7 +211,7 @@ class EndtoendEnv(gym.Env):
                                  car_height=veh_width,
                                  car_angle=veh_heading * pi / 180))
         for point in path_points:
-            x, y, v, heading = point.values()
+            x, y, v, heading = point['x'], point['y'], point['v'], point['heading']
             shifted_x, shifted_y = shift_coordination(x, y, ego_x, -150 - 3.75 * 2)
             points.append(dict(x=shifted_x,
                                y=shifted_y))
@@ -380,8 +389,10 @@ class ObservationWrapper(gym.Wrapper):
     def observation(self, observation):
         for infos in observation:
             all_vehicles, ego_dynamics, ego_road_related_info = infos
-            ego_x, ego_y, ego_v, ego_heading, ego_length, ego_width = ego_dynamics.values()
-            dist2current_lane_center, egolane_index = ego_road_related_info.values()
+            ego_x, ego_y, ego_v, ego_heading, ego_length, ego_width = ego_dynamics['x'], \
+                                                                      ego_dynamics['y'], ego_dynamics['v'], ego_dynamics['heading'], ego_dynamics['length'], ego_dynamics['width']
+            dist2current_lane_center, egolane_index = ego_road_related_info['dist2current_lane_center'],\
+                                                      ego_road_related_info['egolane_index']
             self.interested_vehicles = [veh for veh in all_vehicles
                                               if self.is_in_interested_area(ego_x, veh['x'], veh['y'])
                                               and veh['lane_index'] in self._interested_lane_index(egolane_index)]
