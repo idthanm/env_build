@@ -67,7 +67,7 @@ class EndtoendEnv(gym.Env):
         self.simulation = lasvsim.create_simulation(setting_path + 'simulation_setting_file.xml')
         self.reference = Reference(self.simulation.step_length, self.horizon)
         self.interested_rear_dist = 30
-        self.interested_front_dist = 60
+        self.interested_front_dist = 60  # if you change this, you should change process action too
         self.interested_vehicles_4lane_list = []
         self.ego_dynamics_list = []
         self.interested_4lane_vehicles = []
@@ -81,7 +81,7 @@ class EndtoendEnv(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self, action):  # action is a np.array, [goal_delta_x, goal_y, goal_delta_v]
+    def step(self, action):  # action is a np.array, [behavior, goal_delta_x, acc]
         """Run one timestep of the environment's dynamics. When end of
         episode is reached, you are responsible for calling `reset()`
         to reset this environment's state.
@@ -102,7 +102,9 @@ class EndtoendEnv(gym.Env):
         """
         self.all_vehicles_list = []
         self.ego_dynamics_list = []
-        goal_delta_x, goal_y, goal_delta_v = action
+        behavior, goal_delta_x, acc = action
+        goal_y = ObservationWrapper.laneindex2centery(self.ego_road_related_info['egolane_index']) - (behavior - 1) * 3.75
+        goal_delta_v = self.simulation.step_length/1000 * self.horizon * acc
         state_on_begin_of_step = [self.ego_dynamics['x'], self.ego_dynamics['y'], self.ego_dynamics['v'], self.ego_dynamics['heading']]
         ego_goal_state = [self.ego_dynamics['x'] + goal_delta_x, goal_y, self.ego_dynamics['v'] + goal_delta_v, 0]
         self.reference.reset_reference_path(state_on_begin_of_step, ego_goal_state)
@@ -148,18 +150,21 @@ class EndtoendEnv(gym.Env):
                 break
         longitudinal_reward = 0
         lateral_reward = 0
+        lane_change_reward = 0
         state_on_end_of_step = state_on_begin_of_step
         if not done:
             state_on_end_of_step = [self.ego_dynamics['x'], self.ego_dynamics['y'], self.ego_dynamics['v'], self.ego_dynamics['heading']]
             longitudinal_reward = 1 * state_on_end_of_step[0] - state_on_begin_of_step[0]  # forward distance reward TODO: add weight
             lateral_reward = -5 * abs(state_on_end_of_step[1] - ego_goal_state[1])  # lateral distance reward
+            lane_change_reward = 10 * int(behavior in [0, 2])
+
         info = dict(done_rew=reward,
                     long_rew=longitudinal_reward,
                     lat_rew=lateral_reward,
+                    lane_change_reward=lane_change_reward,
                     done_type=done_type,
-                    state_on_begin_of_step=state_on_begin_of_step,
                     state_on_end_of_step=state_on_end_of_step)
-        reward += (longitudinal_reward + lateral_reward)
+        reward += (longitudinal_reward + lateral_reward + lane_change_reward)
         return self.obs_deque, reward, done, info
 
     def reset(self, **kwargs):  # must assign 'init_state'
@@ -194,7 +199,7 @@ class EndtoendEnv(gym.Env):
                                     self.ego_dynamics_list[index]['length'], self.ego_dynamics_list[index]['width']
             shifted_x, shifted_y = shift_coordination(ego_x, ego_y, ego_x, -150 - 3.75 * 2)
             ego_car = {'ego_y': shifted_y, 'ego_width': ego_length, 'ego_height': ego_width,
-                       'ego_angle': ego_heading * pi / 180}
+                       'ego_angle': ego_heading}
             vehicles, points = self._process(interested_vehicles, ego_x, path_points)
             self._render(ego_car, vehicles, self.interested_rear_dist, self.interested_front_dist, points)
 
@@ -209,7 +214,7 @@ class EndtoendEnv(gym.Env):
                                  car_y=shifted_y,
                                  car_width=veh_length,
                                  car_height=veh_width,
-                                 car_angle=veh_heading * pi / 180))
+                                 car_angle=veh_heading))
         for point in path_points:
             x, y, v, heading = point['x'], point['y'], point['v'], point['heading']
             shifted_x, shifted_y = shift_coordination(x, y, ego_x, -150 - 3.75 * 2)
@@ -235,14 +240,14 @@ class EndtoendEnv(gym.Env):
         """
         plt.cla()
         plt.title("Render")
-        x_major_locator = MultipleLocator(10)  # 把x轴的刻度间隔设置为5，并存在变量里
-        y_major_locator = MultipleLocator(7)
+        # x_major_locator = MultipleLocator(10)  # 把x轴的刻度间隔设置为5，并存在变量里
+        # y_major_locator = MultipleLocator(7)
 
         ax = plt.gca()  # ax为两条坐标轴的实例
-        ax.xaxis.set_major_locator(x_major_locator)  # 把x轴的主刻度设置为5的倍数
-        ax.yaxis.set_major_locator(y_major_locator)
+        # ax.xaxis.set_major_locator(x_major_locator)  # 把x轴的主刻度设置为5的倍数
+        # ax.yaxis.set_major_locator(y_major_locator)
         plt.xlim((-left_boder, right_boder))
-        plt.ylim((-8, 8))
+        plt.ylim((-10, 60))
         plt.title("test render")
         ax.spines['right'].set_color('none')
         ax.spines['top'].set_color('none')
@@ -251,13 +256,13 @@ class EndtoendEnv(gym.Env):
         ax.spines['bottom'].set_position(('data', 0))
         ax.spines['left'].set_position(('data', 0))
         # 画车道线
-        x = np.arange(-left_boder - 1, right_boder + 1)
-        y = 0 * x - 3.75
+        x = np.arange(-left_boder, right_boder)
+        y3 = 0 * x - 3.75
         y1 = 0 * x + 0
         y2 = 0 * x + 3.75
         plt.xlabel("x ")
         plt.ylabel("y ")
-        plt.plot(x, y, color='b', linewidth=1, linestyle='--')
+        plt.plot(x, y3, color='b', linewidth=1, linestyle='--')
         plt.plot(x, y1, color='b', linewidth=1, linestyle='--')
         plt.plot(x, y2, color='b', linewidth=1, linestyle='--')
         # 环境车道线外框矩形
@@ -292,7 +297,7 @@ class EndtoendEnv(gym.Env):
             n_y = n['y']
             plt.plot(n_x, n_y, '.', c='r')
         plt.axis('off')
-        plt.axis('equal')
+        # plt.axis('equal')
         plt.pause(0.1)
         # plt.show()
 
@@ -406,26 +411,28 @@ class ObservationWrapper(gym.Wrapper):
         info_list = [[1, 0, None], [2, 1, 0], [3, 2, 1], [None, 3, 2]]  # left, middle, right
         return info_list[ego_lane_index]
 
-    def _laneindex2centery(self, lane_index):
+    @staticmethod
+    def laneindex2centery(lane_index):
         center_y_list = [-150-7*3.75/2, -150-5*3.75/2, -150-3*3.75/2, -150-1*3.75/2]
         return center_y_list[lane_index]
 
-    def _laneindex2disttoroadedgy(self, lane_index, dist2current_lane_center):  # dist2current_lane_center (left positive)
+    @staticmethod
+    def laneindex2disttoroadedgy(lane_index, dist2current_lane_center):  # dist2current_lane_center (left positive)
         lane_center2road_left = [3.75*3+3.75/2, 3.75*2+3.75/2, 3.75*1+3.75/2, 3.75*0+3.75/2]
         lane_center2road_right = [3.75*0+3.75/2, 3.75*1+3.75/2, 3.75*2+3.75/2, 3.75*3+3.75/2]
         return lane_center2road_left[lane_index] - dist2current_lane_center, \
                lane_center2road_right[lane_index] + dist2current_lane_center
 
     def _divide_6parts_and_encode(self, ego_x, ego_y, ego_v, ego_heading, ego_length, ego_width, dist2current_lane_center, egolane_index):
-        dist2roadleft, dist2roadright = self._laneindex2disttoroadedgy(egolane_index, dist2current_lane_center)
+        dist2roadleft, dist2roadright = self.laneindex2disttoroadedgy(egolane_index, dist2current_lane_center)
         EGO_ENCODED_VECTOR = [ego_v, ego_heading, ego_length, ego_width,
                               dist2current_lane_center, egolane_index, dist2roadleft, dist2roadright]  # 8 dim
         if egolane_index != 3:
-            center_y = self._laneindex2centery(self._interested_lane_index(egolane_index)[0])
+            center_y = self.laneindex2centery(self._interested_lane_index(egolane_index)[0])
             LEFT_FRONT_NO_CAR_ENCODED_VECTOR = [self.interested_front_dist, center_y-ego_y, ego_v, 0, ego_length, ego_width]  # delta_x, delta_y, v, heading(in coord2), length, width
             LEFT_REAR_NO_CAR_ENCODED_VECTOR = [-self.interested_rear_dist, center_y-ego_y, 0, 0, ego_length, ego_width]
         if egolane_index != 0:
-            center_y = self._laneindex2centery(self._interested_lane_index(egolane_index)[1])
+            center_y = self.laneindex2centery(self._interested_lane_index(egolane_index)[1])
             RIGHT_FRONT_NO_CAR_ENCODED_VECTOR = [self.interested_front_dist, center_y-ego_y, ego_v, 0, ego_length, ego_width]
             RIGHT_REAR_NO_CAR_ENCODED_VECTOR = [-self.interested_rear_dist, center_y-ego_y, 0, 0, ego_length, ego_width]
         MIDDLE_FRONT_NO_CAR_ENCODED_VECTOR = [self.interested_front_dist, -dist2current_lane_center, ego_v, 0, ego_length, ego_width]

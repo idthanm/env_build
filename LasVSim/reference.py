@@ -172,7 +172,7 @@ class Reference(object):
         if self.index_mode == 'indexed_by_x':
             x_in_ref, y_in_ref, v_x, heading_in_ref = 0, 0, self.v, 0
             x_in_ref += v_x * self.step_length / 1000.0
-            while x_in_ref < self.goalx_in_ref:
+            while x_in_ref < self.goalx_in_ref and len(orig_path_points) < self.horizon:
                 x_in_ref, y_in_ref, v, heading_in_ref = self.access_path_point_indexed_by_x(x_in_ref)
                 v_x = v * math.cos(self._deg2slope(heading_in_ref))
                 orig_x, orig_y, orig_v, orig_heading = self.ref2orig(x_in_ref, y_in_ref, v, heading_in_ref)
