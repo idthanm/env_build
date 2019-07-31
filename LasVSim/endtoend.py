@@ -106,7 +106,7 @@ class EndtoendEnv(gym.Env):
         goal_y = ObservationWrapper.laneindex2centery(self.ego_road_related_info['egolane_index']) - (behavior - 1) * 3.75
         goal_delta_v = self.simulation.step_length/1000 * self.horizon * acc
         state_on_begin_of_step = [self.ego_dynamics['x'], self.ego_dynamics['y'], self.ego_dynamics['v'], self.ego_dynamics['heading']]
-        ego_goal_state = [self.ego_dynamics['x'] + goal_delta_x, goal_y, self.ego_dynamics['v'] + goal_delta_v, 0]
+        ego_goal_state = [self.ego_dynamics['x'] + goal_delta_x, goal_y, np.clip(self.ego_dynamics['v'] + goal_delta_v, 0, 33), 0]
         self.reference.reset_reference_path(state_on_begin_of_step, ego_goal_state)
         reward = 0
         done = 0

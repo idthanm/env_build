@@ -1,8 +1,9 @@
 from LasVSim.endtoend import EndtoendEnv, ObservationWrapper
-# import gym
+import gym
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+from gym.wrappers import ObservationWrapper
 
 # def action_fn(last_timestep_vector, horizon):
 #     ego_v, ego_heading, ego_length, ego_width, dist2current_lane_center, \
@@ -35,7 +36,7 @@ def action_fn():
 
 
 if __name__ == '__main__':
-    env = EndtoendEnv('./Scenario/Highway_endtoend/', 30, 10)
+    env = gym.make('EndtoendEnv-v0', setting_path='./Scenario/Highway_endtoend/', plan_horizon=30, history_len=10)
     env = ObservationWrapper(env)
     done = 0
     episode_num = 10
@@ -46,6 +47,7 @@ if __name__ == '__main__':
         ret = 0
         while not done:
             action = action_fn()
+            print('action:', action)
             obs, rew, done, info = env.step(action)
             env.render()
             last_timestep_vector = obs[-1][-8:]
