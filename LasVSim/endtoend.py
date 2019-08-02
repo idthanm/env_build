@@ -379,6 +379,7 @@ class ObservationWrapper(gym.Wrapper):
         self.history_len = self.env.history_len
         self.encode_vec_len = 56  # 53 = 6dim * 8veh + 8ego
         self.encoded_obs = np.zeros((self.history_len, self.encode_vec_len))
+        self.reset(init_state=[-800, -150-3.75*5/2, 5, 0])
 
     def reset(self, **kwargs):  # must assign init_state
         self.encoded_obs = np.zeros((self.history_len, self.encode_vec_len))
