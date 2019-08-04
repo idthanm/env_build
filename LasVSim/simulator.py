@@ -12,7 +12,6 @@ import os
 from LasVSim.traffic_module import *
 from LasVSim.agent_module import *
 from xml.dom.minidom import Document
-import kdtree
 # import StringIO
 import time
 from LasVSim import data_structures
@@ -239,9 +238,14 @@ class Simulation(object):
         self.agent = None
         self.ego_history = None
         self.data = None
+        self.seed = None
 
         # self.reset(settings=self.settings, overwrite_settings=overwrite_settings, init_traffic_path=init_traffic_path)
         # self.sim_step()
+
+    def set_seed(self, seed=None):  # call this just before training (usually only once)
+        if seed is not None:
+            self.seed = seed
 
     def reset(self, settings=None, overwrite_settings=None, init_traffic_path=None):
         """Clear previous loaded module.
@@ -250,9 +254,9 @@ class Simulation(object):
             settings: LasVSim's setting class instance. Containing current
                 simulation's configuring information.
         """
-        if hasattr(self,'traffic'):
+        if hasattr(self, 'traffic'):
             del self.traffic
-        if hasattr(self,'agent'):
+        if hasattr(self, 'agent'):
             del self.agent
         if hasattr(self, 'data'):
             del self.data
@@ -271,7 +275,8 @@ class Simulation(object):
                                traffic_type=settings.traffic_type,
                                traffic_density=settings.traffic_lib,
                                step_length=step_length,
-                               init_traffic=self.traffic_data.load_traffic(init_traffic_path))
+                               init_traffic=self.traffic_data.load_traffic(init_traffic_path),
+                               seed=self.seed)
         self.traffic.init(settings.start_point, settings.car_length)
         self.other_vehicles = self.traffic.get_vehicles()
 
@@ -287,7 +292,7 @@ class Simulation(object):
         if os.path.exists(path):
             settings = Settings()
             settings.load(path+'/simulation_setting_file.xml')
-            #self.reset(settings)
+            # self.reset(settings)
             self.reset(settings, overwrite_settings=overwrite_settings, init_traffic_path=path)
             self.simulation_loaded = True
             return

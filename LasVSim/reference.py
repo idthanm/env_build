@@ -1,6 +1,7 @@
 import math
 from LasVSim.endtoend_env_utils import shift_coordination, rotate_coordination
 import copy
+import numpy as np
 
 class Reference(object):
     def __init__(self, step_length, horizon):
@@ -37,6 +38,7 @@ class Reference(object):
         self.orig_goal_x, self.orig_goal_y, self.orig_goal_v, self.orig_goal_heading = orig_goal_state  # heading in deg
         self.goal_in_ref = self.orig2ref(self.orig_goal_x, self.orig_goal_y, self.orig_goal_v, self.orig_goal_heading)
         self.goalx_in_ref, self.goaly_in_ref, self.goalv_in_ref, self.goalheading_in_ref = self.goal_in_ref
+        self.goalv_in_ref = np.clip(self.goalv_in_ref, 0, 33)
         self.x = self.orig_init_x
         self.y = self.orig_init_y
         self.v = self.orig_init_v

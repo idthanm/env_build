@@ -23,6 +23,15 @@ def load_scenario(path):
     simulation.load_scenario(path)
 
 
+def seed(seed):  # this should be called just after you create a simulation or not call it at all
+    """
+    :param seed:
+    :return: set simulation seed
+    """
+    simulation.set_seed(seed)
+
+
+
 def sim_step(steps=None):
     if steps is None:
         steps = 1

@@ -49,6 +49,7 @@ class EndtoendEnv(gym.Env):
     # Set these in ALL subclasses
 
     def __init__(self, setting_path, plan_horizon, history_len):
+        self.goal_length = 500  # episode ends on running 500m
         self.horizon = plan_horizon
         self.setting_path = setting_path
         self.action_space = None
@@ -63,8 +64,8 @@ class EndtoendEnv(gym.Env):
         self.final_goal_x = None
         self.history_len = history_len
         self.obs_deque = deque(maxlen=history_len)
-        self.seed()
         self.simulation = lasvsim.create_simulation(setting_path + 'simulation_setting_file.xml')
+        self.seed()  # call this for giving self.np_random
         self.reference = Reference(self.simulation.step_length, self.horizon)
         self.interested_rear_dist = 30
         self.interested_front_dist = 60  # if you change this, you should change process action too
@@ -77,8 +78,9 @@ class EndtoendEnv(gym.Env):
 
         # self.reset(init_state=[-800, -150-3.75*5/2, 5, 0])
 
-    def seed(self, seed=None):
+    def seed(self, seed=None):  # call this before only before training
         self.np_random, seed = seeding.np_random(seed)
+        lasvsim.seed(seed)
         return [seed]
 
     def step(self, action):  # action is a np.array, [behavior, goal_delta_x, acc]
@@ -167,11 +169,27 @@ class EndtoendEnv(gym.Env):
         reward += (longitudinal_reward + lateral_reward + lane_change_reward)
         return self.obs_deque, reward, done, info
 
-    def reset(self, **kwargs):  # must assign 'init_state'
+    def reset(self, **kwargs):  # if not assign 'init_state', it will generate random init state
         #  clear deque
+        def random_init_state(flag=True):
+            init_state = [-800, -150 - 3.75 * 5 / 2, 5, 0]
+            if flag:
+                x = self.np_random.uniform(0, 1) * 1000 - 800
+                lane = self.np_random.choice([0, 1, 2, 3])
+                y_fn = lambda lane: \
+                [-150 - 3.75 * 7 / 2, -150 - 3.75 * 5 / 2, -150 - 3.75 * 3 / 2, -150 - 3.75 * 1 / 2][lane]
+                y = y_fn(lane)
+                v = self.np_random.uniform(0, 1) * 25
+                heading = 0
+                init_state = [x, y, v, heading]
+            return init_state
         self.obs_deque.clear()
-        self.init_state = kwargs['init_state']
-        self.final_goal_x = self.init_state[0] + 500
+        if 'init_state' in kwargs:
+            self.init_state = kwargs['init_state']
+        else:
+            self.init_state = random_init_state()
+
+        self.final_goal_x = self.init_state[0] + self.goal_length
         lasvsim.reset_simulation(overwrite_settings={'init_state': self.init_state},
                                  init_traffic_path=self.setting_path)
         self.simulation = lasvsim.simulation
@@ -381,7 +399,7 @@ class ObservationWrapper(gym.Wrapper):
         self.encoded_obs = np.zeros((self.history_len, self.encode_vec_len))
         self.reset(init_state=[-800, -150-3.75*5/2, 5, 0])
 
-    def reset(self, **kwargs):  # must assign init_state
+    def reset(self, **kwargs):  # if not assign 'init_state', it will generate random init state
         self.encoded_obs = np.zeros((self.history_len, self.encode_vec_len))
         observation = self.env.reset(**kwargs)
 
