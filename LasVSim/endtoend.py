@@ -153,20 +153,23 @@ class EndtoendEnv(gym.Env):
         longitudinal_reward = 0
         lateral_reward = 0
         lane_change_reward = 0
+        velocity_reward = 0
         state_on_end_of_step = state_on_begin_of_step
         if not done:
             state_on_end_of_step = [self.ego_dynamics['x'], self.ego_dynamics['y'], self.ego_dynamics['v'], self.ego_dynamics['heading']]
             longitudinal_reward = 1 * state_on_end_of_step[0] - state_on_begin_of_step[0]  # forward distance reward TODO: add weight
             lateral_reward = -5 * abs(state_on_end_of_step[1] - ego_goal_state[1])  # lateral distance reward
+            velocity_reward = 0.5 * (state_on_end_of_step[2] + state_on_begin_of_step[2])
             lane_change_reward = 10 * int(behavior in [0, 2])
 
         info = dict(done_rew=reward,
                     long_rew=longitudinal_reward,
                     lat_rew=lateral_reward,
+                    vel_rew=velocity_reward,
                     lane_change_reward=lane_change_reward,
                     done_type=done_type,
                     state_on_end_of_step=state_on_end_of_step)
-        reward += (longitudinal_reward + lateral_reward + lane_change_reward)
+        reward += (longitudinal_reward + lateral_reward + lane_change_reward + velocity_reward)
         return self.obs_deque, reward, done, info
 
     def reset(self, **kwargs):  # if not assign 'init_state', it will generate random init state
