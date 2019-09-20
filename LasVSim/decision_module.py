@@ -1,5 +1,5 @@
 from ctypes import *
-from _ctypes import FreeLibrary
+from _ctypes import dlclose
 from math import pi
 from LasVSim.default_value import *
 DAGROUTER_MODEL_PATH='Modules/DecisionModule/Map1_XinLong.dll'
@@ -44,7 +44,7 @@ class DAGRouter(object):
 
     def __del__(self):
         self.dll.delete_p()
-        FreeLibrary(self.dll._handle)
+        dlclose(self.dll._handle)
         del self.dll
 
     def set_task(self,cross_center,direction,task):

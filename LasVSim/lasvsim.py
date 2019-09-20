@@ -118,9 +118,10 @@ def set_steer_angle(steer):
         brake_pressure=simulation.agent.brake_pressure,
         steering_wheel=simulation.agent.steer_wheel)
 
-def set_steer_and_acc(acc, steer):
-    """Set ego vehicle's steering wheel angle in deg and acceleration in m/s^2."""
-    simulation.agent.steer_wheel = steer
+
+def set_delta_steer_and_acc(acc, delta_steer):
+    """Set ego vehicle's delta steering wheel angle in deg and acceleration in m/s^2."""
+    simulation.agent.steer_wheel += delta_steer
     simulation.agent.acceleration = acc
     simulation.agent.controller.set_track(
         steering_wheel=simulation.agent.steer_wheel,

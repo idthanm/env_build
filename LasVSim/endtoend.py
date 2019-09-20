@@ -4,49 +4,41 @@ from gym.utils import seeding
 import math
 import numpy as np
 from LasVSim.endtoend_env_utils import shift_coordination, rotate_coordination
+from collections import OrderedDict
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 
 # env_closer = closer.Closer()
 
 
+def convert_observation_to_space(observation):
+    if isinstance(observation, dict):
+        space = gym.spaces.Dict(OrderedDict([
+            (key, convert_observation_to_space(value))
+            for key, value in observation.items()
+        ]))
+    elif isinstance(observation, np.ndarray):
+        low = np.full(observation.shape, -float('inf'))
+        high = np.full(observation.shape, float('inf'))
+        space = gym.spaces.Box(low, high, dtype=observation.dtype)
+    else:
+        raise NotImplementedError(type(observation), observation)
 
-class EndtoendEnv(gym.Env):
-    r"""The main OpenAI Gym class. It encapsulates an environment with
-    arbitrary behind-the-scenes dynamics. An environment can be
-    partially or fully observed.
+    return space
 
-    The main API methods that users of this class need to know are:
 
-        step
-        reset
-        render
-        close
-        seed
-
-    And set the following attributes:
-
-        action_space: The Space object corresponding to valid actions
-        observation_space: The Space object corresponding to valid observations
-        reward_range: A tuple corresponding to the min and max possible rewards
-
-    Note: a default reward range set to [-inf,+inf] already exists. Set it if you want a narrower range.
-
-    The methods are accessed publicly as "step", "reset", etc.. The
-    non-underscored versions are wrapper methods to which we may add
-    functionality over time.
-    """
-
-    # Set this in SOME subclasses
-    # metadata = {'render.modes': []}
-    # reward_range = (-float('inf'), float('inf'))
-    # spec = None
-
-    # Set these in ALL subclasses
-
-    def __init__(self, setting_path):
+class End2endEnv(gym.Env):  # cannot be used directly, cause observation space is not known
+    # can it be map and task independent? and subclass should be task and map specific
+    def __init__(self,
+                 setting_path,
+                 obs_type=2,  # 0:'vectors only', 1:'grids only', '2:grids_plus_vecs'
+                 frameskip=4,
+                 repeat_action_probability=0):
+        metadata = {'render.modes': ['human']}
         self.setting_path = setting_path
-        self.action_space = None
-        self.observation_space = None
+        self._obs_type = obs_type
+        self.frameskip = frameskip
         self.detected_vehicles = None
         self.all_vehicles = None
         self.ego_dynamics = None
@@ -55,40 +47,61 @@ class EndtoendEnv(gym.Env):
         self.simulation = None
         self.init_state = []
         self.goal_state = []
-        self.reference = Reference()
-
+        self.task = None  # used to decide goal
+        self.action_space = gym.spaces.Box(np.array([-5, -90]), np.array([2.5, 90]), dtype=np.float32)
         self.seed()
-        lasvsim.create_simulation(setting_path + 'simulation_setting_file.xml')
+        self.simulation = lasvsim.create_simulation(setting_path + 'simulation_setting_file.xml')
         self.reset()
+        action = self.action_space.sample()
+        observation, _reward, done, _info = self.step(action)
+        self._set_observation_space(observation)
+        plt.ion()
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self, action):  # action is a np.array, [expected_acceleration, expected_steer]
-        """Run one timestep of the environment's dynamics. When end of
-        episode is reached, you are responsible for calling `reset()`
-        to reset this environment's state.
+    def step(self, action):  # action is a np.array, [expected_acceleration, delta_steer]
+        reward = 0
+        done = 0
+        all_info = None
+        for _ in range(self.frameskip):
+            lasvsim.set_delta_steer_and_acc(action[0], action[1])
+            lasvsim.sim_step()
+            all_info = self._get_all_info()
+            done_type, done = self._judge_done()
+            reward += self.compute_reward(done_type)
+            if done:
+                break
+        obs = self._get_obs()
 
-        I'm such a big pig that I didn't answer my baby's demand and I took her priority less significant.
-        I'm praying and sighing and regretting.
+        return obs, reward, done, all_info
 
-        Accepts an action and returns a tuple (observation, reward, done, info).
+    def reset(self, **kwargs):  # kwargs includes two keys: 'task': 0/1/2, 'init_state': [x, y, v, heading]
+        if kwargs:
+            self.init_state, self.task = kwargs['init_state'], kwargs['task']
+        else:
+            self.init_state, self.task = [3.75 / 2, -18 - 2.5, 0, 90], 0
+        lasvsim.reset_simulation(overwrite_settings={'init_state': self.init_state},
+                                 init_traffic_path=self.setting_path)
+        # decide goal state at start
+        self._generate_goal_state()
+        self._get_all_info()
+        obs = self._get_obs()
+        return obs
 
-        Args:
-            action (object): an action provided by the agent
+    # observation related
+    def _generate_goal_state(self):  # need to be override in subclass
+        raise NotImplementedError
 
-        Returns:
-            observation (object): agent's observation of the current environment
-            reward (float) : amount of reward returned after previous action
-            done (bool): whether the episode has ended, in which case further step() calls will return undefined results
-            info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
-        """
-        expected_acceleration, expected_steer = action
-        lasvsim.set_steer_and_acc(expected_acceleration, expected_steer)
-        lasvsim.sim_step()
-        self.detected_vehicles = lasvsim.get_detected_objects()  # coordination 2
+    def _set_observation_space(self, observation):
+        self.observation_space = convert_observation_to_space(observation)
+        return self.observation_space
+
+    def _get_all_info(self):  # after goal_state is generated, must be called every timestep before _get_obs
+        # to fetch info
         self.all_vehicles = lasvsim.get_all_objects()  # coordination 2
+        self.detected_vehicles = lasvsim.get_detected_objects()  # coordination 2
         (self.ego_dynamics, self.ego_info), self.road_related_info = lasvsim.get_self_car_info()
         # ego_dynamics
         # {'x': self.x,
@@ -100,7 +113,7 @@ class EndtoendEnv(gym.Env):
         #  'transmission_gear_ratio': self.drive_ratio}  # CVT range: [0.32, 2.25]
 
         # ego_info
-        # {'Steer_wheel_angle': self.car_info.Steer_SW,  # 方向盘转角(deg)
+        # {'Steer_wheel_angle': self.car_info.Steer_SW,  # 方向盘转角(deg) [-705, 705]
         #  'Throttle': self.car_info.Throttle,  # 节气门开度 (0-100)
         #  'Bk_Pressure': self.car_info.Bk_Pressure,  # 制动压力(Mpa)
         #  'Transmission_gear_ratio': self.car_info.Rgear_Tr,  # 变速器ratio, CVT range: [0.32, 2.25]
@@ -124,7 +137,10 @@ class EndtoendEnv(gym.Env):
 
         # road_related_info
         # {'dist2current_lane_center' = dis2center_line,
-        #  'egolane_index' = egolane_index
+        #  'egolane_index' = egolane_index,
+        #  'current_lane_speed_limit'' = own_lane_speed_limit,
+        #  'current_distance_to_stopline' = current_distance_to_stopline,
+        #  'vertical_light_value' = vertical_light_value
         # }
 
         # all_vehicles
@@ -144,175 +160,202 @@ class EndtoendEnv(gym.Env):
         #  'angle': a,
         #  'width': w,
         #  'length': l}
-        done = self._judge_done()  # 0 1 2 3 4 5
-        rew = self.compute_reward(done)
-        info = self.ego_info.update(self.road_related_info)
-        obs = self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info,\
-              self.road_related_info, self.goal_state
-        return obs, rew, done is not 5, info
+        all_info = dict(all_vehicles=self.all_vehicles,
+                        detected_vehicles=self.detected_vehicles,
+                        ego_dynamics=self.ego_dynamics,
+                        ego_info=self.ego_info,
+                        road_related_info=self.road_related_info,
+                        goal_state=self.goal_state)
+        return all_info
 
-    def reset(self, **kwargs):
-        """Resets the state of the environment and returns an initial observation.
+    def _get_obs(self):
+        """this func should be override in subclass to generate different types of observation"""
+        raise NotImplementedError
 
-        Returns:
-            observation (object): the initial observation love my baby.
+    def render(self, mode='human'):
+        if mode == 'human':
+
+            # plot basic map
+            square_length = 36
+            extension = 10
+            lane_width = 3.75
+            dotted_line_style = '--'
+
+            plt.cla()
+            plt.title("Demo")
+            ax = plt.axes(xlim=(-square_length / 2 - extension, square_length / 2 + extension),
+                          ylim=(-square_length / 2 - extension, square_length / 2 + extension))
+            plt.axis("equal")
+
+            ax.add_patch(plt.Rectangle((-square_length / 2, -square_length / 2),
+                                       square_length, square_length, edgecolor='black', facecolor='none'))
+            ax.add_patch(plt.Rectangle((-square_length / 2 - extension, -square_length / 2 - extension),
+                                       square_length + 2 * extension, square_length + 2 * extension, edgecolor='black',
+                                       facecolor='none'))
+
+            # ----------horizon--------------
+            plt.plot([-square_length / 2 - extension, -square_length / 2], [0, 0], color='black')
+            plt.plot([square_length / 2 + extension, square_length / 2], [0, 0], color='black')
+
+            #
+            plt.plot([-square_length / 2 - extension, -square_length / 2], [lane_width, lane_width],
+                     linestyle=dotted_line_style, color='black')
+            plt.plot([square_length / 2 + extension, square_length / 2], [lane_width, lane_width],
+                     linestyle=dotted_line_style, color='black')
+
+            plt.plot([-square_length / 2 - extension, -square_length / 2], [2 * lane_width, 2 * lane_width],
+                     color='black')
+            plt.plot([square_length / 2 + extension, square_length / 2], [2 * lane_width, 2 * lane_width],
+                     color='black')
+            #
+            plt.plot([-square_length / 2 - extension, -square_length / 2], [-lane_width, -lane_width],
+                     linestyle=dotted_line_style, color='black')
+            plt.plot([square_length / 2 + extension, square_length / 2], [-lane_width, -lane_width],
+                     linestyle=dotted_line_style, color='black')
+
+            plt.plot([-square_length / 2 - extension, -square_length / 2], [-2 * lane_width, -2 * lane_width],
+                     color='black')
+            plt.plot([square_length / 2 + extension, square_length / 2], [-2 * lane_width, -2 * lane_width],
+                     color='black')
+
+            # ----------vertical----------------
+            plt.plot([0, 0], [-square_length / 2 - extension, -square_length / 2], color='black')
+            plt.plot([0, 0], [square_length / 2 + extension, square_length / 2], color='black')
+
+            #
+            plt.plot([lane_width, lane_width], [-square_length / 2 - extension, -square_length / 2],
+                     linestyle=dotted_line_style, color='black')
+            plt.plot([lane_width, lane_width], [square_length / 2 + extension, square_length / 2],
+                     linestyle=dotted_line_style, color='black')
+
+            plt.plot([2 * lane_width, 2 * lane_width], [-square_length / 2 - extension, -square_length / 2],
+                     color='black')
+            plt.plot([2 * lane_width, 2 * lane_width], [square_length / 2 + extension, square_length / 2],
+                     color='black')
+
+            #
+            plt.plot([-lane_width, -lane_width], [-square_length / 2 - extension, -square_length / 2],
+                     linestyle=dotted_line_style, color='black')
+            plt.plot([-lane_width, -lane_width], [square_length / 2 + extension, square_length / 2],
+                     linestyle=dotted_line_style, color='black')
+
+            plt.plot([-2 * lane_width, -2 * lane_width], [-square_length / 2 - extension, -square_length / 2],
+                     color='black')
+            plt.plot([-2 * lane_width, -2 * lane_width], [square_length / 2 + extension, square_length / 2],
+                     color='black')
+
+            def is_in_plot_area(x, y, tolerance=5):
+                if -square_length / 2 - extension+tolerance < x < square_length / 2 + extension-tolerance and \
+                        -square_length / 2 - extension+tolerance < y < square_length / 2 + extension-tolerance:
+                    return True
+                else:
+                    return False
+
+            def draw_rotate_rec(x, y, a, l, w, color):
+                RU_x, RU_y, _ = rotate_coordination(l / 2, w / 2, 0, -a)
+                RD_x, RD_y, _ = rotate_coordination(l / 2, -w / 2, 0, -a)
+                LU_x, LU_y, _ = rotate_coordination(-l / 2, w / 2, 0, -a)
+                LD_x, LD_y, _ = rotate_coordination(-l / 2, -w / 2, 0, -a)
+                ax.plot([RU_x + x, RD_x + x], [RU_y + y, RD_y + y], color=color)
+                ax.plot([RU_x + x, LU_x + x], [RU_y + y, LU_y + y], color=color)
+                ax.plot([LD_x + x, RD_x + x], [LD_y + y, RD_y + y], color=color)
+                ax.plot([LD_x + x, LU_x + x], [LD_y + y, LU_y + y], color=color)
+
+            # plot cars
+            for veh in self.all_vehicles:
+                x = veh['x']
+                y = veh['y']
+                a = veh['angle']
+                l = veh['length']
+                w = veh['width']
+                if is_in_plot_area(x, y):
+                    draw_rotate_rec(x, y, a, l, w, 'black')
+
+            # plot own car
+            ego_x = self.ego_dynamics['x']
+            ego_y = self.ego_dynamics['y']
+            ego_a = self.ego_dynamics['heading']
+            ego_l = self.ego_info['Car_length']
+            ego_w = self.ego_info['Car_width']
+            draw_rotate_rec(ego_x, ego_y, ego_a, ego_l, ego_w, 'red')
+            plt.show()
+            plt.pause(0.1)
+
+    def close(self):
+        """Override close in your subclass to perform any necessary cleanup.
+
+        Environments will automatically close() themselves when
+        garbage collected or when the program exits.
         """
-        def initspeed2initgear(init_v):
-            if 0 <= init_v < 10:
-                init_gear = 2.25
-            elif 10 <= init_v < 20:
-                init_gear = 1.20
-            else:
-                init_gear = 0.80
-            return init_gear
+        pass
 
-        if not kwargs:
-            init_state, goal_state = self.generate_init_and_goal_state()  # output two list, [x, y, v, heading]
-            self.init_state = init_state  # a list
-            self.goal_state = goal_state
-        else:
-            self.init_state = kwargs['init_state']
-            self.goal_state = kwargs['goal_state']
-        self.init_gear = initspeed2initgear(self.init_state[2])
-        lasvsim.reset_simulation(overwrite_settings={'init_gear': self.init_gear, 'init_state': self.init_state},
-                                 init_traffic_path=self.setting_path)
-        self.simulation = lasvsim.simulation
-        self.all_vehicles = lasvsim.get_all_objects()
-        self.detected_vehicles = lasvsim.get_detected_objects()
-        (self.ego_dynamics, self.ego_info), self.road_related_info = lasvsim.get_self_car_info()
-        obs = self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, self.road_related_info, self.goal_state
-        self.reference.reset_reference_path(self.init_state, self.goal_state)
-        return obs
-
-    def generate_init_and_goal_state(self):  # task and map dependent, hard coded TODO
-        init_x = self.np_random.uniform(-900.0, 500.0)
-        init_lane = self.np_random.randint(4)
-        lane2y_dict = {0: -150 - 3.75 * 7.0 / 2, 1: -150 - 3.75 * 5.0 / 2, 2: -150 - 3.75 * 3.0 / 2,
-                       3: -150 - 3.75 * 1.0 / 2}
-        init_y = lane2y_dict[init_lane]
-        init_v = self.np_random.uniform(0.0, 34.0)  # m/s
-        init_heading = 0.0  # deg
-        init_state = [init_x, init_y, init_v, init_heading]
-
-        rela_x = self.np_random.uniform(5.0, 100.0)
-        goal_x = init_x + rela_x
-        goal_lane = self.np_random.randint(4)
-        goal_y = lane2y_dict[goal_lane]
-        goal_v = self.np_random.uniform(0.0, 34.0)
-        goal_heading = 0.0
-        goal_state = [goal_x, goal_y, goal_v, goal_heading]
-        return init_state, goal_state
-
-    # def render(self, mode='human'):
-    #     """Renders the environment.
-    #
-    #     The set of supported modes varies per environment. (And some
-    #     environments do not support rendering at all.) By convention,
-    #     if mode is:
-    #
-    #     - human: render to the current display or terminal and
-    #       return nothing. Usually for human consumption.
-    #     - rgb_array: Return an numpy.ndarray with shape (x, y, 3),
-    #       representing RGB values for an x-by-y pixel image, suitable
-    #       for turning into a video.
-    #     - ansi: Return a string (str) or StringIO.StringIO containing a
-    #       terminal-style text representation. The text can include newlines
-    #       and ANSI escape sequences (e.g. for colors).
-    #
-    #     Note:
-    #         Make sure that your class's metadata 'render.modes' key includes
-    #           the list of supported modes. It's recommended to call super()
-    #           in implementations to use the functionality of this method.
-    #
-    #     Args:
-    #         mode (str): the mode to render with
-    #
-    #     Example:
-    #
-    #     class MyEnv(Env):
-    #         metadata = {'render.modes': ['human', 'rgb_array']}
-    #
-    #         def render(self, mode='human'):
-    #             if mode == 'rgb_array':
-    #                 return np.array(...) # return RGB frame suitable for video
-    #             elif mode == 'human':
-    #                 ... # pop up a window and render
-    #             else:
-    #                 super(MyEnv, self).render(mode=mode) # just raise an exception
-    #     """
-    #     raise NotImplementedError
-    #
-    # def close(self):
-    #     """Override close in your subclass to perform any necessary cleanup.
-    #
-    #     Environments will automatically close() themselves when
-    #     garbage collected or when the program exits.
-    #     """
-    #     pass
-    #
-    # @property
-    # def unwrapped(self):
-    #     """Completely unwrap this env.
-    #
-    #     Returns:
-    #         gym.Env: The base non-wrapped gym.Env instance
-    #     """
-    #     return self
-    #
-    # def __str__(self):
-    #     if self.spec is None:
-    #         return '<{} instance>'.format(type(self).__name__)
-    #     else:
-    #         return '<{}<{}>>'.format(type(self).__name__, self.spec.id)
-    #
-    # def __enter__(self):
-    #     return self
-    #
-    # def __exit__(self, *args):
-    #     self.close()
-    #     # propagate exception
-    #     return False
-
+    # reward related
     def compute_reward(self, done):
         if done == 5:
-            return -1
+            return self._bias_reward()
         elif done == 4:
-            return 20
+            return 100
         else:
-            return -20
+            return -100
 
+    def _calculate_heristic_bias(self):
+        current_x, current_y, current_v, current_heading = self.ego_dynamics['x'], self.ego_dynamics['y'], \
+                                                           self.ego_dynamics['v'], self.ego_dynamics['heading']
+        goal_x, goal_y, goal_v, goal_heading = self.goal_state
+        position_bias = math.sqrt((goal_x - current_x) ** 2 + (goal_y - current_y) ** 2)
+        velocity_bias = math.fabs(goal_v - current_v)
+        heading_bias = math.fabs(goal_heading - current_heading)
+        return position_bias, velocity_bias, heading_bias
+
+    def _bias_reward(self):
+        coeff_pos = -0.01
+        coeff_vel = -0.01
+        coeff_heading = -0.005
+        position_bias, velocity_bias, heading_bias = self._calculate_heristic_bias()
+        return coeff_pos * position_bias + coeff_vel * velocity_bias + coeff_heading * heading_bias
+
+    # done related
     def _judge_done(self):
-        '''
+        """
         :return:
          0: bad done: violate road constrain
          1: bad done: ego lose control
-         2: bad done: violate traffic constrain (collision)
+         2: bad done: collision
          3: bad done: task failed
          4: good done: task succeed
          5: not done
-        '''
+        """
         if self._is_road_violation():
-            return 0
+            return 0, 1
         elif self._is_lose_control():
-            return 1
+            return 1, 1
         elif self.simulation.stopped:
-            return 2
-        elif not self.reference.is_legit(self.ego_dynamics['x'], self.ego_dynamics['y']):
-            return 3
-        elif self.reference.is_pose_achieve_goal(self.ego_dynamics['x'], self.ego_dynamics['y'],
-                                                 self.ego_dynamics['heading']):
-            return 4
+            return 2, 1
+        elif self._is_task_failed():
+            return 3, 1
+        elif self._is_achieve_goal():
+            return 4, 1
         else:
-            return 5
+            return 5, 0
 
-    def _is_road_violation(self):
-        corner_points = self.ego_info['Corner_point']
-        for corner_point in corner_points:
-            if not judge_feasible(corner_point[0], corner_point[1]):
-                return True  # violate road constrain
+    def _is_task_failed(self):  # need to override in subclass
+        raise NotImplementedError
+
+    def _is_achieve_goal(self, distance_tolerance=1, heading_tolerance=30):  # no need to override
+        current_x, current_y, current_v, current_heading = self.ego_dynamics['x'], self.ego_dynamics['y'], \
+                                                           self.ego_dynamics['v'], self.ego_dynamics['heading']
+        goal_x, goal_y, goal_v, goal_heading = self.goal_state
+        return True if abs(current_x - goal_x) < distance_tolerance and \
+                       abs(current_y - goal_y) < distance_tolerance and \
+                       abs(current_heading - goal_heading) < heading_tolerance else False
+
+    def _is_road_violation(self):  # no need to override, just change judge_feasible func
+        center_points = self.ego_dynamics['x'], self.ego_dynamics['y']
+        if not judge_feasible(center_points[0], center_points[1]):
+            return True  # violate road constrain
         return False
 
-    def _is_lose_control(self):
+    def _is_lose_control(self):  # no need to override
         yaw_rate = self.ego_info['Yaw_rate']
         lateral_acc = self.ego_info['Lateral_acc']
         if yaw_rate > 18 or lateral_acc > 1.2:  # 正常120km/h测试最大为13deg/s和0.7m/s^2
@@ -363,12 +406,12 @@ class Reference(object):
         if self.index_mode == 'indexed_by_x':
             a0, a1, a2, a3 = self.reference_path
             x = np.linspace(0, self.goalx_in_ref, 100)
-            y = a0 + a1 * x + a2 * x**2 + a3 * x**3
+            y = a0 + a1 * x + a2 * x ** 2 + a3 * x ** 3
             return self.goalx_in_ref, max(y), min(y)
         else:
             a0, a1, a2, a3 = self.reference_path
             y = np.linspace(0, -self.goaly_in_ref, 100)
-            x = a0 + a1 * y + a2 * y**2 + a3 * y**3
+            x = a0 + a1 * y + a2 * y ** 2 + a3 * y ** 3
             maxx = max(x)
             if self.goaly_in_ref >= 0:
                 return maxx, self.goaly_in_ref, 0
@@ -381,7 +424,7 @@ class Reference(object):
         v_in_ref = orig_v
         return x_in_ref, y_in_ref, v_in_ref, heading_in_ref
 
-    def is_pose_achieve_goal(self, orig_x, orig_y, orig_heading, distance_tolerance=1, heading_tolerance=15):
+    def is_pose_achieve_goal(self, orig_x, orig_y, orig_heading, distance_tolerance=2.5, heading_tolerance=30):
         x_in_ref, y_in_ref, _, heading_in_ref = self.orig2ref(orig_x, orig_y, 0, orig_heading)
         return True if abs(orig_x - self.goalx_in_ref) < distance_tolerance and \
                        abs(orig_y - self.goaly_in_ref) < distance_tolerance and \
@@ -390,17 +433,19 @@ class Reference(object):
     def is_legit(self, orig_x, orig_y):
         maxx, maxy, miny = self.cal_path_maxx_maxy_miny()
         x_in_ref, y_in_ref, v_in_ref, heading_in_ref = self.orig2ref(orig_x, orig_y, 0, 0)
-        return True if 0 < x_in_ref < maxx + 5 and miny-5 < y_in_ref < maxy + 5 else False
+        return True if 0 < x_in_ref < maxx + 5 and miny - 5 < y_in_ref < maxy + 5 else False
 
     def cal_bias(self, orig_x, orig_y, orig_v, orig_heading):
         assert self.index_mode == 'indexed_by_x' or self.index_mode == 'indexed_by_y'
         x_in_ref, y_in_ref, v_in_ref, heading_in_ref = self.orig2ref(orig_x, orig_y, orig_v, orig_heading)
         if self.index_mode == 'indexed_by_x':
-            refer_point = self.access_path_point_indexed_by_x(x_in_ref) if x_in_ref < self.goalx_in_ref else self.goal_in_ref
+            refer_point = self.access_path_point_indexed_by_x(
+                x_in_ref) if x_in_ref < self.goalx_in_ref else self.goal_in_ref
         else:
-            refer_point = self.access_path_point_indexed_by_y(y_in_ref) if y_in_ref < self.goaly_in_ref else self.goal_in_ref
+            refer_point = self.access_path_point_indexed_by_y(
+                y_in_ref) if y_in_ref < self.goaly_in_ref else self.goal_in_ref
         ref_x, ref_y, _, ref_heading = refer_point  # for now, we use goalv_in_ref instead ref_v
-        position_bias = math.sqrt((ref_x - x_in_ref)**2 + (ref_y - y_in_ref)**2)
+        position_bias = math.sqrt((ref_x - x_in_ref) ** 2 + (ref_y - y_in_ref) ** 2)
         velocity_bias = abs(self.goalv_in_ref - v_in_ref)
         heading_bias = abs(ref_heading - heading_in_ref)
         return position_bias, velocity_bias, heading_bias
@@ -412,16 +457,16 @@ class Reference(object):
             a0 = 0
             a1 = 0
             slope = self._deg2slope(self.goalheading_in_ref)
-            a3 = (slope - 2 * self.goaly_in_ref / self.goalx_in_ref) / self.goalx_in_ref**2
-            a2 = self.goaly_in_ref / self.goalx_in_ref**2 - a3 * self.goalx_in_ref
+            a3 = (slope - 2 * self.goaly_in_ref / self.goalx_in_ref) / self.goalx_in_ref ** 2
+            a2 = self.goaly_in_ref / self.goalx_in_ref ** 2 - a3 * self.goalx_in_ref
             reference_path = [a0, a1, a2, a3]
         else:
             trans_x, trans_y, trans_d = rotate_coordination(self.goalx_in_ref, self.goaly_in_ref,
                                                             self.goalheading_in_ref, -90)
             a0 = 0
             a1 = -math.tan((90 - 1) * math.pi / 180) if trans_x <= 0 else math.tan((90 - 1) * math.pi / 180)
-            a3 = (self._deg2slope(trans_d) - a1 - 2 * (trans_y - a1 * trans_x) / trans_x) / trans_x**2
-            a2 = (trans_y - a1 * trans_x - a3 * trans_x ** 3) / trans_x**2
+            a3 = (self._deg2slope(trans_d) - a1 - 2 * (trans_y - a1 * trans_x) / trans_x) / trans_x ** 2
+            a2 = (trans_y - a1 * trans_x - a3 * trans_x ** 3) / trans_x ** 2
             reference_path = [a0, a1, a2, a3]
         return reference_path
 
@@ -435,13 +480,13 @@ class Reference(object):
         return reference_velocity
 
     def access_path_point_indexed_by_x(self, x_in_ref):
-        assert(self.index_mode == 'indexed_by_x')
-        assert(0 < x_in_ref < self.goalx_in_ref)
+        assert (self.index_mode == 'indexed_by_x')
+        assert (-1 < x_in_ref < self.goalx_in_ref)
         a0, a1, a2, a3 = self.reference_path
         w = self.reference_velocity[0]
-        y_in_ref = a0 + a1 * x_in_ref + a2 * x_in_ref**2 + a3 * x_in_ref**3
+        y_in_ref = a0 + a1 * x_in_ref + a2 * x_in_ref ** 2 + a3 * x_in_ref ** 3
         v = w * x_in_ref
-        slope = a1 + 2 * a2 * x_in_ref + 3 * a3 * x_in_ref**2
+        slope = a1 + 2 * a2 * x_in_ref + 3 * a3 * x_in_ref ** 2
         heading_in_ref = self._slope2deg(slope)
         return x_in_ref, y_in_ref, v, heading_in_ref
 
@@ -461,17 +506,17 @@ class Reference(object):
 
     def _deg2slope(self, deg):
         return math.tan(deg * math.pi / 180)
-    
+
     def _slope2deg(self, slope):
         return 180 * math.atan(slope) / math.pi
 
 
 class Grid_3D(object):
-    '''
+    """
     Consider coordination of ego car
-    '''
+    """
 
-    def __init__(self, back_dist, forward_dist, half_width, number_x, number_y, axis_z_type):
+    def __init__(self, back_dist, forward_dist, half_width, number_x, number_y, axis_z_type='highway'):
         self.back_dist = back_dist
         self.forward_dist = forward_dist
         self.half_width = half_width
@@ -504,7 +549,8 @@ class Grid_3D(object):
             = shift_coordination(index_x_in_car_coordi * self.increment_x, -index_y_in_car_coordi * self.increment_y,
                                  self.back_dist, -self.half_width)
         right_lower_point_coordination_of_the_indexed_grid \
-            = shift_coordination((index_x_in_car_coordi + 1) * self.increment_y, -(index_y_in_car_coordi + 1) * self.increment_x,
+            = shift_coordination((index_x_in_car_coordi + 1) * self.increment_x,
+                                 -(index_y_in_car_coordi + 1) * self.increment_y,
                                  self.back_dist, -self.half_width)
         lower_x, upper_y = left_upper_point_coordination_of_the_indexed_grid
         upper_x, lower_y = right_lower_point_coordination_of_the_indexed_grid
@@ -516,8 +562,8 @@ class Grid_3D(object):
 
     def position2xyindex(self, x, y):
         x, y = shift_coordination(x, y, -self.back_dist, self.half_width)
-        index_x_in_car_coordi = int(x//self.increment_x)
-        index_y_in_car_coordi = int((-y)//self.increment_y)
+        index_x_in_car_coordi = int(x // self.increment_x)
+        index_y_in_car_coordi = int((-y) // self.increment_y)
         index_x = index_y_in_car_coordi
         index_y = index_x_in_car_coordi
         return index_x, index_y
@@ -552,130 +598,39 @@ class Grid_3D(object):
     def get_encode_grid_and_flag(self):
         return self._encode_grid, self._encode_grid_flag
 
-# class GoalEnv(Env):
-#     """A goal-based environment. It functions just as any regular OpenAI Gym environment but it
-#     imposes a required structure on the observation_space. More concretely, the observation
-#     space is required to contain at least three elements, namely `observation`, `desired_goal`, and
-#     `achieved_goal`. Here, `desired_goal` specifies the goal that the agent should attempt to achieve.
-#     `achieved_goal` is the goal that it currently achieved instead. `observation` contains the
-#     actual observations of the environment as per usual.
-#     """
-#
-#     def reset(self):
-#         # Enforce that each GoalEnv uses a Goal-compatible observation space.
-#         if not isinstance(self.observation_space, gym.spaces.Dict):
-#             raise error.Error('GoalEnv requires an observation space of type gym.spaces.Dict')
-#         for key in ['observation', 'achieved_goal', 'desired_goal']:
-#             if key not in self.observation_space.spaces:
-#                 raise error.Error('GoalEnv requires the "{}" key to be part of the observation dictionary.'.format(key))
-#
-#     def compute_reward(self, achieved_goal, desired_goal, info):
-#         """Compute the step reward. This externalizes the reward function and makes
-#         it dependent on an a desired goal and the one that was achieved. If you wish to include
-#         additional rewards that are independent of the goal, you can include the necessary values
-#         to derive it in info and compute it accordingly.
-#
-#         Args:
-#             achieved_goal (object): the goal that was achieved during execution
-#             desired_goal (object): the desired goal that we asked the agent to attempt to achieve
-#             info (dict): an info dictionary with additional information
-#
-#         Returns:
-#             float: The reward that corresponds to the provided achieved goal w.r.t. to the desired
-#             goal. Note that the following should always hold true:
-#
-#                 ob, reward, done, info = env.step()
-#                 assert reward == env.compute_reward(ob['achieved_goal'], ob['goal'], info)
-#         """
-#         raise NotImplementedError
-#
-#
-# class Wrapper(Env):
-#     r"""Wraps the environment to allow a modular transformation.
-#
-#     This class is the base class for all wrappers. The subclass could override
-#     some methods to change the behavior of the original environment without touching the
-#     original code.
-#
-#     .. note::
-#
-#         Don't forget to call ``super().__init__(env)`` if the subclass overrides :meth:`__init__`.
-#
-#     """
-#
-#     def __init__(self, env):
-#         self.env = env
-#         self.action_space = self.env.action_space
-#         self.observation_space = self.env.observation_space
-#         self.reward_range = self.env.reward_range
-#         self.metadata = self.env.metadata
-#
-#     def __getattr__(self, name):
-#         if name.startswith('_'):
-#             raise AttributeError("attempted to get missing private attribute '{}'".format(name))
-#         return getattr(self.env, name)
-#
-#     @property
-#     def spec(self):
-#         return self.env.spec
-#
-#     @classmethod
-#     def class_name(cls):
-#         return cls.__name__
-#
-#     def step(self, action):
-#         return self.env.step(action)
-#
-#     def reset(self, **kwargs):
-#         return self.env.reset(**kwargs)
-#
-#     def render(self, mode='human', **kwargs):
-#         return self.env.render(mode, **kwargs)
-#
-#     def close(self):
-#         return self.env.close()
-#
-#     def seed(self, seed=None):
-#         return self.env.seed(seed)
-#
-#     def compute_reward(self, achieved_goal, desired_goal, info):
-#         return self.env.compute_reward(achieved_goal, desired_goal, info)
-#
-#     def __str__(self):
-#         return '<{}{}>'.format(type(self).__name__, self.env)
-#
-#     def __repr__(self):
-#         return str(self)
-#
-#     @property
-#     def unwrapped(self):
-#         return self.env.unwrapped
-
 
 def judge_feasible(orig_x, orig_y):  # map dependant TODO
-    return True if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150 else False
+    # return True if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150 else False
+    def is_in_straight(orig_x, orig_y):
+        return 0 < orig_x < 3.75 * 2
+
+    def is_in_left(orig_x, orig_y):
+        return 0 < orig_y < 3.75 * 2 and orig_x < -18
+
+    def is_in_right(orig_x, orig_y):
+        return -3.75 * 2 < orig_y < 0 and orig_x > 18
+
+    def is_in_middle(orig_x, orig_y):
+        return -18 < orig_y < 18 and -18 < orig_x < 18
+
+    return True if is_in_straight(orig_x, orig_y) or is_in_left(orig_x, orig_y) or is_in_right(orig_x, orig_y) \
+                   or is_in_middle(orig_x, orig_y) else False
 
 
-class ObservationWrapper(gym.Wrapper):
-    def __init__(self, env, encoder_type=0, **kwargs):
-        super().__init__(env)
-        self.all_vehicles = None
-        self.detected_vehicles = None
-        self.ego_dynamics = None
-        self.ego_info = None
-        self.road_related_info = None
-        self.goal_state = None
-        self.encoder_type = encoder_type  # 0: one or more grids + one or more supplementary vectors;
-                                          # 1: one or more vectors
+class CrossroadEnd2end(End2endEnv):
+    def __init__(self,
+                 setting_path,
+                 obs_type=2,  # 0:'vectors only', 1:'grids only', '2:grids_plus_vecs'
+                 frameskip=4,
+                 repeat_action_probability=0
+                 ):
         self.grid_setting_dict = dict(fill_type='single',  # single or cover
-                                      size_list=[dict(back_dist=20, forward_dist=60, half_width=20)],
-                                      number_x=160,
-                                      number_y=80,
+                                      size_list=[dict(back_dist=10, forward_dist=30, half_width=20)],
+                                      number_x=40,
+                                      number_y=40,
                                       axis_z_type='highway')
 
-        if kwargs:
-            self.grid_setting_dict = kwargs['grid_setting_dict']
-        if self.encoder_type == 0:
+        if obs_type == 2:
             self.grid_3d = None
             self.grid_fill_type = self.grid_setting_dict['fill_type']
             self.grid_size_list = self.grid_setting_dict['size_list']
@@ -686,32 +641,23 @@ class ObservationWrapper(gym.Wrapper):
                 self._FEASIBLE_VALUE = 0
                 self._INFEASIBLE_VALUE = -1
 
+        super(CrossroadEnd2end, self).__init__(setting_path, obs_type, frameskip)
 
-
-    def reset(self, **kwargs):
-        observation = self.env.reset(**kwargs)
-        self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, \
-        self.road_related_info, self.goal_state = observation
-        return self.observation()
-
-    def step(self, action):
-        observation, reward, done, info = self.env.step(action)
-        self.all_vehicles, self.detected_vehicles, self.ego_dynamics, self.ego_info, \
-        self.road_related_info, self.goal_state = observation
-        return self.observation(), reward, done, info
-
-    def observation(self):
-        if self.encoder_type == 0:  # type 0: 3d grid + vector
-            return self._3d_grid_v2x_no_noise_obs_encoder(), self._vector_supplement_for_grid_encoder()
+    def _get_obs(self):
+        if self._obs_type == 2:  # type 2: 3d grid + vector
+            return dict(grid=self._3d_grid_v2x_no_noise_obs_encoder()[0],
+                        vector=self._vector_supplement_for_grid_encoder())
 
     def _vector_supplement_for_grid_encoder(self):  # func for supplement vector of grid
         # encode road structure and task related info, hard coded for now TODO
 
-        dist2left_road_border = -150 - self.ego_dynamics['y']
-        dist2right_road_border = self.ego_dynamics['y'] - (-150 - 3.75 * 4)
-        left_lane_number = 3 - self.road_related_info['egolane_index']
-        right_lane_number = self.road_related_info['egolane_index']
-        dist2current_lane_center = self.road_related_info['dist2current_lane_center']
+        # dist2left_road_border = -150 - self.ego_dynamics['y']
+        # dist2right_road_border = self.ego_dynamics['y'] - (-150 - 3.75 * 4)
+        # left_lane_number = 3 - self.road_related_info['egolane_index']
+        # right_lane_number = self.road_related_info['egolane_index']
+        # dist2current_lane_center = self.road_related_info['dist2current_lane_center']
+        ego_x = self.ego_dynamics['x']
+        ego_y = self.ego_dynamics['y']
         ego_v = self.ego_dynamics['v']
         ego_length = self.ego_info['Car_length']
         ego_width = self.ego_info['Car_width']
@@ -721,11 +667,8 @@ class ObservationWrapper(gym.Wrapper):
         rela_goal_x, rela_goal_y, rela_goal_heading \
             = rotate_coordination(shift_x, shift_y, goal_heading, self.ego_dynamics['heading'])
         # construct vector dict
-        vector_dict = dict(dist2left_road_border=dist2left_road_border,
-                           dist2right_road_border=dist2right_road_border,
-                           left_lane_number=left_lane_number,
-                           right_lane_number=right_lane_number,
-                           dist2current_lane_center=dist2current_lane_center,
+        vector_dict = dict(ego_x=ego_x,
+                           ego_y=ego_y,
                            ego_v=ego_v,
                            ego_length=ego_length,
                            ego_width=ego_width,
@@ -733,7 +676,7 @@ class ObservationWrapper(gym.Wrapper):
                            rela_goal_y=rela_goal_y,
                            goal_v=goal_v,
                            rela_goal_heading=rela_goal_heading)
-        return vector_dict.values()
+        return np.array(list(vector_dict.values()))
 
     def _3d_grid_v2x_no_noise_obs_encoder(self):  # func for grid encoder
         encoded_grid_list = []
@@ -742,7 +685,8 @@ class ObservationWrapper(gym.Wrapper):
         for size_dict in self.grid_size_list:
             self.grid_3d = Grid_3D(size_dict['back_dist'], size_dict['forward_dist'], size_dict['half_width'],
                                    self.grid_number_x, self.grid_number_y, self.gird_axis_z_type)
-            vehicles_in_grid = [veh for veh in info_in_ego_coordination if self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
+            vehicles_in_grid = [veh for veh in info_in_ego_coordination if
+                                self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
             self._add_vehicle_info_in_grid(vehicles_in_grid)
             self._add_feasible_area_info_in_grid(recover_orig_position_fn)
             encoded_grid_list.append(self.grid_3d.get_encode_grid_and_flag()[0])
@@ -777,11 +721,12 @@ class ObservationWrapper(gym.Wrapper):
         ego_y = self.ego_dynamics['y']
         ego_v = self.ego_dynamics['v']
         ego_heading = self.ego_dynamics['heading']
+
         # egocar_length = self.ego_info['Car_length']
         # egocar_width = self.ego_info['Car_width']
 
         def recover_orig_position_fn(transformed_x, transformed_y):
-            d = ego_heading * math.pi / 180
+            d = ego_heading  # TODO: check if correct
             transformed_x, transformed_y, _ = rotate_coordination(transformed_x, transformed_y, 0, -d)
             orig_x, orig_y = shift_coordination(transformed_x, transformed_y, -ego_x, -ego_y)
             return orig_x, orig_y
@@ -828,41 +773,54 @@ class ObservationWrapper(gym.Wrapper):
             for index_y in range(number_x):
                 x_in_egocar_coordi, y_in_egocar_coordi = self.grid_3d.xyindex2centerposition(index_x, index_y)
                 orig_x, orig_y = recover_orig_position_fn(x_in_egocar_coordi, y_in_egocar_coordi)
-                if not judge_feasible(orig_x, orig_y):
-                    self.grid_3d.set_same_xy_value_in_all_z(index_x, index_y, self._INFEASIBLE_VALUE)
-                elif not self.grid_3d.get_value(0, index_x, index_y)[1]:
-                    self.grid_3d.set_same_xy_value_in_all_z(index_x, index_y, self._FEASIBLE_VALUE)
+                if not self.grid_3d.get_value(0, index_x, index_y)[1]:
+                    if not judge_feasible(orig_x, orig_y):
+                        self.grid_3d.set_same_xy_value_in_all_z(index_x, index_y, self._INFEASIBLE_VALUE)
+                    else:
+                        self.grid_3d.set_same_xy_value_in_all_z(index_x, index_y, self._FEASIBLE_VALUE)
+
+    def _generate_goal_state(self):
+        if self.task == 0:
+            self.goal_state = [-18 - 5 / 2, 3.75 / 2, 30, 180]
+        elif self.task == 1:
+            self.goal_state = [3.75 / 2, 18 + 5 / 2, 30, 90]
+        else:
+            self.goal_state = [-3.75 * 3 / 2, 18 + 5 / 2, 30, 0]
+
+    def _is_task_failed(self):
+
+        def is_in_initlane(orig_x, orig_y):
+            return 0 < orig_x < 3.75 * 2 and -23 < orig_y < -18
+
+        def is_in_straight(orig_x, orig_y):
+            return 0 < orig_x < 3.75 * 2 and 18 < orig_y < 23
+
+        def is_in_left(orig_x, orig_y):
+            return 0 < orig_y < 3.75 * 2 and -23 < orig_x < -18
+
+        def is_in_right(orig_x, orig_y):
+            return -3.75 * 2 < orig_y < 0 and 18 < orig_x < 23
+
+        def is_in_middle(orig_x, orig_y):
+            return -18 < orig_y < 18 and -18 < orig_x < 18
+
+        x = self.ego_dynamics['x']
+        y = self.ego_dynamics['y']
+        if self.task == 0:
+            return True if not (is_in_initlane(x, y) or is_in_middle(x, y) or is_in_left(x, y)) else False
+        elif self.task == 1:
+            return True if not (is_in_initlane(x, y) or is_in_middle(x, y) or is_in_straight(x, y)) else False
+        else:
+            return True if not (is_in_initlane(x, y) or is_in_middle(x, y) or is_in_right(x, y)) else False
 
 
-class RewardWrapper(gym.Wrapper):
-    def reset(self, **kwargs):
-        return self.env.reset(**kwargs)
+def test_grid3d():
+    grid = Grid_3D(back_dist=20, forward_dist=40, half_width=20, number_x=120, number_y=40)
+    index_x, index_y = grid.position2xyindex(0.56, 19.5)
+    print('index_x=', str(index_x), 'index_y=', str(index_y))
+    position_x, position_y = grid.xyindex2centerposition(0, 0)
+    print('position_x=', str(position_x), 'position_y=', str(position_y))
 
-    def step(self, action):
-        observation, reward, done, info = self.env.step(action)
-        return observation, self.reward(observation, reward), done, info
 
-    def reward(self, observation, reward):
-        coeff_pos = -0.1
-        coeff_vel = -0.1
-        coeff_heading = -0.05
-        _, _, ego_dynamics, _, _, _ = observation
-        reference = Reference()
-        reference = self.env.reference
-        position_bias, velocity_bias, heading_bias = \
-            reference.cal_bias(ego_dynamics['x'], ego_dynamics['y'], ego_dynamics['v'], ego_dynamics['heading'])
-        reward += coeff_pos * position_bias + coeff_vel * velocity_bias + coeff_heading * heading_bias
-        return position_bias, velocity_bias, heading_bias, reward
-
-# class ActionWrapper(Wrapper):
-#     def reset(self, **kwargs):
-#         return self.env.reset(**kwargs)
-#
-#     def step(self, action):
-#         return self.env.step(self.action(action))
-#
-#     def action(self, action):
-#         raise NotImplementedError
-#
-#     def reverse_action(self, action):
-#         raise NotImplementedError
+if __name__ == '__main__':
+    test_grid3d()

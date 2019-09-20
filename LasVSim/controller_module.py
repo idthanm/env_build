@@ -1,10 +1,11 @@
 # coding=utf-8
 from ctypes import *
-# from _ctypes import FreeLibrary
+from ctypes import cdll, c_float
+from _ctypes import dlclose
 from math import *
 from LasVSim.dynamic_module import CarParameter
 
-CONTROLLER_MODEL_PATH='Modules/Controller.dll'
+CONTROLLER_MODEL_PATH='Modules/Controller.so'
 ROUTER_MAX_ERR = 1e-6
 
 
@@ -80,7 +81,7 @@ class CarControllerDLL(object):
             self.__car_model = 2
 
         self.car_para = car_parameter
-        self.dll = CDLL(self.__path)
+        self.dll = cdll.LoadLibrary(self.__path)
         self.dll.init(c_float(self.__step_length), byref(self.car_para),
                       c_int(self.input), c_int(self.__car_model))  # TODO
         self.amax = 4.0
@@ -89,7 +90,7 @@ class CarControllerDLL(object):
         #self.set_track(track=[[]], type=0)  # Initiate track.
 
     def __del__(self):
-        # FreeLibrary(self.dll._handle)
+        dlclose(self.dll._handle)
         del self.dll
 
     def sim_step(self, X, Y, YAW, A, V, R, I):

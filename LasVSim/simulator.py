@@ -263,7 +263,7 @@ class Simulation(object):
         self.tick_count = 0
         self.settings = settings
         if overwrite_settings is not None:
-            self.settings.car_para.R_GEAR_TR1 = overwrite_settings['init_gear']
+            # self.settings.car_para.R_GEAR_TR1 = overwrite_settings['init_gear']
             self.settings.start_point = overwrite_settings['init_state']
         self.stopped = False
         self.data = Data()
@@ -278,15 +278,15 @@ class Simulation(object):
                                traffic_type=settings.traffic_type,
                                traffic_density=settings.traffic_lib,
                                step_length=step_length,
-                               init_traffic=self.traffic_data.load_traffic(init_traffic_path))
+                               init_traffic=self.traffic_data.load_traffic(init_traffic_path))  # self.traffic_data.load_traffic(init_traffic_path)
         self.traffic.init(settings.start_point, settings.car_length)
         self.other_vehicles = self.traffic.get_vehicles()
         # self.light_status = self.traffic.get_light_status()
 
         """Load agent module."""
         self.agent=Agent(settings)
-        self.agent.sensors.setVehicleModel(vehicle_models)
-        self.agent.update_info_from_sensor(self.other_vehicles)
+        # self.agent.sensors.setVehicleModel(vehicle_models)
+        # self.agent.update_info_from_sensor(self.other_vehicles)
 
     def load_scenario(self, path, overwrite_settings=None):
         """Load an existing LasVSim simulation configuration file.
@@ -396,8 +396,8 @@ class Simulation(object):
                 # self.light_status = self.traffic.get_light_status()
 
             # 传感器线程
-            if self.tick_count % self.settings.sensor_frequency == 0:
-                self.agent.update_info_from_sensor(self.other_vehicles)
+            # if self.tick_count % self.settings.sensor_frequency == 0:
+            #     self.agent.update_info_from_sensor(self.other_vehicles)
 
             if not self.__collision_check():
                 self.stopped = True

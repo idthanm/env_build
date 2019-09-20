@@ -6,7 +6,9 @@
 """
 from math import pi
 from LasVSim.data_structures import *
-from _ctypes import FreeLibrary
+from _ctypes import byref
+from ctypes import cdll, c_float
+from _ctypes import dlclose
 import math
 
 
@@ -55,13 +57,13 @@ class VehicleDynamicModel(object):  # 可以直接与gui版本替换
         self.steer_wheel = 0.0  # deg
         self.car_info = VehicleInfo()  # 自车信息结构体
 
-        self.dll = CDLL(self.path)
+        self.dll = cdll.LoadLibrary(self.path)
         self.dll.init(c_float(self.x), c_float(self.y), c_float(self.heading), c_float(self.v),
                       c_float(self.step_length), byref(self.car_para))
         self.pos_time = 0
 
     def __del__(self):
-        FreeLibrary(self.dll._handle)
+        dlclose(self.dll._handle)
         del self.dll
 
     def sim_step(self, EngTorque=None, BrakPressure=None, SteerWheel=None):

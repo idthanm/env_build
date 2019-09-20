@@ -1,5 +1,6 @@
 from ctypes import *
-# from _ctypes import FreeLibrary
+from ctypes import cdll, c_float
+from _ctypes import dlclose
 from math import fabs
 from LasVSim.data_structures import *
 
@@ -78,7 +79,7 @@ class Sensors(object):
     """
     def __init__(self,step_length,sensor_info,path=None):
         self.__step_length = step_length
-        self.dll = CDLL(SENSORS_MODEL_PATH)
+        self.dll = cdll.LoadLibrary(SENSORS_MODEL_PATH)
         self.setSensor(sensor_info)
         from .traffic_module import VEHICLE_COUNT
         self.other_car_num = VEHICLE_COUNT
@@ -88,7 +89,7 @@ class Sensors(object):
         self.detect_cars =detect_car_arr()
 
     def __del__(self):
-        # FreeLibrary(self.dll._handle)
+        dlclose(self.dll._handle)
         del self.dll
 
     def setVehicleModel(self, vehicle_model):

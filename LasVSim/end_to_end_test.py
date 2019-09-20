@@ -1,4 +1,4 @@
-from LasVSim.endtoend import EndtoendEnv, RewardWrapper, ObservationWrapper
+from LasVSim.endtoend import CrossroadEnd2end
 # import gym
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,21 +27,23 @@ def action_fn(obs):
 
 
 if __name__ == '__main__':
-    env = EndtoendEnv('./Scenario/Highway_endtoend/')
-    env = RewardWrapper(env)
-    env = ObservationWrapper(env)
+    env = CrossroadEnd2end('./Scenario/Intersection_endtoend/')
     done = 0
     episode_num = 10
     for i in range(episode_num):  # run episode_num episodes
         done = 0
-        obs = env.reset()
+        kwarg = dict(init_state=[3.75/2, -18-2.5, 0, 90],
+                     task=0)
+        obs = env.reset(**kwarg)
         ret = 0
+        ite = 0
         while not done:
+            ite += 1
             action = action_fn(obs)
-            obs, (position_bias, velocity_bias, heading_bias, rew), done, info = env.step(action)
+            obs, rew, done, info = env.step(action)
+            env.render()
             ret += rew
-
-            print('reward: ', rew, 'other: ', position_bias, velocity_bias, heading_bias)
+            print('reward: ', rew)
 
         print('return: ', ret)
 

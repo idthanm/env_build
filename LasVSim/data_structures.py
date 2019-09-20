@@ -24,11 +24,11 @@ TRUCK = 2
 
 current_path = os.path.dirname(__file__)
 # "E:\\Research\\Reinforcement Learning\\lasvsim\\env_build\\LasVSim\\Modules\\CarModel_CVT.dll"
-CVT_MODEL_FILE_PATH = current_path + "\\Modules\\CarModel_CVT.dll"
+CVT_MODEL_FILE_PATH = current_path + "/Modules/CarModel_CVT.so"
 AMT_MODEL_FILE_PATH = current_path + "\\Modules\\CarModel_AMT.dll"
 TRUCK_MODEL_FILE_PATH = current_path + "\\Modules\\CarModel_Truck.dll"
-SENSOR_LIBRARY_PATH = current_path + '\\Library\\sensor_library.csv'
-SENSORS_MODEL_PATH = current_path + '\\Modules\\Sensors.dll'
+SENSOR_LIBRARY_PATH = current_path + '/Library/sensor_library.csv'
+SENSORS_MODEL_PATH = current_path + '/Modules/Sensors.so'
 CAR_LIB = [CVT_MODEL_FILE_PATH, AMT_MODEL_FILE_PATH, TRUCK_MODEL_FILE_PATH] # 不能更改顺序
 
 TRAFFIC_TYPE = ['No Traffic', 'Mixed Traffic', 'Vehicle Only Traffic'] # 不能更改顺序
@@ -41,7 +41,7 @@ MIDDLE = 1
 DENSE = 2
 
 CONTROLLER_TYPE = ['Preview PID', 'External', 'External'] # 不能更改顺序
-CONTROLLER_FILE_PATH = current_path + "\\Modules\\Controller.dll"
+CONTROLLER_FILE_PATH = current_path + "/Modules/Controller.so"
 PID = 0
 EXTERNAL = 1
 
