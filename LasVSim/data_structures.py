@@ -5,7 +5,7 @@ from ctypes import *
 import os
 # from _ctypes import FreeLibrary
 
-DEFAULT_SETTING_FILE = 'Library/simulation_setting_file.xml'
+
 """Simulation Setting Value"""
 DECISION_OUTPUT_TYPE = ['spatio-temporal trajectory',
                         'acceleration(m/s^2), front wheel angle(deg)',
@@ -23,12 +23,13 @@ AMT_CAR = 1
 TRUCK = 2
 
 current_path = os.path.dirname(__file__)
-# "E:\\Research\\Reinforcement Learning\\lasvsim\\env_build\\LasVSim\\Modules\\CarModel_CVT.dll"
+DEFAULT_SETTING_FILE = current_path + 'Library/simulation_setting_file.xml'
 CVT_MODEL_FILE_PATH = current_path + "/Modules/CarModel_CVT.so"
 AMT_MODEL_FILE_PATH = current_path + "\\Modules\\CarModel_AMT.dll"
 TRUCK_MODEL_FILE_PATH = current_path + "\\Modules\\CarModel_Truck.dll"
 SENSOR_LIBRARY_PATH = current_path + '/Library/sensor_library.csv'
 SENSORS_MODEL_PATH = current_path + '/Modules/Sensors.so'
+VEHICLE_MODEL_PATH = current_path + '/Library/vehicle_model_library.csv'
 CAR_LIB = [CVT_MODEL_FILE_PATH, AMT_MODEL_FILE_PATH, TRUCK_MODEL_FILE_PATH] # 不能更改顺序
 
 TRAFFIC_TYPE = ['No Traffic', 'Mixed Traffic', 'Vehicle Only Traffic'] # 不能更改顺序

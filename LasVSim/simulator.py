@@ -242,9 +242,14 @@ class Simulation(object):
         self.agent = None
         self.ego_history = None
         self.data = None
+        self.seed = None
 
         # self.reset(settings=self.settings, overwrite_settings=overwrite_settings, init_traffic_path=init_traffic_path)
         # self.sim_step()
+
+    def set_seed(self, seed=None):  # call this just before training (usually only once)
+        if seed is not None:
+            self.seed = seed
 
     def reset(self, settings=None, overwrite_settings=None, init_traffic_path=None):
         """Clear previous loaded module.
@@ -270,7 +275,7 @@ class Simulation(object):
         self.ego_history = {}
 
         """Load vehicle module library"""
-        vehicle_models = VehicleModels('./Library/vehicle_model_library.csv')
+        vehicle_models = VehicleModels(VEHICLE_MODEL_PATH)
 
         """Load traffic module."""
         step_length = self.settings.step_length * self.settings.traffic_frequency
@@ -278,7 +283,8 @@ class Simulation(object):
                                traffic_type=settings.traffic_type,
                                traffic_density=settings.traffic_lib,
                                step_length=step_length,
-                               init_traffic=self.traffic_data.load_traffic(init_traffic_path))  # self.traffic_data.load_traffic(init_traffic_path)
+                               init_traffic=None,
+                               seed=self.seed)  # self.traffic_data.load_traffic(init_traffic_path)
         self.traffic.init(settings.start_point, settings.car_length)
         self.other_vehicles = self.traffic.get_vehicles()
         # self.light_status = self.traffic.get_light_status()

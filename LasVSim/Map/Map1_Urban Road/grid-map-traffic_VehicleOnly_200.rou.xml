@@ -7,6 +7,7 @@
 	<vType id="self_car" length="4.5" width="1.8" accel="3.5" decel="2.2" sigma="1.0" guiShape="passenger/wagon" color="1,0,1" maxSpeed="30"/>
 
 <route id="self_route" edges="gneE2" />
+
 	<flow id="carflow_1.1" type="car_1" beg="0" end="5" number="7" from="-gneE14" to="-gneE14"  />
 	<flow id="carflow_2.1" type="car_2" beg="0" end="5" number="3" from="-gneE13" to="-gneE13"  />
 	<flow id="carflow_3.1" type="car_3" beg="0" end="5" number="5" from="-gneE15" to="-gneE15"  />

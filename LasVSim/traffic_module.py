@@ -322,7 +322,7 @@ class Traffic(object):
                 deg.
     """
     def __init__(self, step_length, path=None, traffic_type=None,
-                 traffic_density=None, init_traffic=None):  # 该部分可直接与gui相替换
+                 traffic_density=None, init_traffic=None, seed=None):  # 该部分可直接与gui相替换
         self.__own_x = 0.0  # 自车x坐标，m
         self.__own_y = 0.0  # 自车y坐标，m
         self.__own_v = 0.0  # 自车速度标量，m/s
@@ -332,10 +332,12 @@ class Traffic(object):
         self.traffic_change_flag = True
 
         self.__map_type = path
-        self.__path = "Map/" + path + "/"
+        self.__path = current_path + "/Map/" + path + "/"
         self.type = traffic_type  # For example: Normal
         self.density = traffic_density  # For example: Middle
         self.step_length = str(float(step_length)/1000)
+        if seed is not None:
+            self.seed = seed
 
         global VEHICLE_COUNT, HISTORY_TRAFFIC_SETTING, RANDOM_TRAFFIC
         if traffic_type == 'No Traffic':
@@ -385,11 +387,18 @@ class Traffic(object):
         self.egocar_length = egocar_length
 
         # SUMO_BINARY = checkBinary('sumo-gui')
-        traci.start(
-            [SUMO_BINARY, "-c", self.__path + "configuration.sumocfg",
-             "--step-length", self.step_length,
-             "--lateral-resolution", "1.25", "--random",
-             "--quit-on-end"])  #  "--start",
+        if self.seed is not None:
+            traci.start(
+                [SUMO_BINARY, "-c", self.__path + "configuration.sumocfg",
+                 "--step-length", self.step_length,
+                 "--lateral-resolution", "1.25", '--seed', str(int(self.seed % 100)), "--start",
+                 "--quit-on-end"])
+        else:
+            traci.start(
+                [SUMO_BINARY, "-c", self.__path + "configuration.sumocfg",
+                 "--step-length", self.step_length,
+                 "--lateral-resolution", "1.25", "--random",
+                 "--quit-on-end"])  #  "--start",
 
         # 在sumo的交通流模型中插入自车
         x, y, v, a = source
@@ -706,25 +715,30 @@ class Traffic(object):
                     )
 
     def __generate_random_traffic(self):  # 该部分可直接与package相替换
-        """生成仿真初始时刻的随机交通流
-
-        --"""
+        """
+        生成仿真初始时刻的随机交通流
+        """
         #  调用sumo
-        print(self.__path+"traffic_generation_"+self.type+"_"+
-                     self.density+".sumocfg")
-        SUMO_BINARY = checkBinary('sumo-gui')
-        traci.start([SUMO_BINARY, "-c",
-                     self.__path+"traffic_generation_"+self.type+"_"+
-                     self.density+".sumocfg",
-                     "--step-length", "1",
-                     "--random"])
+        # SUMO_BINARY = checkBinary('sumo-gui')
+        if self.seed is not None:
+            traci.start([SUMO_BINARY, "-c",
+                         self.__path + "traffic_generation_" + self.type + "_" +
+                         self.density + ".sumocfg",
+                         "--step-length", "1",
+                         "--seed", str(int(self.seed%100))])
+        else:
+            traci.start([SUMO_BINARY, "-c",
+                         self.__path + "traffic_generation_" + self.type + "_" +
+                         self.density + ".sumocfg",
+                         "--step-length", "1",
+                         "--random"])
         self.__add_self_car()
 
         vehicles = []
         global VEHICLE_COUNT
         if self.__map_type == MAPS[0]:
             if self.density == 'Dense':
-                VEHICLE_COUNT = 501
+                VEHICLE_COUNT = 201  # for dense, it should be 501, for now i change it to 201
             elif self.density == 'Middle':
                 VEHICLE_COUNT = 201
             else:

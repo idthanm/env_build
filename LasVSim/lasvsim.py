@@ -22,6 +22,13 @@ def load_scenario(path):
     """
     simulation.load_scenario(path)
 
+def seed(seed):  # this should be called before every time you reset lasvsim
+    """
+    :param seed:
+    :return: set simulation seed
+    """
+    simulation.set_seed(seed)
+
 
 def sim_step(steps=None):
     if steps is None:

@@ -48,20 +48,22 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         self.init_state = []
         self.goal_state = []
         self.task = None  # used to decide goal
-        self.action_space = gym.spaces.Box(np.array([-5, -90]), np.array([2.5, 90]), dtype=np.float32)
-        self.seed()
+        self.action_space = gym.spaces.Box(np.array([0, 0]), np.array([1, 1]), dtype=np.float32)
         self.simulation = lasvsim.create_simulation(setting_path + 'simulation_setting_file.xml')
+        self.seed()
         self.reset()
         action = self.action_space.sample()
-        observation, _reward, done, _info = self.step(action)
+        observation, _reward, done, _info = self.step(self._action_transformation(action))
         self._set_observation_space(observation)
         plt.ion()
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
+        lasvsim.seed(int(seed))
         return [seed]
 
     def step(self, action):  # action is a np.array, [expected_acceleration, delta_steer]
+        action = self._action_transformation(action)
         reward = 0
         done = 0
         all_info = None
@@ -89,6 +91,10 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         self._get_all_info()
         obs = self._get_obs()
         return obs
+
+    def _action_transformation(self, action):
+        """assume action is in [0, 1], and transform it to proper interval"""
+        return action[0] * 7.5 - 5, action[1] * 180 - 90
 
     # observation related
     def _generate_goal_state(self):  # need to be override in subclass
