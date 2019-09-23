@@ -53,7 +53,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         self.init_state = []
         self.goal_state = []
         self.task = None  # used to decide goal
-        self.action_space = gym.spaces.Box(np.array([0, 0]), np.array([1, 1]), dtype=np.float32)
+        self.action_space = gym.spaces.Box(np.array([-1, -1]), np.array([1, 1]), dtype=np.float32)
         self.simulation = lasvsim.create_simulation(self.setting_path + 'simulation_setting_file.xml')
         self.seed()
         self.reset()
@@ -79,6 +79,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
             done_type, done = self._judge_done()
             reward += self.compute_reward(done_type)
             if done:
+                self._print_done_info(done_type)
                 break
         obs = self._get_obs()
 
@@ -98,8 +99,8 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         return obs
 
     def _action_transformation(self, action):
-        """assume action is in [0, 1], and transform it to proper interval"""
-        return action[0] * 7.5 - 5, action[1] * 180 - 90
+        """assume action is in [-1, 1], and transform it to proper interval"""
+        return action[0] * 3.75 - 1.25, action[1] * 30
 
     # observation related
     def _generate_goal_state(self):  # need to be override in subclass
@@ -302,12 +303,15 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
 
     # reward related
     def compute_reward(self, done):
+        reward = 0
         if done == 5:
-            return self._bias_reward()
+            reward += self._bias_reward()
+            reward += self._be_in_interested_area_reward()
+            return reward
         elif done == 4:
-            return 100
+            return 200
         else:
-            return -100
+            return -200
 
     def _calculate_heristic_bias(self):
         current_x, current_y, current_v, current_heading = self.ego_dynamics['x'], self.ego_dynamics['y'], \
@@ -320,11 +324,39 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
 
     def _bias_reward(self):
         coeff_pos = -0.01
-        coeff_vel = -0.01
+        coeff_vel = -0.2
         coeff_heading = -0.005
         position_bias, velocity_bias, heading_bias = self._calculate_heristic_bias()
         return coeff_pos * position_bias + coeff_vel * velocity_bias + coeff_heading * heading_bias
 
+    def _be_in_interested_area_reward(self):
+        def judge_task0(x, y):
+            return True if x > -18 and y > -18 and 18 < math.sqrt((x + 18) ** 2 + (y + 18) ** 2) < 18 + 3.75 else False
+
+        def judge_task1(x, y):
+            return True if 0 < x < 18 + 3.75 and -18 < y < 18 else False
+
+        def judge_task2(x, y):
+            return True if x < 18 and y > -18 and 18 - 3.75 * 2 < math.sqrt(
+                (x - 18) ** 2 + (y + 18) ** 2) < 18 - 3.75 else False
+
+        def judge_01lane(x, y):
+            return True if 0 < x < 3.75 and y < -18 else 0
+
+        def judge_2lane(x, y):
+            return True if 3.75 < x < 2 * 3.75 and y < -18 else 0
+
+        x = self.ego_dynamics['x']
+        y = self.ego_dynamics['y']
+
+        if self.task == 0:
+            return 2 if judge_task0(x, y) or judge_01lane(x, y) else 0
+
+        if self.task == 1:
+            return 2 if judge_task1(x, y) or judge_01lane(x, y) else 0
+
+        if self.task == 2:
+            return 2 if judge_task2(x, y) or judge_2lane(x, y) else 0
     # done related
     def _judge_done(self):
         """
@@ -349,6 +381,10 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         else:
             return 5, 0
 
+    def _print_done_info(self, done_type):
+        done_info = ['road violation', 'lose control', 'collision', 'task failed', 'goal achieved!']
+        print('done info: ' + done_info[done_type])
+
     def _is_task_failed(self):  # need to override in subclass
         raise NotImplementedError
 
@@ -367,12 +403,14 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         return False
 
     def _is_lose_control(self):  # no need to override
-        yaw_rate = self.ego_info['Yaw_rate']
-        lateral_acc = self.ego_info['Lateral_acc']
-        if yaw_rate > 18 or lateral_acc > 1.2:  # 正常120km/h测试最大为13deg/s和0.7m/s^2
-            return True  # lose control
-        else:
-            return False
+        # # yaw_rate = self.ego_info['Yaw_rate']
+        # lateral_acc = self.ego_info['Lateral_acc']
+        # # if yaw_rate > 18 or lateral_acc > 1.2:  # 正常120km/h测试最大为13deg/s和0.7m/s^2
+        # if lateral_acc > 10:
+        #     return True  # lose control
+        # else:
+        #     return False
+        return False
 
 
 class Reference(object):
@@ -792,11 +830,11 @@ class CrossroadEnd2end(End2endEnv):
 
     def _generate_goal_state(self):
         if self.task == 0:
-            self.goal_state = [-18 - 5 / 2, 3.75 / 2, 30, 180]
+            self.goal_state = [-18 - 5 / 2, 3.75 / 2, 8, 180]
         elif self.task == 1:
-            self.goal_state = [3.75 / 2, 18 + 5 / 2, 30, 90]
+            self.goal_state = [3.75 / 2, 18 + 5 / 2, 8, 90]
         else:
-            self.goal_state = [-3.75 * 3 / 2, 18 + 5 / 2, 30, 0]
+            self.goal_state = [-3.75 * 3 / 2, 18 + 5 / 2, 8, 0]
 
     def _is_task_failed(self):
 
