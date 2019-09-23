@@ -31,12 +31,17 @@ def convert_observation_to_space(observation):
 class End2endEnv(gym.Env):  # cannot be used directly, cause observation space is not known
     # can it be map and task independent? and subclass should be task and map specific
     def __init__(self,
-                 setting_path,
+                 setting_path=None,
                  obs_type=2,  # 0:'vectors only', 1:'grids only', '2:grids_plus_vecs'
                  frameskip=4,
                  repeat_action_probability=0):
         metadata = {'render.modes': ['human']}
-        self.setting_path = setting_path
+        if setting_path is not None:
+            self.setting_path = setting_path
+        else:
+            import os
+            dir = os.path.dirname(__file__)
+            self.setting_path = dir + '/Scenario/Intersection_endtoend/'
         self._obs_type = obs_type
         self.frameskip = frameskip
         self.detected_vehicles = None
@@ -49,7 +54,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         self.goal_state = []
         self.task = None  # used to decide goal
         self.action_space = gym.spaces.Box(np.array([0, 0]), np.array([1, 1]), dtype=np.float32)
-        self.simulation = lasvsim.create_simulation(setting_path + 'simulation_setting_file.xml')
+        self.simulation = lasvsim.create_simulation(self.setting_path + 'simulation_setting_file.xml')
         self.seed()
         self.reset()
         action = self.action_space.sample()
@@ -625,7 +630,7 @@ def judge_feasible(orig_x, orig_y):  # map dependant TODO
 
 class CrossroadEnd2end(End2endEnv):
     def __init__(self,
-                 setting_path,
+                 setting_path=None,
                  obs_type=2,  # 0:'vectors only', 1:'grids only', '2:grids_plus_vecs'
                  frameskip=4,
                  repeat_action_probability=0
