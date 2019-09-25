@@ -306,12 +306,15 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         reward = 0
         if done == 5:
             reward += self._bias_reward()
-            reward += self._be_in_interested_area_reward()
+            # reward += self._be_in_interested_area_reward()
             return reward
         elif done == 4:
             return 200
         else:
-            return -200
+            if done == 0:
+                return -500
+            else:
+                return -100
 
     def _calculate_heristic_bias(self):
         current_x, current_y, current_v, current_heading = self.ego_dynamics['x'], self.ego_dynamics['y'], \
@@ -319,45 +322,45 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         goal_x, goal_y, goal_v, goal_heading = self.goal_state
         position_bias = math.sqrt((goal_x - current_x) ** 2 + (goal_y - current_y) ** 2)
         velocity_bias = math.fabs(goal_v - current_v)
-        heading_bias = math.fabs(goal_heading - current_heading)
+        heading_bias = math.fabs(goal_heading - abs(current_heading))
         return position_bias, velocity_bias, heading_bias
 
     def _bias_reward(self):
         coeff_pos = -0.01
         coeff_vel = -0.2
-        coeff_heading = -0.005
+        coeff_heading = 0
         position_bias, velocity_bias, heading_bias = self._calculate_heristic_bias()
         return coeff_pos * position_bias + coeff_vel * velocity_bias + coeff_heading * heading_bias
 
-    def _be_in_interested_area_reward(self):
-        def judge_task0(x, y):
-            return True if x > -18 and y > -18 and 18 < math.sqrt((x + 18) ** 2 + (y + 18) ** 2) < 18 + 3.75 else False
-
-        def judge_task1(x, y):
-            return True if 0 < x < 18 + 3.75 and -18 < y < 18 else False
-
-        def judge_task2(x, y):
-            return True if x < 18 and y > -18 and 18 - 3.75 * 2 < math.sqrt(
-                (x - 18) ** 2 + (y + 18) ** 2) < 18 - 3.75 else False
-
-        def judge_01lane(x, y):
-            return True if 0 < x < 3.75 and y < -18 else 0
-
-        def judge_2lane(x, y):
-            return True if 3.75 < x < 2 * 3.75 and y < -18 else 0
-
-        x = self.ego_dynamics['x']
-        y = self.ego_dynamics['y']
-
-        if self.task == 0:
-            return 2 if judge_task0(x, y) or judge_01lane(x, y) else 0
-
-        if self.task == 1:
-            return 2 if judge_task1(x, y) or judge_01lane(x, y) else 0
-
-        if self.task == 2:
-            return 2 if judge_task2(x, y) or judge_2lane(x, y) else 0
-    # done related
+    # def _be_in_interested_area_reward(self):
+    #     def judge_task0(x, y):
+    #         return True if x > -18 and y > -18 and 18 < math.sqrt((x + 18) ** 2 + (y + 18) ** 2) < 18 + 3.75 else False
+    #
+    #     def judge_task1(x, y):
+    #         return True if 0 < x < 18 + 3.75 and -18 < y < 18 else False
+    #
+    #     def judge_task2(x, y):
+    #         return True if x < 18 and y > -18 and 18 - 3.75 * 2 < math.sqrt(
+    #             (x - 18) ** 2 + (y + 18) ** 2) < 18 - 3.75 else False
+    #
+    #     def judge_01lane(x, y):
+    #         return True if 0 < x < 3.75 and y < -18 else 0
+    #
+    #     def judge_2lane(x, y):
+    #         return True if 3.75 < x < 2 * 3.75 and y < -18 else 0
+    #
+    #     x = self.ego_dynamics['x']
+    #     y = self.ego_dynamics['y']
+    #
+    #     if self.task == 0:
+    #         return 2 if judge_task0(x, y) or judge_01lane(x, y) else 0
+    #
+    #     if self.task == 1:
+    #         return 2 if judge_task1(x, y) or judge_01lane(x, y) else 0
+    #
+    #     if self.task == 2:
+    #         return 2 if judge_task2(x, y) or judge_2lane(x, y) else 0
+    # # done related
     def _judge_done(self):
         """
         :return:
@@ -376,7 +379,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
             return 2, 1
         elif self._is_task_failed():
             return 3, 1
-        elif self._is_achieve_goal():
+        elif self._is_achieve_goal(10, 90):
             return 4, 1
         else:
             return 5, 0
@@ -388,7 +391,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
     def _is_task_failed(self):  # need to override in subclass
         raise NotImplementedError
 
-    def _is_achieve_goal(self, distance_tolerance=1, heading_tolerance=30):  # no need to override
+    def _is_achieve_goal(self, distance_tolerance=1., heading_tolerance=30.):  # no need to override
         current_x, current_y, current_v, current_heading = self.ego_dynamics['x'], self.ego_dynamics['y'], \
                                                            self.ego_dynamics['v'], self.ego_dynamics['heading']
         goal_x, goal_y, goal_v, goal_heading = self.goal_state
