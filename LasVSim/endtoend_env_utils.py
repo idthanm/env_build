@@ -35,3 +35,23 @@ def rotate_coordination(orig_x, orig_y, orig_d, coordi_rotate_d):
     else:
         transformed_d = transformed_d
     return transformed_x, transformed_y, transformed_d
+
+def path_generation(dist_before_start_point, start_point_info, end_point_info, dist_after_end_point, pecision):
+    """
+    :param dist_before_start_point:
+    :param start_point_info: list, [x, y, heading(deg)]
+    :param end_point_info: list, [x, y, heading(deg)]
+    :param dist_after_end_point:
+    :param pecision: distance between points
+    :return: ndarray, [[x0, y0, a0(deg)], [x1, y1, a1(deg)], ...]
+    """
+    start_x, start_y, start_a = start_point_info
+    end_x, end_y, end_a = end_point_info
+    assert -180 < start_a < 180, 'start heading should be in [-180, 180](deg)'
+    assert -180 < end_a < 180, 'end heading should be in [-180, 180](deg)'
+    # transform coordination to start point
+
+
+if __name__ == '__main__':
+    path_generation()
+
