@@ -518,7 +518,7 @@ class Traffic(object):
         veh_info_dict = traci.vehicle.getContextSubscriptionResults('ego')
 
         # 更新自车所在位置信息（当前车道的限速，距离当前车道停止线的距离）
-        self.__own_lane_speed_limit = [5,
+        self.__own_lane_speed_limit = [16.67,
                                        5.56,
                                        16.67,
                                        16.67][
