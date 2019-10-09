@@ -465,13 +465,13 @@ class Traffic(object):
         self.__add_self_car()
         # simulation random steps and remove conflict car
         import numpy as np
-        random_steps = -1  # np.random.randint(0, 1)
+        random_steps = np.random.randint(0, 10) # np.random.randint(0, 1)
         x_in_sumo, y_in_sumo, a_in_sumo = _convert_car_coord_to_sumo_coord(self.__own_x, self.__own_y, self.__own_a,
                                                                            self.egocar_length)
         start_time = traci.simulation.getTime()
         traci.simulationStep()
         while True:
-            if traci.simulation.getTime() - start_time > 25 * random_steps:
+            if traci.simulation.getTime() - start_time > 4 * random_steps:
                 random_traffic = traci.vehicle.getContextSubscriptionResults(
                     'ego')
                 for veh in random_traffic:
@@ -482,9 +482,9 @@ class Traffic(object):
                     if (math.fabs((random_traffic[veh]
                     [traci.constants.VAR_POSITION][0])
                                   - x_in_sumo) < 3.75
-                            and (-20 < (self.random_traffic[veh]
+                            and (-15 < (random_traffic[veh]
                             [traci.constants.VAR_POSITION][1])
-                                 - y_in_sumo < 10)):
+                                 - y_in_sumo < 7)):
                         traci.vehicle.moveToXY(vehID=veh,
                                                edgeID='gneE32',
                                                lane=0,

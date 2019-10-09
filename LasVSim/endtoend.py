@@ -81,9 +81,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         all_info = None
         info_this_step = []
         for _ in range(self.frameskip):
-            delta_dist = np.clip(self.ego_dynamics['v']*self.step_length/1000+0.5*acc*(self.step_length/1000)**2, 0, 10)
-            next_v = np.clip(self.ego_dynamics['v']+acc*self.step_length/1000, 0, 33)
-            next_x, next_y, next_heading = self.path.get_next_info(delta_dist)
+            next_x, next_y, next_v, next_heading = self._get_next_position(acc)
             lasvsim.set_ego_position(next_x, next_y, next_v, next_heading)
             lasvsim.sim_step()
             all_info = self._get_all_info()
@@ -106,7 +104,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
     def reset(self, **kwargs):  # kwargs include three keys
         self.history_info.clear()
         self.history_obs.clear()
-        default_path = dict(dist_before_start_point=5,
+        default_path = dict(dist_before_start_point=10,
                             start_point_info=(3.75/2, -18, 90),
                             end_point_info=(-18, 3.75/2, 180),
                             dist_after_end_point=5)
@@ -130,8 +128,11 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         return action * 3.75 - 1.25
 
     def _get_next_position(self, acc):
-        delta_time = self.step_length /1000.
-        delta_dist = self.ego_dynamics['v'] * delta_time + 0.5 * acc * delta_time ** 2
+        delta_dist = np.clip(
+            self.ego_dynamics['v'] * self.step_length / 1000 + 0.5 * acc * (self.step_length / 1000) ** 2, 0, 10)
+        next_v = np.clip(self.ego_dynamics['v'] + acc * self.step_length / 1000, 0, 33)
+        next_x, next_y, next_heading = self.path.get_next_info(delta_dist)
+        return next_x, next_y, next_v, next_heading
 
     def _set_observation_space(self, observation):
         self.observation_space = convert_observation_to_space(observation)
@@ -192,7 +193,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
 
             # plot basic map
             square_length = 36
-            extension = 10
+            extension = 20
             lane_width = 3.75
             dotted_line_style = '--'
 
