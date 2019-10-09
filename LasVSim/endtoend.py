@@ -75,7 +75,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         return [seed]
 
     def step(self, action):  # action is expected_acceleration
-        acc = self._action_transformation(action)
+        acc = self._action_transformation(action[0])
         reward = 0
         done = 0
         all_info = None
