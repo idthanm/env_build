@@ -3,9 +3,11 @@ from LasVSim import lasvsim
 from gym.utils import seeding
 import math
 import numpy as np
-from LasVSim.endtoend_env_utils import shift_coordination, rotate_coordination
-from collections import OrderedDict
+from LasVSim.endtoend_env_utils import shift_coordination, rotate_coordination, shift_and_rotate_coordination,\
+    Path
+from collections import OrderedDict, deque
 import matplotlib.pyplot as plt
+
 import matplotlib.patches as patches
 
 
@@ -47,15 +49,20 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         self.detected_vehicles = None
         self.all_vehicles = None
         self.ego_dynamics = None
-        self.ego_info = None
         self.road_related_info = None
+        self.history_info = deque(maxlen=10)  # store infos of every step
+        self.history_obs = deque(maxlen=10)  # store obs of every step
         self.simulation = None
         self.init_state = []
-        self.goal_state = []
+        self.init_v = None
+        self.goal_v = None
+        self.path_info = None
         self.task = None  # used to decide goal
-        self.action_space = gym.spaces.Box(np.array([-1, -1]), np.array([1, 1]), dtype=np.float32)
+        self.action_space = gym.spaces.Box(np.array([-1]), np.array([1]), dtype=np.float32)
         self.simulation = lasvsim.create_simulation(self.setting_path + 'simulation_setting_file.xml')
         self.seed()
+        self.step_length = self.simulation.step_length
+        self.path = Path(0.01)
         self.reset()
         action = self.action_space.sample()
         observation, _reward, done, _info = self.step(self._action_transformation(action))
@@ -67,85 +74,82 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         lasvsim.seed(int(seed))
         return [seed]
 
-    def step(self, action):  # action is a np.array, [expected_acceleration, delta_steer]
-        action = self._action_transformation(action)
+    def step(self, action):  # action is expected_acceleration
+        acc = self._action_transformation(action)
         reward = 0
         done = 0
         all_info = None
+        info_this_step = []
         for _ in range(self.frameskip):
-            lasvsim.set_delta_steer_and_acc(action[0], action[1])
+            delta_dist = np.clip(self.ego_dynamics['v']*self.step_length/1000+0.5*acc*(self.step_length/1000)**2, 0, 10)
+            next_v = np.clip(self.ego_dynamics['v']+acc*self.step_length/1000, 0, 33)
+            next_x, next_y, next_heading = self.path.get_next_info(delta_dist)
+            lasvsim.set_ego_position(next_x, next_y, next_v, next_heading)
             lasvsim.sim_step()
             all_info = self._get_all_info()
+            info_this_step.append(all_info)
             done_type, done = self._judge_done()
             reward += self.compute_reward(done_type)
             if done:
                 self._print_done_info(done_type)
                 break
+        self.history_info.append(info_this_step)
         obs = self._get_obs()
 
         return obs, reward, done, all_info
 
-    def reset(self, **kwargs):  # kwargs includes two keys: 'task': 0/1/2, 'init_state': [x, y, v, heading]
+    def _print_done_info(self, done_type):
+        done_info = ['collision', 'break_traffic_rule', 'good_done', 'not_done_yet']
+        print(done_info[done_type-1])
+
+
+    def reset(self, **kwargs):  # kwargs include three keys
+        self.history_info.clear()
+        self.history_obs.clear()
+        default_path = dict(dist_before_start_point=5,
+                            start_point_info=(3.75/2, -18, 90),
+                            end_point_info=(-18, 3.75/2, 180),
+                            dist_after_end_point=5)
         if kwargs:
-            self.init_state, self.task = kwargs['init_state'], kwargs['task']
+            self.path_info, self.init_v, self.goal_v = kwargs['path_info'], kwargs['init_v'], kwargs['goal_v']
         else:
-            self.init_state, self.task = [3.75 / 2, -18 - 2.5, 0, 90], 0
+            self.path_info, self.init_v, self.goal_v = default_path, 0, 30/3.6
+
+        self.path.reset_path(**self.path_info)
+        # reset simulation
+        x, y, a = self.path.get_init_state()
+        self.init_state = [x, y, self.init_v, a]
         lasvsim.reset_simulation(overwrite_settings={'init_state': self.init_state},
                                  init_traffic_path=self.setting_path)
-        # decide goal state at start
-        self._generate_goal_state()
         self._get_all_info()
         obs = self._get_obs()
         return obs
 
     def _action_transformation(self, action):
         """assume action is in [-1, 1], and transform it to proper interval"""
-        return action[0] * 3.75 - 1.25, action[1] * 30
+        return action * 3.75 - 1.25
 
-    # observation related
-    def _generate_goal_state(self):  # need to be override in subclass
-        raise NotImplementedError
+    def _get_next_position(self, acc):
+        delta_time = self.step_length /1000.
+        delta_dist = self.ego_dynamics['v'] * delta_time + 0.5 * acc * delta_time ** 2
 
     def _set_observation_space(self, observation):
         self.observation_space = convert_observation_to_space(observation)
         return self.observation_space
 
-    def _get_all_info(self):  # after goal_state is generated, must be called every timestep before _get_obs
+    def _get_all_info(self):  # used to update info, must be called every timestep before _get_obs
         # to fetch info
         self.all_vehicles = lasvsim.get_all_objects()  # coordination 2
         self.detected_vehicles = lasvsim.get_detected_objects()  # coordination 2
-        (self.ego_dynamics, self.ego_info), self.road_related_info = lasvsim.get_self_car_info()
+        self.ego_dynamics, self.road_related_info = lasvsim.get_self_car_info()
         # ego_dynamics
         # {'x': self.x,
         #  'y': self.y,
         #  'v': self.v,
         #  'heading': self.heading,  # (deg)
-        #  'acceleration': self.acc,
-        #  'engine_speed': self.engine_speed,  # 发动机转速(rad/s), # CVT range: [78.5, 680.5]
-        #  'transmission_gear_ratio': self.drive_ratio}  # CVT range: [0.32, 2.25]
-
-        # ego_info
-        # {'Steer_wheel_angle': self.car_info.Steer_SW,  # 方向盘转角(deg) [-705, 705]
-        #  'Throttle': self.car_info.Throttle,  # 节气门开度 (0-100)
-        #  'Bk_Pressure': self.car_info.Bk_Pressure,  # 制动压力(Mpa)
-        #  'Transmission_gear_ratio': self.car_info.Rgear_Tr,  # 变速器ratio, CVT range: [0.32, 2.25]
-        #  'Engine_crankshaft_spin': self.car_info.AV_Eng,  # 发动机转速(rpm), CVT range: [750, 6500]
-        #  'Engine_output_torque': self.car_info.M_EngOut,  # 发动机输出转矩(N*m)
-        #  'A': self.car_info.A,  # 车辆加速度(m^2/s)
-        #  'beta_angle': self.car_info.Beta / pi * 180,  # 质心侧偏角(deg)
-        #  'Yaw_rate': self.car_info.AV_Y / pi * 180,  # 横摆角速度(deg/s)
-        #  'Lateral_speed': self.car_info.Vy,  # 横向速度(m/s)
-        #  'Longitudinal_speed': self.car_info.Vx,  # 纵向速度(m/s)
-        #  'Steer_L1': self.car_info.Steer_L1 / pi * 180,  # 自行车模型前轮转角(deg)
-        #  'StrAV_SW': self.car_info.StrAV_SW,  # 方向盘角速度(deg/s）
-        #  'Mass_of_fuel_consumed': self.car_info.Mfuel,  # 燃料消耗质量(g)
-        #  'Longitudinal_acc': self.car_info.Ax,  # 纵向加速度(m^2/s)
-        #  'Lateral_acc': self.car_info.Ay,  # 横向加速度(m^2/s)
-        #  'Fuel_rate': self.car_info.Qfuel, # 燃料消耗率(g/s)
-        #  'Car_length' = self.simulation_settings.car_length,
-        #  'Car_width' = self.simulation_settings.car_width,
-        #  'Corner_point' = self._cal_corner_point_coordination()
-        # }
+        #  'Car_length',
+        #  'Car_width',
+        #  'Corner_point'}
 
         # road_related_info
         # {'dist2current_lane_center' = dis2center_line,
@@ -175,9 +179,8 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         all_info = dict(all_vehicles=self.all_vehicles,
                         detected_vehicles=self.detected_vehicles,
                         ego_dynamics=self.ego_dynamics,
-                        ego_info=self.ego_info,
                         road_related_info=self.road_related_info,
-                        goal_state=self.goal_state)
+                        goal_state=self.path_info)
         return all_info
 
     def _get_obs(self):
@@ -287,8 +290,8 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
             ego_x = self.ego_dynamics['x']
             ego_y = self.ego_dynamics['y']
             ego_a = self.ego_dynamics['heading']
-            ego_l = self.ego_info['Car_length']
-            ego_w = self.ego_info['Car_width']
+            ego_l = self.ego_dynamics['Car_length']
+            ego_w = self.ego_dynamics['Car_width']
             draw_rotate_rec(ego_x, ego_y, ego_a, ego_l, ego_w, 'red')
             plt.show()
             plt.pause(0.1)
@@ -302,265 +305,40 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         pass
 
     # reward related
-    def compute_reward(self, done):
+    def compute_reward(self, done_type):
         reward = 0
-        if done == 5:
-            reward += self._bias_reward()
-            # reward += self._be_in_interested_area_reward()
+        if done_type == 4:
+            reward += -1
+            reward += -0.05*abs(self.ego_dynamics['v']-self.goal_v)
             return reward
-        elif done == 4:
-            return 200
+        elif done_type == 3:
+            return 100
         else:
-            if done == 0:
-                return -500
-            else:
-                return -100
+            return -100
 
-    def _calculate_heristic_bias(self):
-        current_x, current_y, current_v, current_heading = self.ego_dynamics['x'], self.ego_dynamics['y'], \
-                                                           self.ego_dynamics['v'], self.ego_dynamics['heading']
-        goal_x, goal_y, goal_v, goal_heading = self.goal_state
-        position_bias = math.sqrt((goal_x - current_x) ** 2 + (goal_y - current_y) ** 2)
-        velocity_bias = math.fabs(goal_v - current_v)
-        heading_bias = math.fabs(goal_heading - abs(current_heading))
-        return position_bias, velocity_bias, heading_bias
-
-    def _bias_reward(self):
-        coeff_pos = -0.01
-        coeff_vel = -0.2
-        coeff_heading = 0
-        position_bias, velocity_bias, heading_bias = self._calculate_heristic_bias()
-        return coeff_pos * position_bias + coeff_vel * velocity_bias + coeff_heading * heading_bias
-
-    # def _be_in_interested_area_reward(self):
-    #     def judge_task0(x, y):
-    #         return True if x > -18 and y > -18 and 18 < math.sqrt((x + 18) ** 2 + (y + 18) ** 2) < 18 + 3.75 else False
-    #
-    #     def judge_task1(x, y):
-    #         return True if 0 < x < 18 + 3.75 and -18 < y < 18 else False
-    #
-    #     def judge_task2(x, y):
-    #         return True if x < 18 and y > -18 and 18 - 3.75 * 2 < math.sqrt(
-    #             (x - 18) ** 2 + (y + 18) ** 2) < 18 - 3.75 else False
-    #
-    #     def judge_01lane(x, y):
-    #         return True if 0 < x < 3.75 and y < -18 else 0
-    #
-    #     def judge_2lane(x, y):
-    #         return True if 3.75 < x < 2 * 3.75 and y < -18 else 0
-    #
-    #     x = self.ego_dynamics['x']
-    #     y = self.ego_dynamics['y']
-    #
-    #     if self.task == 0:
-    #         return 2 if judge_task0(x, y) or judge_01lane(x, y) else 0
-    #
-    #     if self.task == 1:
-    #         return 2 if judge_task1(x, y) or judge_01lane(x, y) else 0
-    #
-    #     if self.task == 2:
-    #         return 2 if judge_task2(x, y) or judge_2lane(x, y) else 0
-    # # done related
     def _judge_done(self):
         """
         :return:
-         0: bad done: violate road constrain
-         1: bad done: ego lose control
-         2: bad done: collision
-         3: bad done: task failed
-         4: good done: task succeed
-         5: not done
+         1: bad done: collision
+         2: bad done: break_traffic_rule
+         3: good done: task succeed
+         4: not done
         """
-        if self._is_road_violation():
-            return 0, 1
-        elif self._is_lose_control():
+        if self.simulation.stopped:
             return 1, 1
-        elif self.simulation.stopped:
+        elif self._break_traffic_rule():
             return 2, 1
-        elif self._is_task_failed():
+        elif self._is_achieve_goal():
             return 3, 1
-        elif self._is_achieve_goal(10, 90):
-            return 4, 1
         else:
-            return 5, 0
+            return 4, 0
 
-    def _print_done_info(self, done_type):
-        done_info = ['road violation', 'lose control', 'collision', 'task failed', 'goal achieved!']
-        print('done info: ' + done_info[done_type])
-
-    def _is_task_failed(self):  # need to override in subclass
+    def _break_traffic_rule(self):
+        """this func should be override in subclass"""
         raise NotImplementedError
 
-    def _is_achieve_goal(self, distance_tolerance=1., heading_tolerance=30.):  # no need to override
-        current_x, current_y, current_v, current_heading = self.ego_dynamics['x'], self.ego_dynamics['y'], \
-                                                           self.ego_dynamics['v'], self.ego_dynamics['heading']
-        goal_x, goal_y, goal_v, goal_heading = self.goal_state
-        return True if abs(current_x - goal_x) < distance_tolerance and \
-                       abs(current_y - goal_y) < distance_tolerance and \
-                       abs(current_heading - goal_heading) < heading_tolerance else False
-
-    def _is_road_violation(self):  # no need to override, just change judge_feasible func
-        center_points = self.ego_dynamics['x'], self.ego_dynamics['y']
-        if not judge_feasible(center_points[0], center_points[1]):
-            return True  # violate road constrain
-        return False
-
-    def _is_lose_control(self):  # no need to override
-        # # yaw_rate = self.ego_info['Yaw_rate']
-        # lateral_acc = self.ego_info['Lateral_acc']
-        # # if yaw_rate > 18 or lateral_acc > 1.2:  # 正常120km/h测试最大为13deg/s和0.7m/s^2
-        # if lateral_acc > 10:
-        #     return True  # lose control
-        # else:
-        #     return False
-        return False
-
-
-class Reference(object):
-    def __init__(self):
-        self.orig_init_x = None
-        self.orig_init_y = None
-        self.orig_init_v = None
-        self.orig_init_heading = None
-        self.orig_goal_x = None
-        self.orig_goal_y = None
-        self.orig_goal_v = None
-        self.orig_goal_heading = None  # heading in deg
-        self.goal_in_ref = None
-        self.goalx_in_ref = None
-        self.goaly_in_ref = None
-        self.goalv_in_ref = None
-        self.goalheading_in_ref = None
-        self.index_mode = None
-        self.reference_path = None
-        self.reference_velocity = None
-        # self.reset_reference_path(orig_init_state, orig_goal_state)
-
-    def reset_reference_path(self, orig_init_state, orig_goal_state):
-        self.orig_init_x, self.orig_init_y, self.orig_init_v, self.orig_init_heading = orig_init_state
-        self.orig_goal_x, self.orig_goal_y, self.orig_goal_v, self.orig_goal_heading = orig_goal_state  # heading in deg
-        self.goal_in_ref = self.orig2ref(self.orig_goal_x, self.orig_goal_y, self.orig_goal_v, self.orig_goal_heading)
-        self.goalx_in_ref, self.goaly_in_ref, self.goalv_in_ref, self.goalheading_in_ref = self.goal_in_ref
-        assert (self.goalx_in_ref > 0 and abs(self.goalheading_in_ref) < 180)
-        if self.goaly_in_ref >= 0:
-            assert (-90 < self.goalheading_in_ref < 180)
-        else:
-            assert (-180 < self.goalheading_in_ref < 90)
-        self.goalheading_in_ref = self.goalheading_in_ref - 1 \
-            if 90 - 0.1 < self.goalheading_in_ref < 90 + 0.1 else self.goalheading_in_ref
-        self.goalheading_in_ref = self.goalheading_in_ref + 1 \
-            if -90 - 0.1 < self.goalheading_in_ref < -90 + 0.1 else self.goalheading_in_ref
-        self.index_mode = 'indexed_by_x' if abs(self.goalheading_in_ref) < 90 else 'indexed_by_y'
-        self.reference_path = self.generate_reference_path()
-        self.reference_velocity = self.generate_reference_velocity()
-
-    def cal_path_maxx_maxy_miny(self):
-        if self.index_mode == 'indexed_by_x':
-            a0, a1, a2, a3 = self.reference_path
-            x = np.linspace(0, self.goalx_in_ref, 100)
-            y = a0 + a1 * x + a2 * x ** 2 + a3 * x ** 3
-            return self.goalx_in_ref, max(y), min(y)
-        else:
-            a0, a1, a2, a3 = self.reference_path
-            y = np.linspace(0, -self.goaly_in_ref, 100)
-            x = a0 + a1 * y + a2 * y ** 2 + a3 * y ** 3
-            maxx = max(x)
-            if self.goaly_in_ref >= 0:
-                return maxx, self.goaly_in_ref, 0
-            else:
-                return maxx, 0, self.goaly_in_ref
-
-    def orig2ref(self, orig_x, orig_y, orig_v, orig_heading):
-        orig_x, orig_y = shift_coordination(orig_x, orig_y, self.orig_init_x, self.orig_init_y)
-        x_in_ref, y_in_ref, heading_in_ref = rotate_coordination(orig_x, orig_y, orig_heading, self.orig_init_heading)
-        v_in_ref = orig_v
-        return x_in_ref, y_in_ref, v_in_ref, heading_in_ref
-
-    def is_pose_achieve_goal(self, orig_x, orig_y, orig_heading, distance_tolerance=2.5, heading_tolerance=30):
-        x_in_ref, y_in_ref, _, heading_in_ref = self.orig2ref(orig_x, orig_y, 0, orig_heading)
-        return True if abs(orig_x - self.goalx_in_ref) < distance_tolerance and \
-                       abs(orig_y - self.goaly_in_ref) < distance_tolerance and \
-                       abs(orig_heading - self.goalheading_in_ref) < heading_tolerance else False
-
-    def is_legit(self, orig_x, orig_y):
-        maxx, maxy, miny = self.cal_path_maxx_maxy_miny()
-        x_in_ref, y_in_ref, v_in_ref, heading_in_ref = self.orig2ref(orig_x, orig_y, 0, 0)
-        return True if 0 < x_in_ref < maxx + 5 and miny - 5 < y_in_ref < maxy + 5 else False
-
-    def cal_bias(self, orig_x, orig_y, orig_v, orig_heading):
-        assert self.index_mode == 'indexed_by_x' or self.index_mode == 'indexed_by_y'
-        x_in_ref, y_in_ref, v_in_ref, heading_in_ref = self.orig2ref(orig_x, orig_y, orig_v, orig_heading)
-        if self.index_mode == 'indexed_by_x':
-            refer_point = self.access_path_point_indexed_by_x(
-                x_in_ref) if x_in_ref < self.goalx_in_ref else self.goal_in_ref
-        else:
-            refer_point = self.access_path_point_indexed_by_y(
-                y_in_ref) if y_in_ref < self.goaly_in_ref else self.goal_in_ref
-        ref_x, ref_y, _, ref_heading = refer_point  # for now, we use goalv_in_ref instead ref_v
-        position_bias = math.sqrt((ref_x - x_in_ref) ** 2 + (ref_y - y_in_ref) ** 2)
-        velocity_bias = abs(self.goalv_in_ref - v_in_ref)
-        heading_bias = abs(ref_heading - heading_in_ref)
-        return position_bias, velocity_bias, heading_bias
-
-    def generate_reference_path(self):  # for now, path is three order poly
-        reference_path = []  # list of coefficient
-        assert self.index_mode == 'indexed_by_x' or self.index_mode == 'indexed_by_y'
-        if self.index_mode == 'indexed_by_x':
-            a0 = 0
-            a1 = 0
-            slope = self._deg2slope(self.goalheading_in_ref)
-            a3 = (slope - 2 * self.goaly_in_ref / self.goalx_in_ref) / self.goalx_in_ref ** 2
-            a2 = self.goaly_in_ref / self.goalx_in_ref ** 2 - a3 * self.goalx_in_ref
-            reference_path = [a0, a1, a2, a3]
-        else:
-            trans_x, trans_y, trans_d = rotate_coordination(self.goalx_in_ref, self.goaly_in_ref,
-                                                            self.goalheading_in_ref, -90)
-            a0 = 0
-            a1 = -math.tan((90 - 1) * math.pi / 180) if trans_x <= 0 else math.tan((90 - 1) * math.pi / 180)
-            a3 = (self._deg2slope(trans_d) - a1 - 2 * (trans_y - a1 * trans_x) / trans_x) / trans_x ** 2
-            a2 = (trans_y - a1 * trans_x - a3 * trans_x ** 3) / trans_x ** 2
-            reference_path = [a0, a1, a2, a3]
-        return reference_path
-
-    def generate_reference_velocity(self):  # for now, path is linear function
-        reference_velocity = []  # list of weight (no bias)
-        assert self.index_mode == 'indexed_by_x' or self.index_mode == 'indexed_by_y'
-        if self.index_mode == 'indexed_by_x':
-            reference_velocity.append(self.goalv_in_ref / self.goalx_in_ref)
-        else:
-            reference_velocity.append(self.goalv_in_ref / self.goalx_in_ref)
-        return reference_velocity
-
-    def access_path_point_indexed_by_x(self, x_in_ref):
-        assert (self.index_mode == 'indexed_by_x')
-        assert (-1 < x_in_ref < self.goalx_in_ref)
-        a0, a1, a2, a3 = self.reference_path
-        w = self.reference_velocity[0]
-        y_in_ref = a0 + a1 * x_in_ref + a2 * x_in_ref ** 2 + a3 * x_in_ref ** 3
-        v = w * x_in_ref
-        slope = a1 + 2 * a2 * x_in_ref + 3 * a3 * x_in_ref ** 2
-        heading_in_ref = self._slope2deg(slope)
-        return x_in_ref, y_in_ref, v, heading_in_ref
-
-    def access_path_point_indexed_by_y(self, y_in_ref):
-        assert (self.index_mode == 'indexed_by_y')
-        a0, a1, a2, a3 = self.reference_path
-        w = self.reference_velocity[0]
-        x_in_ref = a0 + a1 * (-y_in_ref) + a2 * (-y_in_ref) ** 2 + a3 * (-y_in_ref) ** 3
-        v = w * abs(y_in_ref)
-        slope = a1 + 2 * a2 * (-y_in_ref) + 3 * a3 * (-y_in_ref) ** 2
-        temp_heading = self._slope2deg(slope)
-        if self.goaly_in_ref > 0:
-            heading_in_ref = temp_heading + 90
-        else:
-            heading_in_ref = temp_heading - 90
-        return x_in_ref, y_in_ref, v, heading_in_ref
-
-    def _deg2slope(self, deg):
-        return math.tan(deg * math.pi / 180)
-
-    def _slope2deg(self, slope):
-        return 180 * math.atan(slope) / math.pi
+    def _is_achieve_goal(self):  # no need to override
+        return True if self.path.is_path_finished() else False
 
 
 class Grid_3D(object):
@@ -700,6 +478,23 @@ class CrossroadEnd2end(End2endEnv):
             return dict(grid=self._3d_grid_v2x_no_noise_obs_encoder()[0],
                         vector=self._vector_supplement_for_grid_encoder())
 
+    def _break_traffic_rule(self):  # TODO: hard coded
+        # judge traffic light breakage
+        if len(self.history_info):
+            history_vertical_light = self.history_info[-1][-1]['road_related_info']['vertical_light_value']
+            history_y = self.history_info[-1][-1]['ego_dynamics']['y']
+            current_vertical_light = self.road_related_info['vertical_light_value']
+            current_y = self.ego_dynamics['y']
+            traffic_light_breakage = history_vertical_light == 0 and current_vertical_light == 0 and \
+                                     history_y < -18 < current_y
+            # judge speed limit
+            speed_limit = self.road_related_info['current_lane_speed_limit']
+            v = self.ego_dynamics['v']
+            speed_breakage = speed_limit < v
+            return traffic_light_breakage or speed_breakage
+        else:
+            return False
+
     def _vector_supplement_for_grid_encoder(self):  # func for supplement vector of grid
         # encode road structure and task related info, hard coded for now TODO
 
@@ -708,26 +503,34 @@ class CrossroadEnd2end(End2endEnv):
         # left_lane_number = 3 - self.road_related_info['egolane_index']
         # right_lane_number = self.road_related_info['egolane_index']
         # dist2current_lane_center = self.road_related_info['dist2current_lane_center']
+        vertical_light_value = self.road_related_info['vertical_light_value']
         ego_x = self.ego_dynamics['x']
         ego_y = self.ego_dynamics['y']
         ego_v = self.ego_dynamics['v']
-        ego_length = self.ego_info['Car_length']
-        ego_width = self.ego_info['Car_width']
+        ego_heading = self.ego_dynamics['heading']
+        ego_length = self.ego_dynamics['Car_length']
+        ego_width = self.ego_dynamics['Car_width']
         # calculate relative goal
-        goal_x, goal_y, goal_v, goal_heading = self.goal_state
-        shift_x, shift_y = shift_coordination(goal_x, goal_y, self.ego_dynamics['x'], self.ego_dynamics['y'])
-        rela_goal_x, rela_goal_y, rela_goal_heading \
-            = rotate_coordination(shift_x, shift_y, goal_heading, self.ego_dynamics['heading'])
+        goal_v = self.goal_v
+        start_x, start_y, start_a = self.path_info['start_point_info']
+        end_x, end_y, end_a = self.path_info['end_point_info']
+        rela_start_x, rela_start_y, rela_start_a = shift_and_rotate_coordination(start_x, start_y, start_a, ego_x, ego_y, ego_heading)
+        rela_end_x, rela_end_y, rela_end_a = shift_and_rotate_coordination(end_x, end_y, end_a, ego_x, ego_y, ego_heading)
+
         # construct vector dict
         vector_dict = dict(ego_x=ego_x,
                            ego_y=ego_y,
                            ego_v=ego_v,
                            ego_length=ego_length,
                            ego_width=ego_width,
-                           rela_goal_x=rela_goal_x,
-                           rela_goal_y=rela_goal_y,
+                           rela_start_x=rela_start_x,
+                           rela_start_y=rela_start_y,
+                           rela_start_a=rela_start_a,
+                           rela_end_x=rela_end_x,
+                           rela_end_y=rela_end_y,
+                           rela_end_a=rela_end_a,
                            goal_v=goal_v,
-                           rela_goal_heading=rela_goal_heading)
+                           vertical_light_value=vertical_light_value,)
         return np.array(list(vector_dict.values()))
 
     def _3d_grid_v2x_no_noise_obs_encoder(self):  # func for grid encoder
@@ -773,9 +576,6 @@ class CrossroadEnd2end(End2endEnv):
         ego_y = self.ego_dynamics['y']
         ego_v = self.ego_dynamics['v']
         ego_heading = self.ego_dynamics['heading']
-
-        # egocar_length = self.ego_info['Car_length']
-        # egocar_width = self.ego_info['Car_width']
 
         def recover_orig_position_fn(transformed_x, transformed_y):
             d = ego_heading  # TODO: check if correct
@@ -830,40 +630,6 @@ class CrossroadEnd2end(End2endEnv):
                         self.grid_3d.set_same_xy_value_in_all_z(index_x, index_y, self._INFEASIBLE_VALUE)
                     else:
                         self.grid_3d.set_same_xy_value_in_all_z(index_x, index_y, self._FEASIBLE_VALUE)
-
-    def _generate_goal_state(self):
-        if self.task == 0:
-            self.goal_state = [-18 - 5 / 2, 3.75 / 2, 8, 180]
-        elif self.task == 1:
-            self.goal_state = [3.75 / 2, 18 + 5 / 2, 8, 90]
-        else:
-            self.goal_state = [-3.75 * 3 / 2, 18 + 5 / 2, 8, 0]
-
-    def _is_task_failed(self):
-
-        def is_in_initlane(orig_x, orig_y):
-            return 0 < orig_x < 3.75 * 2 and -23 < orig_y < -18
-
-        def is_in_straight(orig_x, orig_y):
-            return 0 < orig_x < 3.75 * 2 and 18 < orig_y < 23
-
-        def is_in_left(orig_x, orig_y):
-            return 0 < orig_y < 3.75 * 2 and -23 < orig_x < -18
-
-        def is_in_right(orig_x, orig_y):
-            return -3.75 * 2 < orig_y < 0 and 18 < orig_x < 23
-
-        def is_in_middle(orig_x, orig_y):
-            return -18 < orig_y < 18 and -18 < orig_x < 18
-
-        x = self.ego_dynamics['x']
-        y = self.ego_dynamics['y']
-        if self.task == 0:
-            return True if not (is_in_initlane(x, y) or is_in_middle(x, y) or is_in_left(x, y)) else False
-        elif self.task == 1:
-            return True if not (is_in_initlane(x, y) or is_in_middle(x, y) or is_in_straight(x, y)) else False
-        else:
-            return True if not (is_in_initlane(x, y) or is_in_middle(x, y) or is_in_right(x, y)) else False
 
 
 def test_grid3d():

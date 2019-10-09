@@ -11,10 +11,7 @@ import untangle
 import os
 from LasVSim.traffic_module import *
 from LasVSim.agent_module import *
-from xml.dom.minidom import Document
-import kdtree
-# import StringIO
-import time
+from math import sin, cos, pi
 from LasVSim import data_structures
 from LasVSim.traffic_module import TrafficData
 
@@ -237,6 +234,7 @@ class Simulation(object):
         self.simulation_loaded = False  # 仿真载入标志位
         self.traffic_data = TrafficData()  # 初始交通流数据对象
         self.settings = Settings(file_path=default_setting_path)  # 仿真设置对象
+        self.step_length = self.settings.step_length
         self.external_control_flag = False  # 外部控制输入标识，若外部输入会覆盖内部控制器
         self.traffic = None
         self.agent = None
@@ -273,9 +271,6 @@ class Simulation(object):
         self.stopped = False
         self.data = Data()
         self.ego_history = {}
-
-        """Load vehicle module library"""
-        vehicle_models = VehicleModels(VEHICLE_MODEL_PATH)
 
         """Load traffic module."""
         step_length = self.settings.step_length * self.settings.traffic_frequency
@@ -321,60 +316,6 @@ class Simulation(object):
     def export_data(self, path):
         self.data.export_csv(path)
 
-    # def sim_step_internal(self, steps=None):
-    #     if steps is None:
-    #         steps = 1
-    #     for step in range(steps):
-    #         if self.stopped:
-    #             print("Simulation Finished")
-    #             return False
-    #
-    #         # 传感器线程
-    #         if self.tick_count % self.settings.sensor_frequency == 0:
-    #             self.agent.update_info_from_sensor(self.other_vehicles)
-    #
-    #         # 决策线程
-    #         if self.tick_count % self.settings.router_frequency == 0:
-    #             self.agent.update_plan_output(self.light_status)
-    #
-    #         # 控制器线程
-    #         if self.tick_count % self.settings.controller_frequency == 0:
-    #             self.agent.update_control_input()
-    #
-    #         # 动力学线程
-    #         if self.tick_count % self.settings.dynamic_frequency == 0:
-    #             self.agent.update_dynamic_state()
-    #
-    #         # 交通流线程
-    #         if self.tick_count % self.settings.traffic_frequency == 0:
-    #             self.traffic.set_own_car(self.agent.dynamic.x,
-    #                                      self.agent.dynamic.y,
-    #                                      self.agent.dynamic.v,
-    #                                      self.agent.dynamic.heading)
-    #             self.traffic.sim_step()
-    #             self.other_vehicles = self.traffic.get_vehicles()
-    #             self.light_status = self.traffic.get_light_status()
-    #
-    #         # 如果自车达到目的地则退出仿真，loop路径下仿真会一直循环不会结束
-    #         if self.agent.mission.get_status() != MISSION_RUNNING:
-    #             self.stop()
-    #
-    #         # 保存当前步仿真数据
-    #         self.data.append(
-    #             self_status=[self.tick_count * float(self.settings.step_length),
-    #                          self.agent.dynamic.x,
-    #                          self.agent.dynamic.y,
-    #                          self.agent.dynamic.v,
-    #                          self.agent.dynamic.heading],
-    #             self_info=self.agent.dynamic.get_info(),
-    #             vehicles=self.other_vehicles,
-    #             light_values=self.traffic.get_light_values(),
-    #             trajectory=self.agent.route,
-    #             dis=self.traffic.get_current_distance_to_stopline(),
-    #             speed_limit=self.traffic.get_current_lane_speed_limit())
-    #         self.tick_count += 1
-    #     return True
-
     def sim_step(self, steps=None):
         if steps is None:
             steps = 1
@@ -383,20 +324,12 @@ class Simulation(object):
                 print("Simulation Finished")
                 return False
 
-            # 控制器线程
-            if self.tick_count % self.settings.controller_frequency == 0:
-                self.agent.update_control_input()
-
-            # 动力学线程
-            if self.tick_count % self.settings.dynamic_frequency == 0:
-                self.agent.update_dynamic_state()
-
             # 交通流线程
             if self.tick_count % self.settings.traffic_frequency == 0:
-                self.traffic.set_own_car(self.agent.dynamic.x,
-                                         self.agent.dynamic.y,
-                                         self.agent.dynamic.v,
-                                         self.agent.dynamic.heading)
+                self.traffic.set_own_car(self.agent.x,
+                                         self.agent.y,
+                                         self.agent.v,
+                                         self.agent.heading)
                 self.traffic.sim_step()
                 self.other_vehicles = self.traffic.get_vehicles()
                 # self.light_status = self.traffic.get_light_status()
@@ -436,10 +369,7 @@ class Simulation(object):
        return self.agent.detected_objects
 
     def get_ego_position(self):
-        return self.agent.dynamic.x, self.agent.dynamic.y
-
-    def get_self_car_control_info(self):
-        return self.agent.get_control_info()
+        return self.agent.x, self.agent.y
 
     def get_self_car_info(self):
         return self.agent.get_info(), self.traffic.get_road_related_info_of_ego()
@@ -447,81 +377,18 @@ class Simulation(object):
     def get_time(self):
         return self.traffic.sim_time
 
-    # def get_pos(self):
-    #     return self.mission.pos
-
-    def get_controller_type(self):
-        return self.agent.controller.model_type
-
-    # def mission_update(self,pos):
-    #     self.agent.mission.update(pos)
-
-    # def stop(self):
-    #     self.stopped = True
-    #     self.data.close_file()
-
-    # def update_evaluation_data(self):
-    #     x, y, v, a = self.get_pos()
-    #     speed = v
-    #     plan_pos = self.agent.controller.get_plan_pos()
-    #     if plan_pos is not None:
-    #         plan_x, plan_y = plan_pos[1:3]
-    #     else:
-    #         plan_x, plan_y = x, y
-    #
-    #     is_in_cross, is_change_lane, lane_x, lane_y, car2border = self.agent.get_drive_status()
-    #
-    #     front_d=1000
-    #     front_speed=-1
-    #     front_x, front_y = plan_x, plan_y+1000
-    #     if (not is_change_lane) and not (is_in_cross):
-    #         status,lane_info=self.map.map_position(x,y)
-    #         for vehicle in self.other_vehicles:
-    #             vx,vy=vehicle['x'],vehicle['y']
-    #             if get_distance((x,y),(vx,vy))>100:
-    #                 continue
-    #             vehicle_status,vehicle_lane_info=self.map.map_position(vx,vy)
-    #             if vehicle_status is not MAP_IN_ROAD:
-    #                 continue
-    #             if lane_info!=vehicle_lane_info:
-    #                 continue
-    #             if lane_info['direction'] in 'NS':
-    #                 ds=vy-y
-    #             else:
-    #                 ds=vx-x
-    #             if lane_info['direction'] in 'SW':
-    #                 ds=-ds
-    #             if ds<0 or ds>front_d:
-    #                 continue
-    #             front_x,front_y=vx,vy
-    #             front_d=ds
-    #             front_speed=vehicle['v']
-    #
-    #     steering_wheel,throttle, brake, gear, engine_speed, engine_torque, accl, \
-    #     sideslip, yaw_rate, lateralvelocity, longitudinalvelocity, \
-    #     frontwheel, steerrate, fuel, acc_lon, acc_lat, fuel_rate = self.agent.dynamic.get_info()
-    #
-    #     evaluation_data=(x,y),(plan_x,plan_y),(lane_x, lane_y),(front_x,front_y),is_in_cross,is_change_lane, \
-    #                     frontwheel, throttle/100, brake, longitudinalvelocity, lateralvelocity, accl, \
-    #                     car2border, steerrate, fuel ,acc_lon, acc_lat, front_speed, \
-    #                     speed, yaw_rate, steering_wheel, engine_speed, engine_torque, gear
-    #     self.evaluator.update(evaluation_data)
-
-    # def get_current_task(self):
-    #     return self.agent.mission.current_task
-
     def __collision_check(self):
         for vehs in self.other_vehicles:
-            if (fabs(vehs['x']-self.agent.dynamic.x) < 10 and
-               fabs(vehs['y']-self.agent.dynamic.y) < 2):
-                self.ego_x0 = (self.agent.dynamic.x +
-                               cos(self.agent.dynamic.heading/180*pi)*self.agent.lw)
-                self.ego_y0 = (self.agent.dynamic.y +
-                               sin(self.agent.dynamic.heading/180*pi)*self.agent.lw)
-                self.ego_x1 = (self.agent.dynamic.x -
-                               cos(self.agent.dynamic.heading/180*pi)*self.agent.lw)
-                self.ego_y1 = (self.agent.dynamic.y -
-                               sin(self.agent.dynamic.heading/180*pi)*self.agent.lw)
+            if (fabs(vehs['x']-self.agent.x) < 10 and
+               fabs(vehs['y']-self.agent.y) < 2):
+                self.ego_x0 = (self.agent.x +
+                               cos(self.agent.heading/180*pi)*self.agent.lw)
+                self.ego_y0 = (self.agent.y +
+                               sin(self.agent.heading/180*pi)*self.agent.lw)
+                self.ego_x1 = (self.agent.x -
+                               cos(self.agent.heading/180*pi)*self.agent.lw)
+                self.ego_y1 = (self.agent.y -
+                               sin(self.agent.heading/180*pi)*self.agent.lw)
                 self.surrounding_lw = (vehs['length']-vehs['width'])/2
                 self.surrounding_x0 = (
                     vehs['x'] + cos(

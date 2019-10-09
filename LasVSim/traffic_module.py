@@ -392,13 +392,13 @@ class Traffic(object):
                 [SUMO_BINARY, "-c", self.__path + "configuration.sumocfg",
                  "--step-length", self.step_length,
                  "--lateral-resolution", "1.25", '--seed', str(int(self.seed % 100)), "--start",
-                 "--quit-on-end"])
+                 "--quit-on-end", "--no-warnings"])
         else:
             traci.start(
                 [SUMO_BINARY, "-c", self.__path + "configuration.sumocfg",
                  "--step-length", self.step_length,
                  "--lateral-resolution", "1.25", "--random",
-                 "--quit-on-end"])  #  "--start",
+                 "--quit-on-end", "--no-warnings"])  #  "--start",
 
         # 在sumo的交通流模型中插入自车
         x, y, v, a = source
@@ -518,7 +518,7 @@ class Traffic(object):
         veh_info_dict = traci.vehicle.getContextSubscriptionResults('ego')
 
         # 更新自车所在位置信息（当前车道的限速，距离当前车道停止线的距离）
-        self.__own_lane_speed_limit = [5.56,
+        self.__own_lane_speed_limit = [5,
                                        5.56,
                                        16.67,
                                        16.67][
@@ -726,13 +726,15 @@ class Traffic(object):
                          self.__path + "traffic_generation_" + self.type + "_" +
                          self.density + ".sumocfg",
                          "--step-length", "1",
-                         "--seed", str(int(self.seed%100))])
+                         "--seed", str(int(self.seed%100)),
+                         "--no-warnings"])
         else:
             traci.start([SUMO_BINARY, "-c",
                          self.__path + "traffic_generation_" + self.type + "_" +
                          self.density + ".sumocfg",
                          "--step-length", "1",
-                         "--random"])
+                         "--random",
+                         "--no-warnings"])
         self.__add_self_car()
 
         vehicles = []

@@ -32,15 +32,12 @@ if __name__ == '__main__':
     episode_num = 10
     for i in range(episode_num):  # run episode_num episodes
         done = 0
-        kwarg = dict(init_state=[3.75/2, -18-2.5, 0, 90],
-                     task=0)
-        obs = env.reset(**kwarg)
+        obs = env.reset()
         ret = 0
         ite = 0
         while not done:
             ite += 1
-            action = action_fn(obs)
-            obs, rew, done, info = env.step(action)
+            obs, rew, done, info = env.step(1)
             env.render()
             ret += rew
             print('reward: ', rew)
