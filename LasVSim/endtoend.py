@@ -361,7 +361,7 @@ class Grid_3D(object):
         self.number_z = len(self.axis_z_name_dict)
         self.increment_x = self.length / self.number_x  # increment in x axis of car coordination
         self.increment_y = self.width / self.number_y
-        self._encode_grid = np.zeros((self.number_z, self.matrix_x, self.matrix_y))
+        self._encode_grid = 99. * np.ones((self.number_z, self.matrix_x, self.matrix_y))
         self._encode_grid_flag = np.zeros((self.number_z, self.matrix_x, self.matrix_y), dtype=np.int)
 
     def get_axis_z_name_dict(self, axis_z_type):  # dict from name to index
@@ -409,9 +409,16 @@ class Grid_3D(object):
         self._encode_grid = np.zeros((self.number_z, self.matrix_x, self.matrix_y))
         self._encode_grid_flag = np.zeros((self.number_z, self.matrix_x, self.matrix_y), dtype=np.int)
 
-    def set_value(self, index_z, index_x, index_y, grid_value):
-        self._encode_grid[index_z][index_x][index_y] = grid_value
-        self._encode_grid_flag[index_z][index_x][index_y] = 1
+    def set_value(self, index_z, index_x, index_y, grid_value, range):
+        min_index_x = max(0, index_x - range)
+        max_index_x = min(self.matrix_x - 1, index_x + range)
+        min_index_y = max(0, index_y - range)
+        max_index_y = min(self.matrix_y - 1, index_y + range)
+        for x in range(min_index_x, max_index_x+1):
+            for y in range(min_index_y, max_index_y+1):
+                self._encode_grid[index_z][x][y] = grid_value
+                self._encode_grid_flag[index_z][x][y] = 1
+
 
     def set_same_xy_value_in_all_z(self, index_x, index_y, grid_value):
         for i in range(self.number_z):
@@ -544,7 +551,7 @@ class CrossroadEnd2end(End2endEnv):
             vehicles_in_grid = [veh for veh in info_in_ego_coordination if
                                 self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
             self._add_vehicle_info_in_grid(vehicles_in_grid)
-            self._add_feasible_area_info_in_grid(recover_orig_position_fn)
+            # self._add_feasible_area_info_in_grid(recover_orig_position_fn)
             encoded_grid_list.append(self.grid_3d.get_encode_grid_and_flag()[0])
         return encoded_grid_list
 
@@ -603,6 +610,7 @@ class CrossroadEnd2end(End2endEnv):
         return results, recover_orig_position_fn
 
     def _add_vehicle_info_in_grid(self, vehicles_in_grid):
+        cover_range = 2
         if self.grid_fill_type == 'single':
             for veh in vehicles_in_grid:
                 x = veh['trans_x']
@@ -612,12 +620,12 @@ class CrossroadEnd2end(End2endEnv):
                 length = veh['length']
                 width = veh['width']
                 index_x, index_y = self.grid_3d.position2xyindex(x, y)
-                self.grid_3d.set_value(index_z=0, index_x=index_x, index_y=index_y, grid_value=x)
-                self.grid_3d.set_value(index_z=1, index_x=index_x, index_y=index_y, grid_value=y)
-                self.grid_3d.set_value(index_z=2, index_x=index_x, index_y=index_y, grid_value=v)
-                self.grid_3d.set_value(index_z=3, index_x=index_x, index_y=index_y, grid_value=heading)
-                self.grid_3d.set_value(index_z=4, index_x=index_x, index_y=index_y, grid_value=length)
-                self.grid_3d.set_value(index_z=5, index_x=index_x, index_y=index_y, grid_value=width)
+                self.grid_3d.set_value(index_z=0, index_x=index_x, index_y=index_y, grid_value=x, range=cover_range)
+                self.grid_3d.set_value(index_z=1, index_x=index_x, index_y=index_y, grid_value=y, range=cover_range)
+                self.grid_3d.set_value(index_z=2, index_x=index_x, index_y=index_y, grid_value=v, range=cover_range)
+                self.grid_3d.set_value(index_z=3, index_x=index_x, index_y=index_y, grid_value=heading, range=cover_range)
+                self.grid_3d.set_value(index_z=4, index_x=index_x, index_y=index_y, grid_value=length, range=cover_range)
+                self.grid_3d.set_value(index_z=5, index_x=index_x, index_y=index_y, grid_value=width, range=cover_range)
 
     def _add_feasible_area_info_in_grid(self, recover_orig_position_fn):
         number_x = self.grid_3d.number_x  # number_x is matrix_y
