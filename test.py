@@ -28,22 +28,22 @@ y33=data1[1]
 plt.axis('equal')
 
 
-y=10
-nodes2 = np.asfortranarray([[0.0, 0.0, 3.75*3/2, 3.75*3/2], [0.0, 18, 18, 36]])  # [[0.0, 0.0, -18.0], [0.0, 18.0, 18.0]]
+nodes2 = np.asfortranarray([[3.75/2, 3.75/2, -18+10, -18-2], [-18-10, -18+10, 3.75/2, 3.75/2]])  # [[0.0, 0.0, -18.0], [0.0, 18.0, 18.0]]
 curve2 = bezier.Curve(nodes2, degree=3)
 s_vals = np.linspace(0.0, 1.0, 30)
-data2=curve2.evaluate_multi(s_vals)
+data2=curve2.evaluate(0.1)
+print(data2)
 x332=data2[0]
 y332=data2[1]
 
 y=9-3.75*3/4
-nodes3 = np.asfortranarray([[3.75*3/2, 3.75*3/2, 18-y, 18], [0.0, y, 18-3.75*3/2, 18-3.75*3/2]])  # [[0.0, 0.0, -18.0], [0.0, 18.0, 18.0]]
+nodes3 = np.asfortranarray([[3.75/2, 3.75/2, -18+10, -18-2], [-18-10, -18+10, 3.75*3/2, 3.75*3/2]])  # [[0.0, 0.0, -18.0], [0.0, 18.0, 18.0]]
 curve3 = bezier.Curve(nodes3, degree=3)
-s_vals = np.linspace(0.0, 1.0, 30)
+s_vals = np.linspace(0.5, 1.0, 30)
 data3=curve3.evaluate_multi(s_vals)
 x333=data3[0]
 y333=data3[1]
-plt.plot(x33, y33, color="#800080", linewidth=2.0, linestyle="-", label="y2")
+# plt.plot(x33, y33, color="#800080", linewidth=2.0, linestyle="-", label="y2")
 plt.plot(x332, y332, color="#100080", linewidth=2.0, linestyle="-", label="1")
 plt.plot(x333, y333, color="#200080", linewidth=2.0, linestyle="-", label="1")
 

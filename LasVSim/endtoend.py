@@ -7,7 +7,7 @@ from LasVSim.endtoend_env_utils import shift_coordination, rotate_coordination, 
     Path
 from collections import OrderedDict, deque
 import matplotlib.pyplot as plt
-
+import bezier
 import matplotlib.patches as patches
 
 
@@ -54,18 +54,20 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         self.history_obs = deque(maxlen=10)  # store obs of every step
         self.simulation = None
         self.init_state = []
+        self.goal_state = []
         self.init_v = None
         self.goal_v = None
         self.path_info = None
         self.task = None  # used to decide goal
-        self.action_space = gym.spaces.Box(np.array([-1]), np.array([1]), dtype=np.float32)
+        self.action_number = 2
+        self.action_space = gym.spaces.Box(low=0, high=1, shape=(self.action_number,), dtype=np.float32)
         self.simulation = lasvsim.create_simulation(self.setting_path + 'simulation_setting_file.xml')
         self.seed()
         self.step_length = self.simulation.step_length
-        self.path = Path(0.01)
+        self.step_time = self.step_length / 1000.0
         self.reset()
         action = self.action_space.sample()
-        observation, _reward, done, _info = self.step(self._action_transformation(action))
+        observation, _reward, done, _info = self.step(self._action_transformation_for_end2end(action))
         self._set_observation_space(observation)
         plt.ion()
 
@@ -75,13 +77,13 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         return [seed]
 
     def step(self, action):  # action is expected_acceleration
-        acc = self._action_transformation(action[0])
+        acc, delta_phi = self._action_transformation_for_end2end(action)
         reward = 0
         done = 0
         all_info = None
         info_this_step = []
         for _ in range(self.frameskip):
-            next_x, next_y, next_v, next_heading = self._get_next_position(acc)
+            next_x, next_y, next_v, next_heading = self._get_next_position(acc, delta_phi)
             lasvsim.set_ego_position(next_x, next_y, next_v, next_heading)
             lasvsim.sim_step()
             all_info = self._get_all_info()
@@ -97,42 +99,81 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         return obs, reward, done, all_info
 
     def _print_done_info(self, done_type):
-        done_info = ['collision', 'break_traffic_rule', 'good_done', 'not_done_yet']
+        done_info = ['collision', 'break_road_constrain', 'good_done', 'not_done_yet']
         print(done_info[done_type-1])
-
 
     def reset(self, **kwargs):  # kwargs include three keys
         self.history_info.clear()
         self.history_obs.clear()
-        default_path = dict(dist_before_start_point=10,
-                            start_point_info=(3.75/2, -18, 90),
-                            end_point_info=(-18, 3.75/2, 180),
-                            dist_after_end_point=5)
-        if kwargs:
-            self.path_info, self.init_v, self.goal_v = kwargs['path_info'], kwargs['init_v'], kwargs['goal_v']
-        else:
-            self.path_info, self.init_v, self.goal_v = default_path, 0, 30/3.6
-
-        self.path.reset_path(**self.path_info)
-        # reset simulation
-        x, y, a = self.path.get_init_state()
-        self.init_state = [x, y, self.init_v, a]
+        self.goal_state = self._reset_goal_state()
+        self.init_state = self._reset_init_state()
         lasvsim.reset_simulation(overwrite_settings={'init_state': self.init_state},
                                  init_traffic_path=self.setting_path)
         self._get_all_info()
         obs = self._get_obs()
         return obs
 
-    def _action_transformation(self, action):
-        """assume action is in [-1, 1], and transform it to proper interval"""
-        return action * 3.75 - 1.25
+    def _reset_goal_state(self):  # decide center of goal area, [goal_x, goal_y, goal_a, goal_v]
+        """this func should be override in subclass"""
+        raise NotImplementedError
 
-    def _get_next_position(self, acc):
-        delta_dist = np.clip(
-            self.ego_dynamics['v'] * self.step_length / 1000 + 0.5 * acc * (self.step_length / 1000) ** 2, 0, 10)
-        next_v = np.clip(self.ego_dynamics['v'] + acc * self.step_length / 1000, 0, 33)
-        next_x, next_y, next_heading = self.path.get_next_info(delta_dist)
+    def _reset_init_state(self):  # decide center of goal area, [init_x, init_y, init_a, init_v]
+        """this func should be override in subclass"""
+        raise NotImplementedError
+
+    def _action_transformation_for_end2end(self, action):  # action = [acc, delta_phi]
+        acc, delta_phi = action  # [0, 1]
+        maximum_delta_phi = 8
+        return acc * 7 - 5, (delta_phi - 0.5) * 2 * maximum_delta_phi
+
+    def _get_next_position(self, acc, delta_phi):
+        current_x = self.ego_dynamics['x']
+        current_y = self.ego_dynamics['y']
+        current_v = self.ego_dynamics['v']
+        current_heading = self.ego_dynamics['heading']
+        step_length = current_v * self.step_time
+        next_x = current_x + step_length * math.cos(current_heading*math.pi/180)
+        next_y = current_y + step_length * math.sin(current_heading * math.pi / 180)
+        next_v = current_v + acc * self.step_time
+        next_heading = current_heading + delta_phi
         return next_x, next_y, next_v, next_heading
+
+    def _action_transformation_for_traj(self, action):  # action = [x, y(prop), x_a3, v(prop), v_a3]
+        """assume action is in [0 ,1], and transform it to proper interval"""
+        x = action[0]  # [0, 1]
+        y_prop = action[1]  # [0, 1]
+        x_a3 = action[2]  # [0, 1]
+        v_prop = action[3]  # [0, 1]
+        v_a3 = action[4]  # [0, 1]
+        max_x = 10
+        max_y = 5
+        max_deltav = 1
+        x = x * max_x  # [0, max_x]
+        y_prop = (y_prop - 0.5) * 2  # [-1, 1]
+        y = x * max_y / max_x * y_prop
+        x_a3 = (x_a3 - 0.5) * 2 * 30  # range of x_a3 is not sure for now
+        x_a2 = y / x**2 - x_a3 * x
+        v_prop = (v_prop - 0.5) * 2  # [-1, 1]
+        v = v_prop * max_deltav  # [-max_deltav, max_deltav]
+        v_a3 = (v_a3 - 0.5) * 2 * 30  # range of x_a3 is not sure for now
+        v_a2 = v / x**2 - v_a3 * x
+
+        return [0, 0, x_a2, x_a3], [0, 0, v_a2, v_a3]
+
+    def _generate_practical_trajectory(self, x_coeff, v_coeff):
+        def x_formula(x, coeff=x_coeff):
+            return coeff[0] + coeff[1] * x + coeff[2] * x**2 + coeff[3] * x**3
+
+        def x_derivative_formula(x, coeff=x_coeff):
+            return coeff[1] + coeff[2] * x + coeff[3] * x**2
+
+        def v_formula(x, coeff=v_coeff):
+            return coeff[0] + coeff[1] * x + coeff[2] * x**2 + coeff[3] * x**3
+
+        current_v = self.ego_dynamics['v']
+
+        def generate_next_point():
+            pass
 
     def _set_observation_space(self, observation):
         self.observation_space = convert_observation_to_space(observation)
@@ -167,7 +208,9 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         #      width=width,
         #      lane_index=other_veh_info[i][
         #          'current_lane'],
-        #      max_decel=other_veh_info[i]['max_decel'])
+        #      max_decel=other_veh_info[i]['max_decel'],
+        #      route=other_veh_info[i]['route'],
+        #      edge_index=other_veh_info[i]['edge_index'])
 
         # detected_vehicles
         # {'id': id,
@@ -307,39 +350,35 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
 
     # reward related
     def compute_reward(self, done_type):
-        reward = 0
-        if done_type == 4:
-            reward += -1
-            reward += -0.05*abs(self.ego_dynamics['v']-self.goal_v)
-            return reward
-        elif done_type == 3:
-            return 100
-        else:
-            return -100
+        """this func should be override in subclass"""
+        raise NotImplementedError
 
     def _judge_done(self):
         """
         :return:
          1: bad done: collision
-         2: bad done: break_traffic_rule
+         2: bad done: break_road_constrain
          3: good done: task succeed
          4: not done
         """
         if self.simulation.stopped:
             return 1, 1
-        elif self._break_traffic_rule():
+        elif self._break_road_constrain():
             return 2, 1
         elif self._is_achieve_goal():
             return 3, 1
         else:
             return 4, 0
 
-    def _break_traffic_rule(self):
+    def _break_road_constrain(self):
         """this func should be override in subclass"""
         raise NotImplementedError
 
-    def _is_achieve_goal(self):  # no need to override
-        return True if self.path.is_path_finished() else False
+    def _is_achieve_goal(self):  # decide goal area and if ego car is in it
+        """this func should be override in subclass"""
+        raise NotImplementedError
+
+
 
 
 class Grid_3D(object):
@@ -347,31 +386,33 @@ class Grid_3D(object):
     Consider coordination of ego car
     """
 
-    def __init__(self, back_dist, forward_dist, half_width, number_x, number_y, axis_z_type='highway'):
+    def __init__(self, back_dist, forward_dist, half_width, percision, axis_z_type='single_layer'):
         self.back_dist = back_dist
         self.forward_dist = forward_dist
         self.half_width = half_width
         self.length = self.back_dist + self.forward_dist
         self.width = 2 * self.half_width
-        self.number_x = number_x  # in car coordination ! not in matrix index
-        self.number_y = number_y
-        self.matrix_x = number_y
-        self.matrix_y = number_x
+        self.number_x = math.ceil((back_dist+forward_dist)/percision)  # in car coordination ! not in matrix index
+        self.number_y = math.ceil(2*half_width/percision)
+        self.matrix_x = self.number_y
+        self.matrix_y = self.number_x
         self.axis_z_name_dict = self.get_axis_z_name_dict(axis_z_type)
         self.number_z = len(self.axis_z_name_dict)
-        self.increment_x = self.length / self.number_x  # increment in x axis of car coordination
-        self.increment_y = self.width / self.number_y
-        self._encode_grid = 99. * np.ones((self.number_z, self.matrix_x, self.matrix_y))
+        self.increment_x = percision  # increment in x axis of car coordination
+        self.increment_y = percision
+        self._encode_grid = np.zeros((self.number_z, self.matrix_x, self.matrix_y))
         self._encode_grid_flag = np.zeros((self.number_z, self.matrix_x, self.matrix_y), dtype=np.int)
 
     def get_axis_z_name_dict(self, axis_z_type):  # dict from name to index
-        if axis_z_type == 'highway':
+        if axis_z_type == 'multi_layers':
             return dict(position_x=0,
                         position_y=1,
                         v=2,
                         heading=3,
                         length=4,
                         width=5)
+        elif axis_z_type == 'single_layer':
+            return dict(feasible=0)
 
     def xyindex2range(self, index_x, index_y):  # index_x: [0, matrix_x - 1]
         index_x_in_car_coordi = index_y
@@ -409,25 +450,24 @@ class Grid_3D(object):
         self._encode_grid = np.zeros((self.number_z, self.matrix_x, self.matrix_y))
         self._encode_grid_flag = np.zeros((self.number_z, self.matrix_x, self.matrix_y), dtype=np.int)
 
-    def set_value(self, index_z, index_x, index_y, grid_value, range):
-        min_index_x = max(0, index_x - range)
-        max_index_x = min(self.matrix_x - 1, index_x + range)
-        min_index_y = max(0, index_y - range)
-        max_index_y = min(self.matrix_y - 1, index_y + range)
+    def set_value(self, index_z, index_x, index_y, grid_value, range_number):
+        min_index_x = max(0, index_x - range_number)
+        max_index_x = min(self.matrix_x - 1, index_x + range_number)
+        min_index_y = max(0, index_y - range_number)
+        max_index_y = min(self.matrix_y - 1, index_y + range_number)
         for x in range(min_index_x, max_index_x+1):
             for y in range(min_index_y, max_index_y+1):
                 self._encode_grid[index_z][x][y] = grid_value
                 self._encode_grid_flag[index_z][x][y] = 1
 
-
     def set_same_xy_value_in_all_z(self, index_x, index_y, grid_value):
         for i in range(self.number_z):
-            self.set_value(i, index_x, index_y, grid_value)
+            self.set_value(i, index_x, index_y, grid_value, 0)
 
     def set_xy_value_with_list(self, index_x, index_y, z_list):
         assert len(z_list) == self.number_z
         for i in range(self.number_z):
-            self.set_value(i, index_x, index_y, z_list[i])
+            self.set_value(i, index_x, index_y, z_list[i], 0)
 
     def get_value(self, index_z, index_x, index_y):
         return self._encode_grid[index_z][index_x][index_y], \
@@ -437,10 +477,24 @@ class Grid_3D(object):
         return self._encode_grid, self._encode_grid_flag
 
 
-def judge_feasible(orig_x, orig_y):  # map dependant TODO
+def judge_feasible_for_pre_grid(orig_x, orig_y):  # map dependant TODO
     # return True if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150 else False
     def is_in_straight(orig_x, orig_y):
-        return 0 < orig_x < 3.75 * 2
+        return -3.75 * 2 < orig_x < 3.75 * 2 or -3.75 * 2 < orig_y < 3.75 * 2
+
+    def is_in_middle(orig_x, orig_y):
+        return -18 < orig_y < 18 and -18 < orig_x < 18
+
+    return True if is_in_straight(orig_x, orig_y) or is_in_middle(orig_x, orig_y) else False
+
+
+def judge_feasible(orig_x, orig_y):  # map dependant TODO
+    # return True if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150 else False
+    def is_in_straight_before(orig_x, orig_y):
+        return 0 < orig_x < 3.75 * 2 and orig_y <= -18
+
+    def is_in_straight_after(orig_x, orig_y):
+        return 0 < orig_x < 3.75 * 2 and orig_y >= 18
 
     def is_in_left(orig_x, orig_y):
         return 0 < orig_y < 3.75 * 2 and orig_x < -18
@@ -451,7 +505,8 @@ def judge_feasible(orig_x, orig_y):  # map dependant TODO
     def is_in_middle(orig_x, orig_y):
         return -18 < orig_y < 18 and -18 < orig_x < 18
 
-    return True if is_in_straight(orig_x, orig_y) or is_in_left(orig_x, orig_y) or is_in_right(orig_x, orig_y) \
+    # judge feasible for turn left
+    return True if is_in_straight_before(orig_x, orig_y) or is_in_left(orig_x, orig_y) \
                    or is_in_middle(orig_x, orig_y) else False
 
 
@@ -462,22 +517,40 @@ class CrossroadEnd2end(End2endEnv):
                  frameskip=4,
                  repeat_action_probability=0
                  ):
-        self.grid_setting_dict = dict(fill_type='single',  # single or cover
-                                      size_list=[dict(back_dist=10, forward_dist=30, half_width=20)],
-                                      number_x=40,
-                                      number_y=40,
-                                      axis_z_type='highway')
+        self.grid_setting_dict = dict(fill_type='cover_but_no_different_layers',  # single or cover
+                                      size_list=[dict(back_dist=28, forward_dist=28, half_width=28)],
+                                      precision=0.3,
+                                      axis_z_type='single_layer')
 
+        self.prediction_time = 3  # unit: s
+        self.prediction_frameskip = 4
         if obs_type == 2:
             self.grid_3d = None
             self.grid_fill_type = self.grid_setting_dict['fill_type']
             self.grid_size_list = self.grid_setting_dict['size_list']
-            self.grid_number_x = self.grid_setting_dict['number_x']
-            self.grid_number_y = self.grid_setting_dict['number_y']
+            self.grid_precision = self.grid_setting_dict['precision']
             self.gird_axis_z_type = self.grid_setting_dict['axis_z_type']
-            if self.gird_axis_z_type == 'highway':
+            if self.gird_axis_z_type == 'multi_layers':
                 self._FEASIBLE_VALUE = 0
                 self._INFEASIBLE_VALUE = -1
+            elif self.gird_axis_z_type == 'single_layer':
+                self._FEASIBLE_VALUE = 255
+                self._INFEASIBLE_VALUE = 0
+
+        def make_pre_grid(grid, infeasible_value, feasible_value):
+            for index_x in range(grid.matrix_x):
+                for index_y in range(grid.matrix_y):
+                    x, y = grid.xyindex2centerposition(index_x, index_y)
+                    if judge_feasible_for_pre_grid(x, y):
+                        grid.set_value(0, index_x, index_y, feasible_value, 0)
+                    else:
+                        grid.set_value(0, index_x, index_y, infeasible_value, 0)
+        self.pre_grid_list = []
+        for size_dict in self.grid_size_list:
+            pre_grid_3d = Grid_3D(size_dict['back_dist'], size_dict['forward_dist'],
+                                  size_dict['half_width'], self.grid_precision, self.gird_axis_z_type)
+            make_pre_grid(pre_grid_3d, self._INFEASIBLE_VALUE, self._FEASIBLE_VALUE)
+            self.pre_grid_list.append(pre_grid_3d)
 
         super(CrossroadEnd2end, self).__init__(setting_path, obs_type, frameskip)
 
@@ -511,7 +584,7 @@ class CrossroadEnd2end(End2endEnv):
         # left_lane_number = 3 - self.road_related_info['egolane_index']
         # right_lane_number = self.road_related_info['egolane_index']
         # dist2current_lane_center = self.road_related_info['dist2current_lane_center']
-        vertical_light_value = self.road_related_info['vertical_light_value']
+        # vertical_light_value = self.road_related_info['vertical_light_value']
         ego_x = self.ego_dynamics['x']
         ego_y = self.ego_dynamics['y']
         ego_v = self.ego_dynamics['v']
@@ -519,41 +592,125 @@ class CrossroadEnd2end(End2endEnv):
         ego_length = self.ego_dynamics['Car_length']
         ego_width = self.ego_dynamics['Car_width']
         # calculate relative goal
-        goal_v = self.goal_v
-        start_x, start_y, start_a = self.path_info['start_point_info']
-        end_x, end_y, end_a = self.path_info['end_point_info']
-        rela_start_x, rela_start_y, rela_start_a = shift_and_rotate_coordination(start_x, start_y, start_a, ego_x, ego_y, ego_heading)
-        rela_end_x, rela_end_y, rela_end_a = shift_and_rotate_coordination(end_x, end_y, end_a, ego_x, ego_y, ego_heading)
+        goal_x, goal_y, goal_v, goal_a = self.goal_state
+        rela_goal_x, rela_goal_y, rela_goal_a = shift_and_rotate_coordination(goal_x, goal_y, goal_a,
+                                                                              ego_x, ego_y, ego_heading)
 
         # construct vector dict
         vector_dict = dict(ego_x=ego_x,
                            ego_y=ego_y,
                            ego_v=ego_v,
+                           ego_heading=ego_heading,
                            ego_length=ego_length,
                            ego_width=ego_width,
-                           rela_start_x=rela_start_x,
-                           rela_start_y=rela_start_y,
-                           rela_start_a=rela_start_a,
-                           rela_end_x=rela_end_x,
-                           rela_end_y=rela_end_y,
-                           rela_end_a=rela_end_a,
+                           rela_goal_x=rela_goal_x,
+                           rela_goal_y=rela_goal_y,
+                           rela_goal_a=rela_goal_a,
                            goal_v=goal_v,
-                           vertical_light_value=vertical_light_value,)
+                           )
         return np.array(list(vector_dict.values()))
 
     def _3d_grid_v2x_no_noise_obs_encoder(self):  # func for grid encoder
-        encoded_grid_list = []
+        import copy
+        encoded_size_list = []
         all_vehicles = self._v2x_unify_format_for_3dgrid()
-        info_in_ego_coordination, recover_orig_position_fn = self._cal_info_in_transform_coordination(all_vehicles)
-        for size_dict in self.grid_size_list:
-            self.grid_3d = Grid_3D(size_dict['back_dist'], size_dict['forward_dist'], size_dict['half_width'],
-                                   self.grid_number_x, self.grid_number_y, self.gird_axis_z_type)
-            vehicles_in_grid = [veh for veh in info_in_ego_coordination if
+        info_in_transformed_coordination = self._cal_info_in_transform_coordination(all_vehicles, 0, 0, 0)  # hard coded
+        for pre_grid in self.pre_grid_list:
+            self.grid_3d = copy.deepcopy(pre_grid)
+            encoded_time_list = []
+            vehicles_in_grid = [veh for veh in info_in_transformed_coordination if
                                 self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
-            self._add_vehicle_info_in_grid(vehicles_in_grid)
+            future_list_of_vehs = [self._prediction(veh, int(self.prediction_time/self.step_time))
+                                   for veh in vehicles_in_grid]
+            for timestep in range(0, int(self.prediction_time/self.step_time), self.prediction_frameskip):
+                self.grid_3d = copy.deepcopy(pre_grid)
+                vehs_of_this_timestep = [veh_future[timestep] for veh_future in future_list_of_vehs]
+                vehicles_in_grid = [veh for veh in vehs_of_this_timestep if
+                                    self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
+                self._add_vehicle_info_in_grid(vehicles_in_grid)
+                encoded_time_list.append(self.grid_3d.get_encode_grid_and_flag()[0])
+            grid_this_size = np.concatenate(encoded_time_list, axis=0)
             # self._add_feasible_area_info_in_grid(recover_orig_position_fn)
-            encoded_grid_list.append(self.grid_3d.get_encode_grid_and_flag()[0])
-        return encoded_grid_list
+            encoded_size_list.append(grid_this_size)
+        return encoded_size_list
+
+    def _route2behavior(self, route_list, edge_index):  # map dependent
+        start = None
+        end = None
+        if route_list[edge_index] in ['-gneE0', 'gneE3', 'gneE1', 'gneE2']:
+            start = route_list[edge_index-1]
+            end = route_list[edge_index]
+        else:
+            start = route_list[edge_index]
+            end = route_list[edge_index+1]
+        if (start, end) in [('-gneE3', '-gneE0'), ('-gneE1', 'gneE3'), ('-gneE2', 'gneE1'), ('gneE12', 'gneE2')]:
+            return 0, start, end  # turn left
+        elif (start, end) in [('-gneE3', 'gneE2'), ('-gneE1', '-gneE0'), ('-gneE2', 'gneE3'), ('gneE12', 'gneE1')]:
+            return 1, start, end  # go straight
+        else:
+            return 2, start, end  # turn right
+
+    def _prediction(self, veh, timesteps):
+        x = veh['trans_x']
+        y = veh['trans_y']
+        v = veh['trans_v']
+        heading = veh['trans_heading']
+        route_list = veh['route']
+        edge_index = veh['edge_index']
+        behavior, start, end = self._route2behavior(route_list, edge_index)
+        start2rotation = {'-gneE3': 0, '-gneE1': 90, '-gneE2': 180, 'gneE12': -90}  # map dependent
+
+        trans_x, trans_y, trans_heading = rotate_coordination(x, y, heading, start2rotation[start])
+        assert 0 <= trans_heading <= 180
+        if behavior == 0:  # left
+            if trans_y < -18:
+                future_traj = [(trans_x, trans_y + v * self.step_time * i, 90) for i in range(1, timesteps+1)]
+            elif trans_x < -18:
+                future_traj = [(trans_x - v * self.step_time * i, trans_y, 180) for i in range(1, timesteps + 1)]
+            else:
+                assert trans_x > -18 and trans_y > -18
+
+                def turn_right_path_generator(startx, starty, starta, v, step_time, timesteps):
+                    x = startx
+                    y = starty
+                    a = starta * math.pi / 180
+                    step_length = v * step_time
+                    for i in range(timesteps):
+                        x = x + step_length * math.cos(a)
+                        y = y + step_length * math.sin(a)
+                        a = a + step_length / 19.875
+                        a = a if 0 < a < math.pi else math.pi
+                        yield (x, y, a * 180 / math.pi)
+                future_traj = list(turn_right_path_generator(trans_x, trans_y, trans_heading, v, self.step_time, timesteps))
+        elif behavior == 1:  # go straight
+            future_traj = [(trans_x, trans_y + v * self.step_time * i, 90) for i in range(1, timesteps + 1)]
+        else:
+            if trans_y < -18:
+                future_traj = [(trans_x, trans_y + v * self.step_time * i, 90) for i in range(1, timesteps+1)]
+            elif trans_x > 18:
+                future_traj = [(trans_x + v * self.step_time * i, trans_y, 0) for i in range(1, timesteps + 1)]
+            else:
+                assert trans_x < 18 and trans_y > -18
+
+                def turn_left_path_generator(startx, starty, starta, v, step_time, timesteps):
+                    x = startx
+                    y = starty
+                    a = starta * math.pi / 180
+                    step_length = v * step_time
+                    for i in range(timesteps):
+                        x = x + step_length * math.cos(a)
+                        y = y + step_length * math.sin(a)
+                        a = a - step_length / 12.375
+                        a = a if 0 < a < math.pi else 0
+                        yield (x, y, a * 180 / math.pi)
+                future_traj = list(turn_left_path_generator(trans_x, trans_y, trans_heading, v, self.step_time, timesteps))
+        future_traj = list(map(lambda x: rotate_coordination(*x, -start2rotation[start]), future_traj))
+        future_data = [{'trans_x': point[0], 'trans_y': point[1], 'trans_v': v, 'trans_heading': point[2],
+                        'length': veh['length'], 'width': veh['width'], 'route': veh['route'],
+                        'edge_index': veh['edge_index']} for point in future_traj]
+        temp = [veh]
+        temp.extend(future_data)
+        return temp
 
     def _3d_grid_sensors_with_noise_obs_encoder(self):  # func for grid encoder
         pass
@@ -572,24 +729,20 @@ class CrossroadEnd2end(End2endEnv):
                             'v': self.all_vehicles[veh]['v'],
                             'heading': self.all_vehicles[veh]['angle'],
                             'width': self.all_vehicles[veh]['width'],
-                            'length': self.all_vehicles[veh]['length']})
+                            'length': self.all_vehicles[veh]['length'],
+                            'route': self.all_vehicles[veh]['route'],
+                            'edge_index': self.all_vehicles[veh]['edge_index']})
         return results
 
     def _sensors_unify_format_for_3dgrid(self):  # unify output format
         pass
 
-    def _cal_info_in_transform_coordination(self, filtered_objects):
+    def _cal_info_in_transform_coordination(self, filtered_objects, x, y, rotate_d):  # rotate_d is positive if anti
         results = []
-        ego_x = self.ego_dynamics['x']
-        ego_y = self.ego_dynamics['y']
-        ego_v = self.ego_dynamics['v']
-        ego_heading = self.ego_dynamics['heading']
-
-        def recover_orig_position_fn(transformed_x, transformed_y):
-            d = ego_heading  # TODO: check if correct
-            transformed_x, transformed_y, _ = rotate_coordination(transformed_x, transformed_y, 0, -d)
-            orig_x, orig_y = shift_coordination(transformed_x, transformed_y, -ego_x, -ego_y)
-            return orig_x, orig_y
+        # ego_x = self.ego_dynamics['x']
+        # ego_y = self.ego_dynamics['y']
+        # ego_v = self.ego_dynamics['v']
+        # ego_heading = self.ego_dynamics['heading']
 
         for obj in filtered_objects:
             orig_x = obj['x']
@@ -598,19 +751,30 @@ class CrossroadEnd2end(End2endEnv):
             orig_heading = obj['heading']
             width = obj['width']
             length = obj['length']
-            shifted_x, shifted_y = shift_coordination(orig_x, orig_y, ego_x, ego_y)
-            trans_x, trans_y, trans_heading = rotate_coordination(shifted_x, shifted_y, orig_heading, ego_heading)
+            route = obj['route']
+            edge_index = obj['edge_index']
+            shifted_x, shifted_y = shift_coordination(orig_x, orig_y, x, y)
+            trans_x, trans_y, trans_heading = rotate_coordination(shifted_x, shifted_y, orig_heading, rotate_d)
             trans_v = orig_v
             results.append({'trans_x': trans_x,
                             'trans_y': trans_y,
                             'trans_v': trans_v,
                             'trans_heading': trans_heading,
                             'width': width,
-                            'length': length})
-        return results, recover_orig_position_fn
+                            'length': length,
+                            'route': route,
+                            'edge_index': edge_index})
+        return results
+
+    @staticmethod
+    def recover_orig_position_fn(self, transformed_x, transformed_y, x, y, d):  # x, y, d are used to transform
+                                                                                # coordination
+        transformed_x, transformed_y, _ = rotate_coordination(transformed_x, transformed_y, 0, -d)
+        orig_x, orig_y = shift_coordination(transformed_x, transformed_y, -x, -y)
+        return orig_x, orig_y
 
     def _add_vehicle_info_in_grid(self, vehicles_in_grid):
-        cover_range = 2
+        cover_range = 1
         if self.grid_fill_type == 'single':
             for veh in vehicles_in_grid:
                 x = veh['trans_x']
@@ -627,6 +791,24 @@ class CrossroadEnd2end(End2endEnv):
                 self.grid_3d.set_value(index_z=4, index_x=index_x, index_y=index_y, grid_value=length, range=cover_range)
                 self.grid_3d.set_value(index_z=5, index_x=index_x, index_y=index_y, grid_value=width, range=cover_range)
 
+        elif self.grid_fill_type == 'cover_but_no_different_layers':
+            for veh in vehicles_in_grid:
+                x = veh['trans_x']
+                y = veh['trans_y']
+                v = veh['trans_v']
+                heading = veh['trans_heading']
+                length = veh['length']
+                width = veh['width']
+                self.grid_of_veh = Grid_3D(length/2, length/2, width/2, self.grid_precision, self.gird_axis_z_type)
+                for i in range(self.grid_of_veh.matrix_x):
+                    for j in range(self.grid_of_veh.matrix_y):
+                        grid_x_in_veh_coordi, grid_y_in_veh_coordi = self.grid_of_veh.xyindex2centerposition(i, j)
+                        grid_x, grid_y = self.recover_orig_position_fn(self, grid_x_in_veh_coordi,
+                                                                       grid_y_in_veh_coordi, x, y, heading)
+                        index_x, index_y = self.grid_3d.position2xyindex(grid_x, grid_y)
+                        self.grid_3d.set_value(index_z=0, index_x=index_x, index_y=index_y,
+                                               grid_value=self._INFEASIBLE_VALUE, range_number=cover_range)
+
     def _add_feasible_area_info_in_grid(self, recover_orig_position_fn):
         number_x = self.grid_3d.number_x  # number_x is matrix_y
         number_y = self.grid_3d.number_y
@@ -640,14 +822,127 @@ class CrossroadEnd2end(End2endEnv):
                     else:
                         self.grid_3d.set_same_xy_value_in_all_z(index_x, index_y, self._FEASIBLE_VALUE)
 
+    def _break_road_constrain(self):
+        x = self.ego_dynamics['x']
+        y = self.ego_dynamics['y']
+        return not judge_feasible(x, y)
+
+    def _is_achieve_goal(self):  # for now, only support turn left with the specific map
+        goal_x, goal_y, goal_v, goal_a = self.goal_state
+        x = self.ego_dynamics['x']
+        y = self.ego_dynamics['y']
+        return True if goal_x-2 < x < goal_x+2 and goal_y-3.75 < y < goal_y+3.75 else False
+
+    def _reset_goal_state(self):  # decide center of goal area, [goal_x, goal_y, goal_a, goal_v]
+        return [-18-4, 3.75, 8, 180]
+
+    def _reset_init_state(self):
+        nodes1 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
+                                    [-18 - 10, -18 + 10, 3.75 / 2, 3.75 / 2]])
+        curve1 = bezier.Curve(nodes1, degree=3)
+        nodes2 = np.asfortranarray([[3.75/2, 3.75/2, -18+10, -18],
+                                    [-18-10, -18+10, 3.75*3/2, 3.75*3/2]])
+        curve2 = bezier.Curve(nodes2, degree=3)
+        start_point = None
+        if np.random.random() > 0.5:
+            start_point = curve1.evaluate(np.random.random())
+        else:
+            start_point = curve2.evaluate(np.random.random())
+        x, y = start_point[0][0], start_point[1][0]
+        if y < -18:
+            a = 90
+        else:
+            a = 90 + math.atan((y+18)/(x+18))*180/math.pi
+        v = np.random.random()*7+5
+        return [x, y, v, a]
+
+    def _cal_collision_reward(self):  # can be override to do an analytic calculation
+        return -100
+
+    def _cal_achievegoal_reward(self):  # can be override to do an analytic calculation
+        return 100
+
+    def _cal_step_reward(self):
+        # data preparation
+        x, y, a, v = self.ego_dynamics['x'], self.ego_dynamics['y'], self.ego_dynamics['heading'], self.ego_dynamics['v']
+        goal_x, goal_y, goal_v, goal_a = self.goal_state
+        dist_to_goal = math.sqrt((goal_x-x)**2+(goal_y-y)**2)
+        v_difference = math.fabs(goal_v-v)
+        nodes1 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
+                                    [-18 - 10, -18 + 10, 3.75 / 2, 3.75 / 2]])
+        curve1 = bezier.Curve(nodes1, degree=3)
+        nodes2 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
+                                    [-18 - 10, -18 + 10, 3.75 * 3 / 2, 3.75 * 3 / 2]])
+        curve2 = bezier.Curve(nodes2, degree=3)
+        s_vals = np.linspace(0, 1.0, 300)
+        data1 = curve1.evaluate_multi(s_vals)
+        data2 = curve2.evaluate_multi(s_vals)
+        data1x, data1y = data1[0], data1[1]
+        data2x, data2y = data2[0], data2[1]
+        min_dist_to_curve1 = min(np.sqrt((data1x - x) ** 2 + (data1y - y) ** 2))
+        min_dist_to_curve2 = min(np.sqrt((data2x - x) ** 2 + (data2y - y) ** 2))
+        min_dist_to_curve = min(min_dist_to_curve1, min_dist_to_curve2)
+
+        # step punishment
+        reward = -1
+        # goal position punishment
+        reward -= dist_to_goal * 0.01
+        # goal velocity punishment
+        reward -= v_difference * 0.05
+        # standard curve punishment
+        reward -= min_dist_to_curve * 0.05
+        print('dist_to_goal', dist_to_goal* 0.01, '   v_difference', v_difference* 0.05,
+              '   min_dist_to_curve', min_dist_to_curve* 0.05)
+        return reward
+
+    def compute_reward(self, done_type):
+        reward = 0
+        if done_type == 4:
+            return self._cal_step_reward()
+        elif done_type == 3:
+            return self._cal_achievegoal_reward()
+        else:
+            return self._cal_collision_reward()
+
 
 def test_grid3d():
-    grid = Grid_3D(back_dist=20, forward_dist=40, half_width=20, number_x=120, number_y=40)
+    grid = Grid_3D(back_dist=20, forward_dist=40, half_width=20, percision=0.3)
     index_x, index_y = grid.position2xyindex(0.56, 19.5)
     print('index_x=', str(index_x), 'index_y=', str(index_y))
     position_x, position_y = grid.xyindex2centerposition(0, 0)
     print('position_x=', str(position_x), 'position_y=', str(position_y))
 
+def test_crossrode():
+    env = CrossroadEnd2end('./Scenario/Intersection_endtoend/')
+    veh = {'trans_x': 1.875, 'trans_y': -17, 'trans_v': 7, 'trans_heading': 120,
+           'route': ['-gneE3', '-gneE0'], 'edge_index': 0}
+    veh = {'trans_x': 17, 'trans_y': 1.875, 'trans_v': 7, 'trans_heading': -160,
+           'route': ['-gneE1', 'gneE3'], 'edge_index': 0}
+    veh = {'trans_x': 17, 'trans_y': 1.875, 'trans_v': 7, 'trans_heading': -180,
+           'route': ['-gneE1', '-gneE0'], 'edge_index': 0}
+    veh = {'trans_x': 17, 'trans_y': 1.875*3, 'trans_v': 7, 'trans_heading': -180,
+           'route': ['-gneE1', 'gneE2'], 'edge_index': 0}
+    veh = {'trans_x': -1.875, 'trans_y': 19, 'trans_v': 7, 'trans_heading': -90,
+           'route': ['-gneE2', 'gneE1'], 'edge_index': 0}
+    veh = {'trans_x': -1.875, 'trans_y': 15, 'trans_v': 7, 'trans_heading': -70,
+           'route': ['-gneE2', 'gneE1'], 'edge_index': 0}
+    veh = {'trans_x': -1.875, 'trans_y': 15, 'trans_v': 7, 'trans_heading': -110,
+           'route': ['-gneE2', '-gneE0'], 'edge_index': 0}
+    veh = {'trans_x': -19, 'trans_y': -1.875, 'trans_v': 7, 'trans_heading': -10,
+           'route': ['gneE12', 'gneE2'], 'edge_index': 0}
+    veh = {'trans_x': -17, 'trans_y': -1.875, 'trans_v': 7, 'trans_heading': 20,
+           'route': ['gneE12', 'gneE2'], 'edge_index': 0}
+    veh = {'trans_x': -17, 'trans_y': -1.875, 'trans_v': 7, 'trans_heading': -10,
+           'route': ['gneE12', 'gneE3'], 'edge_index': 0}
+    future_traj = env._prediction(veh, 20)
+    x = [a[0] for a in future_traj]
+    y = [a[1] for a in future_traj]
+    plt.plot(x, y)
+    plt.show()
+    plt.axis("equal")
+    plt.pause(10)
+
+
 
 if __name__ == '__main__':
-    test_grid3d()
+    test_crossrode()

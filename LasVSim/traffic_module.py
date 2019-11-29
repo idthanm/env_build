@@ -180,7 +180,8 @@ def _getothercarInfo(othercar_dict, othercarname):  # 该部分可直接与gui�
             othercarinfo.append({'x': 99999, 'y': 99999, 'v': 0, 'angle': 0,
                                  'signals': 0, 'length': 0, 'width': 0,
                                  'type': 0, 'centertohead': 0,
-                                 'max_decel': 0, 'current_lane': 0})
+                                 'max_decel': 0, 'current_lane': 0, 'route': 0,
+                                 'edge_index': 0})
             continue
         car = {}
         car['x'], car['y'] = othercar_dict[name][traci.constants.VAR_POSITION]
@@ -205,6 +206,8 @@ def _getothercarInfo(othercar_dict, othercarname):  # 该部分可直接与gui�
         car['centertohead'] = 2.0
         car['max_decel'] = othercar_dict[name][traci.constants.VAR_EMERGENCY_DECEL]
         car['current_lane'] = othercar_dict[name][traci.constants.VAR_LANE_INDEX]
+        car['route'] = othercar_dict[name][traci.constants.VAR_EDGES]
+        car['edge_index'] = othercar_dict[name][traci.constants.VAR_ROUTE_INDEX]
         othercarinfo.append(car)
     return othercarinfo
 
@@ -423,7 +426,9 @@ class Traffic(object):
                                                 traci.constants.VAR_TYPE,
                                                 traci.constants.VAR_EMERGENCY_DECEL,
                                                 traci.constants.VAR_LANE_INDEX,
-                                                traci.constants.VAR_LANEPOSITION],
+                                                traci.constants.VAR_LANEPOSITION,
+                                                traci.constants.VAR_EDGES,
+                                                traci.constants.VAR_ROUTE_INDEX],
                                        0, 2147483647)  # Sumo function to get
 
         # 初始化随机交通流分布
@@ -615,7 +620,9 @@ class Traffic(object):
                                     width=width,
                                     lane_index=other_veh_info[i][
                                         'current_lane'],
-                                    max_decel=other_veh_info[i]['max_decel'])
+                                    max_decel=other_veh_info[i]['max_decel'],
+                                    route=other_veh_info[i]['route'],
+                                    edge_index=other_veh_info[i]['edge_index'])
             if self.vehicles[i]['type'] in [4, 5]:
                 self.vehicles[i]['type'] = 0
         return self.vehicles[VEHICLE_INDEX_START:]  # 返回的x,y是车辆形心，自车x，y传入也被sumo当做形心
@@ -624,21 +631,22 @@ class Traffic(object):
         """
         get traffic light status strings
         """
-        index = _getcenterindex(self.__own_x, self.__own_y)
-        if self.__map_type == MAPS[0]:
-            trafficLight = traci.trafficlight.getPhase(TLS[str(int(index))])
-        elif self.__map_type == MAPS[1]:
-            trafficLight = 0
-
-
-        if trafficLight == 0:
-            h=1
-            v=0
-        else:
-            h =0
-            v= 1
-        s=['red','green','yellow']
-        return dict(h=s[h],v=s[v])
+        # index = _getcenterindex(self.__own_x, self.__own_y)
+        # if self.__map_type == MAPS[0]:
+        #     trafficLight = traci.trafficlight.getPhase(TLS[str(int(index))])
+        # elif self.__map_type == MAPS[1]:
+        #     trafficLight = 0
+        #
+        #
+        # if trafficLight == 0:
+        #     h=1
+        #     v=0
+        # else:
+        #     h =0
+        #     v= 1
+        # s=['red','green','yellow']
+        # return dict(h=s[h],v=s[v])
+        return dict(h='green', v='green')
 
     def get_light_values(self):  # 该部分可直接与gui相替换
         """Get current intersection's traffic light state.
@@ -652,23 +660,24 @@ class Traffic(object):
 
         Raises:
         """
-        index = _getcenterindex(self.__own_x, self.__own_y)
-        if self.__map_type == MAPS[0]:
-            trafficLight = traci.trafficlight.getPhase(TLS[str(int(index))])
-        elif self.__map_type == MAPS[1]:
-            trafficLight = 0
-
-        if trafficLight == 0:
-            h = 1
-            v = 0
-        else:
-            h = 0
-            v = 1
-        return h, v
+        # index = _getcenterindex(self.__own_x, self.__own_y)
+        # if self.__map_type == MAPS[0]:
+        #     trafficLight = traci.trafficlight.getPhase(TLS[str(int(index))])
+        # elif self.__map_type == MAPS[1]:
+        #     trafficLight = 0
+        #
+        # if trafficLight == 0:
+        #     h = 1
+        #     v = 0
+        # else:
+        #     h = 0
+        #     v = 1
+        # return h, v
+        return 1, 1
 
     def sim_step(self):  # 该部分可直接与package相替换
         self.sim_time += SIM_PERIOD
-        traci.trafficlight.setPhase(TLS['12'], 2)
+        # traci.trafficlight.setPhase(TLS['12'], 2)
         traci.simulationStep()
 
     def set_own_car(self, x, y, v, a):

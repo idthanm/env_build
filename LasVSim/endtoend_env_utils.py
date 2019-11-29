@@ -22,7 +22,7 @@ def rotate_coordination(orig_x, orig_y, orig_d, coordi_rotate_d):
     :param orig_d: original degree
     :param coordi_rotate_d: coordination rotation d, positive if anti-clockwise, unit: deg
     :return:
-    transformed_x, transformed_y, transformed_d(range:[-180 deg, 180 deg])
+    transformed_x, transformed_y, transformed_d(range:(-180 deg, 180 deg])
     """
 
     coordi_rotate_d_in_rad = coordi_rotate_d * math.pi / 180
@@ -31,7 +31,7 @@ def rotate_coordination(orig_x, orig_y, orig_d, coordi_rotate_d):
     transformed_d = orig_d - coordi_rotate_d
     if transformed_d > 180:
         transformed_d = transformed_d - 360
-    elif transformed_d < -180:
+    elif transformed_d <= -180:
         transformed_d = transformed_d + 360
     else:
         transformed_d = transformed_d
@@ -75,6 +75,7 @@ class Path(object):
         # assert -180 < end_a < 180, 'end heading should be in [-180, 180](deg)'
         # # transform coordination to start point
         # path = np.zeros((100, 4), dtype=np.float32)
+
         before_y = np.linspace(-dist_before_start_point, 0, int(dist_before_start_point/self.percision))-18
         before_x = 3.75/2*np.ones(before_y.shape)
         before_a = 90 * np.ones(before_y.shape)
