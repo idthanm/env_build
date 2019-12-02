@@ -99,8 +99,9 @@ class Traffic(object):
 
         # SUMO_BINARY = checkBinary('sumo-gui')
         # seed = random.randint(1, 100)
+        dirname = os.path.dirname(__file__)
         traci.start(
-            [SUMO_BINARY, "-c", "./sumo_files/configuration.sumocfg",
+            [SUMO_BINARY, "-c", dirname+"/sumo_files/configuration.sumocfg",
              "--step-length", self.step_time_str,
              "--lateral-resolution", "1.25",
              "--random",
