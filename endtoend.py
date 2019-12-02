@@ -116,7 +116,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
 
     def _action_transformation_for_end2end(self, action):  # action = [acc, delta_phi]
         acc, delta_phi = action  # [0, 1]
-        maximum_delta_phi = 8
+        maximum_delta_phi = 5
         return acc * 7 - 5, (delta_phi - 0.5) * 2 * maximum_delta_phi
 
     def _get_next_position(self, acc, delta_phi):
@@ -124,10 +124,11 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         current_y = self.ego_dynamics['y']
         current_v = self.ego_dynamics['v']
         current_heading = self.ego_dynamics['heading']
+
         step_length = current_v * self.step_time
+        next_v = np.clip(current_v + acc * self.step_time, 0, 15)
         next_x = current_x + step_length * cos(current_heading * pi / 180)
         next_y = current_y + step_length * sin(current_heading * pi / 180)
-        next_v = current_v + acc * self.step_time
         next_heading = current_heading + delta_phi
         return next_x, next_y, next_v, next_heading
 
@@ -842,8 +843,8 @@ class CrossroadEnd2end(End2endEnv):
         reward -= v_difference * 0.05
         # standard curve punishment
         reward -= min_dist_to_curve * 0.05
-        print('dist_to_goal', dist_to_goal* 0.01, '   v_difference', v_difference* 0.05,
-              '   min_dist_to_curve', min_dist_to_curve* 0.05)
+        # print('dist_to_goal', dist_to_goal* 0.01, '   v_difference', v_difference* 0.05,
+        #       '   min_dist_to_curve', min_dist_to_curve* 0.05)
         return reward
 
     def compute_reward(self, done_type):

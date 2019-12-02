@@ -91,7 +91,6 @@ class Traffic(object):
             traci.simulationStep()
         # delete ego car in getContextSubscriptionResults
         del random_traffic['ego']
-        print('\nrandom traffic generated')
         return random_traffic
 
     def init(self, ego_init_state):
@@ -107,7 +106,8 @@ class Traffic(object):
              "--random",
              # "--start",
              # "--quit-on-end",
-             "--no-warnings"
+             "--no-warnings",
+             "--no-step-log",
              ])  # '--seed', str(int(seed))
 
         # insert ego car and random traffic
@@ -140,7 +140,6 @@ class Traffic(object):
         traci.simulationStep()
         self._get_vehicles()
         self._get_own_car()
-        print('\nrandom traffic initialized')
 
     def _get_vehicles(self):
         """Get other vehicles' information not including ego vehicle.
