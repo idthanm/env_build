@@ -30,9 +30,11 @@ def rotate_coordination(orig_x, orig_y, orig_d, coordi_rotate_d):
     transformed_y = -orig_x * math.sin(coordi_rotate_d_in_rad) + orig_y * math.cos(coordi_rotate_d_in_rad)
     transformed_d = orig_d - coordi_rotate_d
     if transformed_d > 180:
-        transformed_d = transformed_d - 360
+        while transformed_d > 180:
+            transformed_d = transformed_d - 360
     elif transformed_d <= -180:
-        transformed_d = transformed_d + 360
+        while transformed_d <= -180:
+            transformed_d = transformed_d + 360
     else:
         transformed_d = transformed_d
     return transformed_x, transformed_y, transformed_d

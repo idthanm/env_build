@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 #     plt.plot([0, 1], [0, 1], linestyle='--')
 #     plt.show()
 
-# import bezier
+import bezier
 # x=9
 # nodes1 = np.asfortranarray([[0.0, 0.0, -18+x, -18.0], [0.0, x, 18, 18]])  # [[0.0, 0.0, -18.0], [0.0, 18.0, 18.0]]
 # curve1 = bezier.Curve(nodes1, degree=3)
@@ -25,29 +25,35 @@ import matplotlib.pyplot as plt
 # data1=curve1.evaluate_multi(s_vals)
 # x33=data1[0]
 # y33=data1[1]
-# plt.axis('equal')
+plt.axis('equal')
 #
 #
-# nodes2 = np.asfortranarray([[3.75/2, 3.75/2, -18+10, -18-2], [-18-10, -18+10, 3.75/2, 3.75/2]])  # [[0.0, 0.0, -18.0], [0.0, 18.0, 18.0]]
-# curve2 = bezier.Curve(nodes2, degree=3)
-# s_vals = np.linspace(0.0, 1.0, 30)
-# data2=curve2.evaluate(0.1)
-# print(data2)
-# x332=data2[0]
-# y332=data2[1]
-#
-# y=9-3.75*3/4
-# nodes3 = np.asfortranarray([[3.75/2, 3.75/2, -18+10, -18-2], [-18-10, -18+10, 3.75*3/2, 3.75*3/2]])  # [[0.0, 0.0, -18.0], [0.0, 18.0, 18.0]]
-# curve3 = bezier.Curve(nodes3, degree=3)
-# s_vals = np.linspace(0.5, 1.0, 30)
-# data3=curve3.evaluate_multi(s_vals)
-# x333=data3[0]
-# y333=data3[1]
-# # plt.plot(x33, y33, color="#800080", linewidth=2.0, linestyle="-", label="y2")
-# plt.plot(x332, y332, color="#100080", linewidth=2.0, linestyle="-", label="1")
-# plt.plot(x333, y333, color="#200080", linewidth=2.0, linestyle="-", label="1")
-#
-# plt.show()
+nodes2 = np.asfortranarray([[3.75/2, 3.75/2, -18+10, -18-2], [-18-10, -18+10, 3.75/2, 3.75/2]])  # [[0.0, 0.0, -18.0], [0.0, 18.0, 18.0]]
+curve2 = bezier.Curve(nodes2, degree=3)
+s_vals = np.linspace(0, 1.0, 30)
+data2=curve2.evaluate_multi(s_vals)
+x332=data2[0]
+y332=data2[1]
+
+y=9-3.75*3/4
+nodes3 = np.asfortranarray([[3.75/2, 3.75/2, -18+10, -18-2], [-18-10, -18+10, 3.75*3/2, 3.75*3/2]])  # [[0.0, 0.0, -18.0], [0.0, 18.0, 18.0]]
+curve3 = bezier.Curve(nodes3, degree=3)
+s_vals = np.linspace(0, 1.0, 30)
+data3=curve3.evaluate_multi(s_vals)
+x333=data3[0]
+y333=data3[1]
+# plt.plot(x33, y33, color="#800080", linewidth=2.0, linestyle="-", label="y2")
+plt.plot(x332, y332, color="#100080", linewidth=2.0, linestyle="-", label="1")
+plt.plot(x333, y333, color="#200080", linewidth=2.0, linestyle="-", label="1")
+
+plt.plot([0, 0], [-18, -30], color='black')
+plt.plot([3.75, 3.75], [-18, -30], color='black')
+
+plt.plot([-18, -30], [3.75*2, 3.75*2], color='black')
+plt.plot([-18, -30], [3.75, 3.75], color='black')
+plt.plot([-18, -30], [0, 0], color='black')
+
+plt.show()
 
 # import tensorflow as tf
 # x = tf.Variable(5.0)
@@ -70,17 +76,17 @@ import matplotlib.pyplot as plt
 # sess = tf.Session()
 # print(sess.run(new_w, feed_dict={x: 3}))
 
-def test_plot():
-    plt.plot([-13.923711809202135, -12.313886384461737], [1.450971841142493, 2.950459120801578], color='black')
-    plt.plot([-12.313886384461737, -9.042277774296462], [2.950459120801578, -0.561887260450197], color='black')
-    plt.plot([-10.65210319903686, -9.042277774296462], [-2.0613745401092816, -0.561887260450197], color='black')
-    plt.plot([-13.923711809202135, -10.65210319903686], [1.450971841142493, -2.0613745401092816], color='black')
-    plt.plot(-11.482994791749299, 0.444542290346148, marker='x', color='red')
+# def test_plot():
+#     plt.plot([-13.923711809202135, -12.313886384461737], [1.450971841142493, 2.950459120801578], color='black')
+#     plt.plot([-12.313886384461737, -9.042277774296462], [2.950459120801578, -0.561887260450197], color='black')
+#     plt.plot([-10.65210319903686, -9.042277774296462], [-2.0613745401092816, -0.561887260450197], color='black')
+#     plt.plot([-13.923711809202135, -10.65210319903686], [1.450971841142493, -2.0613745401092816], color='black')
+#     plt.plot(-11.482994791749299, 0.444542290346148, marker='x', color='red')
+#
+#     plt.axis('equal')
+#     plt.show()
 
-    plt.axis('equal')
-    plt.show()
 
-
-
-if __name__ == "__main__":
-    test_plot()
+#
+# if __name__ == "__main__":
+#     test_plot()

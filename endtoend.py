@@ -35,7 +35,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
     # can it be map and task independent? and subclass should be task and map specific
     def __init__(self,
                  obs_type=2,  # 0:'vectors only', 1:'grids only', '2:grids_plus_vecs'
-                 frameskip=2,
+                 frameskip=1,
                  repeat_action_probability=0):
         metadata = {'render.modes': ['human']}
         self._obs_type = obs_type
@@ -93,7 +93,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
 
     def _print_done_info(self, done_type):
         done_info = ['collision', 'break_road_constrain', 'good_done', 'not_done_yet']
-        print(done_info[done_type-1])
+        print(done_info[done_type-1], '\n')
 
     def reset(self, **kwargs):  # kwargs include three keys
         self.history_info.clear()
@@ -116,8 +116,8 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
 
     def _action_transformation_for_end2end(self, action):  # action = [acc, delta_phi]
         acc, delta_phi = action  # [0, 1]
-        maximum_delta_phi = 5
-        return acc * 7 - 5, (delta_phi - 0.5) * 2 * maximum_delta_phi
+        maximum_delta_phi = 3
+        return acc * 4.5 - 3, (delta_phi - 0.5) * 2 * maximum_delta_phi
 
     def _get_next_position(self, acc, delta_phi):
         current_x = self.ego_dynamics['x']
@@ -129,6 +129,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         next_v = np.clip(current_v + acc * self.step_time, 0, 15)
         next_x = current_x + step_length * cos(current_heading * pi / 180)
         next_y = current_y + step_length * sin(current_heading * pi / 180)
+        delta_phi = 0 if step_length < 0.2 else delta_phi
         next_heading = current_heading + delta_phi
         return next_x, next_y, next_v, next_heading
 
@@ -479,7 +480,7 @@ def judge_feasible(orig_x, orig_y):  # map dependant TODO
 class CrossroadEnd2end(End2endEnv):
     def __init__(self,
                  obs_type=2,  # 0:'vectors only', 1:'grids only', '2:grids_plus_vecs'
-                 frameskip=4,
+                 frameskip=2,
                  repeat_action_probability=0
                  ):
         self.grid_setting_dict = dict(fill_type='cover_but_no_different_layers',  # single or cover
@@ -620,7 +621,6 @@ class CrossroadEnd2end(End2endEnv):
         start2rotation = {'-gneE3': 0, '-gneE1': 90, '-gneE2': 180, 'gneE12': -90}  # map dependent
 
         trans_x, trans_y, trans_heading = rotate_coordination(x, y, heading, start2rotation[start])
-        assert 0 <= trans_heading <= 180
         if behavior == 0:  # left
             if trans_y < -18:
                 future_traj = [(trans_x, trans_y + v * self.step_time * i, 90) for i in range(1, timesteps+1)]
@@ -783,12 +783,11 @@ class CrossroadEnd2end(End2endEnv):
         return [-18-4, 3.75, 8, 180]
 
     def _reset_init_state(self):
-        offset = 0.3
-        nodes1 = np.asfortranarray([[3.75 / 2+offset, 3.75 / 2+offset, -18 + 10, -18],
-                                    [-18 - 10, -18 + 10, 3.75 / 2, 3.75 / 2]])
+        nodes1 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
+                                    [-18 - 10, -18 + 18, 3.75 / 2, 3.75 / 2]])
         curve1 = bezier.Curve(nodes1, degree=3)
-        nodes2 = np.asfortranarray([[3.75/2+offset, 3.75/2+offset, -18+10, -18],
-                                    [-18-10, -18+10, 3.75*3/2, 3.75*3/2]])
+        nodes2 = np.asfortranarray([[3.75/2, 3.75/2, -18+10, -18],
+                                    [-18-10, -18+18, 3.75*3/2, 3.75*3/2]])
         curve2 = bezier.Curve(nodes2, degree=3)
         start_point = None
         if np.random.random() > 0.5:
@@ -809,6 +808,7 @@ class CrossroadEnd2end(End2endEnv):
     def _cal_achievegoal_reward(self):  # can be override to do an analytic calculation
         x, y, a, v = self.ego_dynamics['x'], self.ego_dynamics['y'], \
                      self.ego_dynamics['heading'], self.ego_dynamics['v']
+
         goal_x, goal_y, goal_v, goal_a = self.goal_state
         position_punishment = -5 * min(fabs(y - 3.75 / 2), fabs(y - 3.75 * 3 / 2))
         heading_punishment = -fabs(a - goal_a)
@@ -821,10 +821,10 @@ class CrossroadEnd2end(End2endEnv):
         dist_to_goal = math.sqrt((goal_x-x)**2+(goal_y-y)**2)
         v_difference = math.fabs(goal_v-v)
         nodes1 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
-                                    [-18 - 10, -18 + 10, 3.75 / 2, 3.75 / 2]])
+                                    [-18 - 10, -18 + 18, 3.75 / 2, 3.75 / 2]])
         curve1 = bezier.Curve(nodes1, degree=3)
         nodes2 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
-                                    [-18 - 10, -18 + 10, 3.75 * 3 / 2, 3.75 * 3 / 2]])
+                                    [-18 - 10, -18 + 18, 3.75 * 3 / 2, 3.75 * 3 / 2]])
         curve2 = bezier.Curve(nodes2, degree=3)
         s_vals = np.linspace(0, 1.0, 300)
         data1 = curve1.evaluate_multi(s_vals)
