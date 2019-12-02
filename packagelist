@@ -1,7 +1,0 @@
-tensorflow2(pip install)
-gym (python setup.py install)
-matplotlib
-networkx
-untangle(pip install)
-kdtree(pip install)
-shapely
