@@ -30,7 +30,6 @@ def _convert_sumo_coord_to_car_coord(x_in_sumo_coord, y_in_sumo_coord, a_in_sumo
     return x_in_car_coord, y_in_car_coord, a_in_car_coord
 
 SUMO_BINARY = checkBinary('sumo')
-VEHICLE_INDEX_START = 1
 SIM_PERIOD = 1.0 / 10
 
 
@@ -56,7 +55,7 @@ class Traffic(object):
     def __del__(self):
         traci.close()
 
-    def add_self_car(self):  # 该部分可直接与package相替换
+    def add_self_car(self):
         traci.vehicle.addLegacy(vehID='ego', routeID='self_route',
                                 depart=0, pos=0, lane=-6, speed=0,
                                 typeID='self_car')
