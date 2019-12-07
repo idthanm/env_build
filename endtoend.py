@@ -494,10 +494,10 @@ class CrossroadEnd2end(End2endEnv):
                                       precision=0.4,
                                       axis_z_type='single_layer')
 
-        self.prediction_time = 2  # unit: s
+        self.prediction_time = 3  # unit: s
         self.prediction_frameskip = 4
-        self.history_number = 2
-        self.history_frameskip = 2
+        self.history_number = 4
+        self.history_frameskip = 1
         if obs_type == 2:
             self.grid_3d = None
             self.grid_fill_type = self.grid_setting_dict['fill_type']
