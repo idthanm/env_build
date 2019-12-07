@@ -221,8 +221,8 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
                           ylim=(-square_length / 2 - extension, square_length / 2 + extension))
             plt.axis("equal")
 
-            ax.add_patch(plt.Rectangle((-square_length / 2, -square_length / 2),
-                                       square_length, square_length, edgecolor='black', facecolor='none'))
+            # ax.add_patch(plt.Rectangle((-square_length / 2, -square_length / 2),
+            #                            square_length, square_length, edgecolor='black', facecolor='none'))
             ax.add_patch(plt.Rectangle((-square_length / 2 - extension, -square_length / 2 - extension),
                                        square_length + 2 * extension, square_length + 2 * extension, edgecolor='black',
                                        facecolor='none'))
@@ -277,6 +277,27 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
                      color='black')
             plt.plot([-2 * lane_width, -2 * lane_width], [square_length / 2 + extension, square_length / 2],
                      color='black')
+
+            # ----------stop line--------------
+            plt.plot([0, 2 * lane_width], [-square_length / 2, -square_length / 2],
+                     color='black')
+            plt.plot([-2 * lane_width, 0], [square_length / 2, square_length / 2],
+                     color='black')
+            plt.plot([-square_length / 2, -square_length / 2], [0, -2 * lane_width],
+                     color='black')
+            plt.plot([square_length / 2, square_length / 2], [2 * lane_width, 0],
+                     color='black')
+
+            # ----------Oblique--------------
+            plt.plot([2 * lane_width, square_length / 2], [-square_length / 2, -2 * lane_width],
+                     color='black')
+            plt.plot([2 * lane_width, square_length / 2], [square_length / 2, 2 * lane_width],
+                     color='black')
+            plt.plot([-2 * lane_width, -square_length / 2], [-square_length / 2, -2 * lane_width],
+                     color='black')
+            plt.plot([-2 * lane_width, -square_length / 2], [square_length / 2, 2 * lane_width],
+                     color='black')
+
 
             def is_in_plot_area(x, y, tolerance=5):
                 if -square_length / 2 - extension+tolerance < x < square_length / 2 + extension-tolerance and \
@@ -476,7 +497,15 @@ def judge_feasible(orig_x, orig_y):  # map dependant TODO
         return -3.75 * 2 < orig_y < 0 and orig_x > 18
 
     def is_in_middle(orig_x, orig_y):
-        return -18 < orig_y < 18 and -18 < orig_x < 18
+        if -18 < orig_y < 18 and -18 < orig_x < 18:
+            if -3.75*2 < orig_x < 3.75*2:
+                return True if -18 < orig_y < 18 else False
+            elif orig_x > 3.75*2:
+                return True if orig_x - (18+3.75*2) < orig_y < -orig_x + (18+3.75*2) else False
+            else:
+                return True if -orig_x - (18 + 3.75 * 2) < orig_y < orig_x + (18 + 3.75 * 2) else False
+        else:
+            return False
 
     # judge feasible for turn left
     return True if is_in_straight_before(orig_x, orig_y) or is_in_left(orig_x, orig_y) \
@@ -588,6 +617,19 @@ class CrossroadEnd2end(End2endEnv):
         # closest 3 vehicles
         veh1, veh2, veh3 = info_in_ego_coordination[tmp[0][0]], info_in_ego_coordination[tmp[1][0]],\
                            info_in_ego_coordination[tmp[2][0]]
+        # map related
+        key_points = [(-7.5, 18), (0, 18), (7.5, 18),
+                      (-7.5, -18), (0, -18), (7.5, -18),
+                      (-18, -7.5), (-18, 0), (-18, 7.5),
+                      (18, -7.5), (18, 0), (18, 7.5)]
+        transfered_key_points = list(map(lambda x: shift_and_rotate_coordination(*x, 0, ego_x, ego_y, ego_heading)[0: 2],
+                                         key_points))
+        key_points_vector = []
+        for key_point in transfered_key_points:
+            key_points_vector.extend([key_point[0], key_point[1]])
+
+        key_points_vector = np.array(key_points_vector)
+
         # construct vector dict
         vector_dict = dict(ego_x=ego_x,
                            ego_y=ego_y,
@@ -612,7 +654,9 @@ class CrossroadEnd2end(End2endEnv):
                            veh3_v=veh3['trans_v'],
                            veh3_rela_heading=veh3['trans_heading']*pi/180,
                            )
-        return np.array(list(vector_dict.values()))
+        _ = np.array(list(vector_dict.values()))
+        vector = np.concatenate((_, key_points_vector), axis=0)
+        return vector
 
     def _3d_grid_v2x_no_noise_obs_encoder(self, prediction=False):  # func for grid encoder
         import copy
