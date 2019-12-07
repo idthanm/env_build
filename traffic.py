@@ -82,7 +82,7 @@ class Traffic(object):
         generate initial random traffic
         """
         # wait for some time for cars to enter intersection
-        random_start_time = random.randint(10, 70)
+        random_start_time = 15  # random.randint(10, 70)
         while True:
             if traci.simulation.getTime() > random_start_time:
                 random_traffic = traci.vehicle.getContextSubscriptionResults('ego')
@@ -96,7 +96,7 @@ class Traffic(object):
         self.sim_time = 0
 
         # SUMO_BINARY = checkBinary('sumo-gui')
-        # seed = random.randint(1, 100)
+        seed = random.randint(10, 15)
         dirname = os.path.dirname(__file__)
         traci.start(
             [SUMO_BINARY, "-c", dirname+"/sumo_files/configuration.sumocfg",
@@ -107,6 +107,7 @@ class Traffic(object):
              # "--quit-on-end",
              "--no-warnings",
              "--no-step-log",
+             '--seed', str(int(seed))
              ])  # '--seed', str(int(seed))
 
         # insert ego car and random traffic
