@@ -514,20 +514,19 @@ def judge_feasible(orig_x, orig_y):  # map dependant TODO
 
 class CrossroadEnd2end(End2endEnv):
     def __init__(self,
-                 obs_type=2,  # 0:'vectors only', 1:'grids only', '2:grids_plus_vecs'
+                 obs_type=0,  # 0:'vectors only', 1:'grids only', '2:grids_plus_vecs'
                  frameskip=4,
                  repeat_action_probability=0
                  ):
-        self.grid_setting_dict = dict(fill_type='cover_but_no_different_layers',  # single or cover
-                                      size_list=[dict(back_dist=30, forward_dist=30, half_width=30)],
-                                      precision=0.4,
-                                      axis_z_type='single_layer')
-
-        self.prediction_time = 3  # unit: s
-        self.prediction_frameskip = 4
         self.history_number = 4
         self.history_frameskip = 1
         if obs_type == 2:
+            self.grid_setting_dict = dict(fill_type='cover_but_no_different_layers',  # single or cover
+                                          size_list=[dict(back_dist=30, forward_dist=30, half_width=30)],
+                                          precision=0.4,
+                                          axis_z_type='single_layer')
+            self.prediction_time = 3  # unit: s
+            self.prediction_frameskip = 4
             self.grid_3d = None
             self.grid_fill_type = self.grid_setting_dict['fill_type']
             self.grid_size_list = self.grid_setting_dict['size_list']
@@ -540,20 +539,21 @@ class CrossroadEnd2end(End2endEnv):
                 self._FEASIBLE_VALUE = 255
                 self._INFEASIBLE_VALUE = 0
 
-        def make_pre_grid(grid, infeasible_value, feasible_value):
-            for index_x in range(grid.matrix_x):
-                for index_y in range(grid.matrix_y):
-                    x, y = grid.xyindex2centerposition(index_x, index_y)
-                    if judge_feasible_for_pre_grid(x, y):
-                        grid.set_value(0, index_x, index_y, feasible_value, 0)
-                    else:
-                        grid.set_value(0, index_x, index_y, infeasible_value, 0)
-        self.pre_grid_list = []
-        for size_dict in self.grid_size_list:
-            pre_grid_3d = Grid_3D(size_dict['back_dist'], size_dict['forward_dist'],
-                                  size_dict['half_width'], self.grid_precision, self.gird_axis_z_type)
-            make_pre_grid(pre_grid_3d, self._INFEASIBLE_VALUE, self._FEASIBLE_VALUE)
-            self.pre_grid_list.append(pre_grid_3d)
+            def make_pre_grid(grid, infeasible_value, feasible_value):
+                for index_x in range(grid.matrix_x):
+                    for index_y in range(grid.matrix_y):
+                        x, y = grid.xyindex2centerposition(index_x, index_y)
+                        if judge_feasible_for_pre_grid(x, y):
+                            grid.set_value(0, index_x, index_y, feasible_value, 0)
+                        else:
+                            grid.set_value(0, index_x, index_y, infeasible_value, 0)
+
+            self.pre_grid_list = []
+            for size_dict in self.grid_size_list:
+                pre_grid_3d = Grid_3D(size_dict['back_dist'], size_dict['forward_dist'],
+                                      size_dict['half_width'], self.grid_precision, self.gird_axis_z_type)
+                make_pre_grid(pre_grid_3d, self._INFEASIBLE_VALUE, self._FEASIBLE_VALUE)
+                self.pre_grid_list.append(pre_grid_3d)
 
         super(CrossroadEnd2end, self).__init__(obs_type, frameskip)
 
@@ -561,6 +561,8 @@ class CrossroadEnd2end(End2endEnv):
         if self._obs_type == 2:  # type 2: 3d grid + vector
             return dict(grid=self._3d_grid_v2x_no_noise_obs_encoder(),
                         vector=self._vector_supplement_for_grid_encoder())
+        elif self._obs_type == 0:
+            return self._vector_supplement_for_grid_encoder()
 
     def _process_obs(self):
         # history
@@ -569,14 +571,19 @@ class CrossroadEnd2end(End2endEnv):
                              else -history_len+1 for i in range(1, self.history_number)]
         history_obs_index.reverse()
         history_obs_index = np.array(history_obs_index) - 1
-        history_grids_list, history_vectors_list = [self.history_obs[i]['grid'] for i in history_obs_index],\
-                                                   [self.history_obs[i]['vector'] for i in history_obs_index]
-        history_grids = np.concatenate(history_grids_list, axis=0)
-        ob_vector = np.concatenate(history_vectors_list, axis=0)
-        future_grids = self._3d_grid_v2x_no_noise_obs_encoder(prediction=True)[1:]
-        ob_grid = np.concatenate((history_grids, future_grids), axis=0)
-        return dict(grid=ob_grid,
-                    vector=ob_vector)
+        if self._obs_type == 2:
+            history_grids_list, history_vectors_list = [self.history_obs[i]['grid'] for i in history_obs_index],\
+                                                       [self.history_obs[i]['vector'] for i in history_obs_index]
+            history_grids = np.concatenate(history_grids_list, axis=0)
+            ob_vector = np.concatenate(history_vectors_list, axis=0)
+            future_grids = self._3d_grid_v2x_no_noise_obs_encoder(prediction=True)[1:]
+            ob_grid = np.concatenate((history_grids, future_grids), axis=0)
+            return dict(grid=ob_grid,
+                        vector=ob_vector)
+        elif self._obs_type == 0:
+            history_vectors_list = [self.history_obs[i] for i in history_obs_index]
+            ob_vector = np.concatenate(history_vectors_list, axis=0)
+            return ob_vector
 
     def _break_traffic_rule(self):  # TODO: hard coded
         # judge traffic light breakage
@@ -929,7 +936,11 @@ class CrossroadEnd2end(End2endEnv):
         min_dist_to_curve1 = min(np.sqrt((data1x - x) ** 2 + (data1y - y) ** 2))
         min_dist_to_curve2 = min(np.sqrt((data2x - x) ** 2 + (data2y - y) ** 2))
         min_dist_to_curve = min(min_dist_to_curve1, min_dist_to_curve2)
-        current_vector = self.history_obs[-1]['vector']
+        current_vector = None
+        if self._obs_type == 0:
+            current_vector = self.history_obs[-1]
+        elif self._obs_type == 2:
+            current_vector = self.history_obs[-1]['vector']
         veh1x, veh1y = current_vector[10], current_vector[11]
         min_dist_to_veh = sqrt(veh1x**2 + veh1y**2)
 
