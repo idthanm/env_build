@@ -108,7 +108,7 @@ class Traffic(object):
              "--no-warnings",
              "--no-step-log",
              '--seed', str(int(seed))
-             ], numRetries=100)  # '--seed', str(int(seed))
+             ], numRetries=5)  # '--seed', str(int(seed))
 
         # insert ego car and random traffic
         self.add_self_car()
