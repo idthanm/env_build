@@ -107,7 +107,7 @@ class Traffic(object):
              # "--quit-on-end",
              "--no-warnings",
              "--no-step-log",
-             '--seed', str(int(seed))
+             # '--seed', str(int(seed))
              ], numRetries=5)  # '--seed', str(int(seed))
 
         # insert ego car and random traffic
@@ -124,7 +124,7 @@ class Traffic(object):
             x, y, a = _convert_sumo_coord_to_car_coord(x_in_sumo, y_in_sumo, a_in_sumo, veh_length)
             x_in_ego_coord, y_in_ego_coord, a_in_ego_coord = shift_and_rotate_coordination(x, y, a, self.ego_x,
                                                                                            self.ego_y, self.ego_a)
-            if abs(x_in_ego_coord) < 10 and abs(y_in_ego_coord) < 5:
+            if abs(x_in_ego_coord) < 6 and abs(y_in_ego_coord) < 3:
                 traci.vehicle.remove(vehID=veh)
                 # traci.vehicle.moveToXY(vehID=veh,
                 #                        edgeID='gneE32',
