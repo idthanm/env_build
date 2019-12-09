@@ -34,7 +34,7 @@ def convert_observation_to_space(observation):
 class End2endEnv(gym.Env):  # cannot be used directly, cause observation space is not known
     # can it be map and task independent? and subclass should be task and map specific
     def __init__(self,
-                 obs_type=2,  # 0:'vectors only', 1:'grids only', '2:grids_plus_vecs'
+                 obs_type=2,  # 0:'vectors only', 1:'grids_plus_vecs', '2:fixed_grids_plus_vecs'
                  frameskip=1,
                  repeat_action_probability=0):
         metadata = {'render.modes': ['human']}
@@ -380,21 +380,21 @@ class Grid_3D(object):
     Consider coordination of ego car
     """
 
-    def __init__(self, back_dist, forward_dist, half_width, percision, axis_z_type='single_layer'):
+    def __init__(self, back_dist, forward_dist, half_width, number_x, number_y, axis_z_type='single_layer'):
         self.back_dist = back_dist
         self.forward_dist = forward_dist
         self.half_width = half_width
         self.length = self.back_dist + self.forward_dist
         self.width = 2 * self.half_width
-        self.number_x = int((back_dist+forward_dist)/percision)  # in car coordination ! not in matrix index
-        self.number_y = int(2*half_width/percision)
+        self.number_x = number_x  # in car coordination ! not in matrix index
+        self.number_y = number_y
         self.matrix_x = self.number_y
         self.matrix_y = self.number_x
         self.axis_z_name_dict = self.get_axis_z_name_dict(axis_z_type)
         self.number_z = len(self.axis_z_name_dict)
-        self.increment_x = percision  # increment in x axis of car coordination
-        self.increment_y = percision
-        self._encode_grid = np.zeros((self.number_z, self.matrix_x, self.matrix_y))
+        self.increment_x = (back_dist+forward_dist)/self.number_x  # increment in x axis of car coordination
+        self.increment_y = 2*half_width/self.number_y
+        self._encode_grid = np.ones((self.number_z, self.matrix_x, self.matrix_y), dtype=np.float32) * 255.
         self._encode_grid_flag = np.zeros((self.number_z, self.matrix_x, self.matrix_y), dtype=np.int)
 
     def get_axis_z_name_dict(self, axis_z_type):  # dict from name to index
@@ -514,30 +514,40 @@ def judge_feasible(orig_x, orig_y):  # map dependant TODO
 
 class CrossroadEnd2end(End2endEnv):
     def __init__(self,
-                 obs_type=0,  # 0:'vectors only', 1:'grids only', '2:grids_plus_vecs'
+                 obs_type=1,  # 0:'vectors only', 1:'grids_plus_vecs', '2:fixed_grids_plus_vecs'
                  frameskip=4,
                  repeat_action_probability=0
                  ):
         self.history_number = 4
         self.history_frameskip = 1
-        if obs_type == 2:
+        if obs_type == 1 or obs_type == 2:
+            # self.grid_setting_dict = dict(fill_type='cover_but_no_different_layers',  # single or cover
+            #                               size_list=[dict(back_dist=30, forward_dist=30, half_width=30)],
+            #                               number_x=150,
+            #                               number_y=150,
+            #                               axis_z_type='single_layer')
             self.grid_setting_dict = dict(fill_type='cover_but_no_different_layers',  # single or cover
-                                          size_list=[dict(back_dist=30, forward_dist=30, half_width=30)],
-                                          precision=0.4,
+                                          size_list=[dict(back_dist=20, forward_dist=20, half_width=20)],
+                                          number_x=160,
+                                          number_y=160,
                                           axis_z_type='single_layer')
-            self.prediction_time = 3  # unit: s
-            self.prediction_frameskip = 4
+
             self.grid_3d = None
             self.grid_fill_type = self.grid_setting_dict['fill_type']
             self.grid_size_list = self.grid_setting_dict['size_list']
-            self.grid_precision = self.grid_setting_dict['precision']
+            self.grid_number_x = self.grid_setting_dict['number_x']
+            self.grid_number_y = self.grid_setting_dict['number_y']
             self.gird_axis_z_type = self.grid_setting_dict['axis_z_type']
-            if self.gird_axis_z_type == 'multi_layers':
-                self._FEASIBLE_VALUE = 0
-                self._INFEASIBLE_VALUE = -1
-            elif self.gird_axis_z_type == 'single_layer':
-                self._FEASIBLE_VALUE = 255
-                self._INFEASIBLE_VALUE = 0
+            self._FEASIBLE_VALUE = 255
+            self._INFEASIBLE_VALUE = 0
+            self.grid_precision_x = (self.grid_size_list[0]['back_dist']+self.grid_size_list[0]['forward_dist'])/self.grid_number_x
+            self.grid_precision_y = (2*self.grid_size_list[0]['half_width'])/self.grid_number_y
+
+            self.pre_grid_list = []
+
+            if obs_type == 2:
+                self.prediction_time = 3  # unit: s
+                self.prediction_frameskip = 4
 
             def make_pre_grid(grid, infeasible_value, feasible_value):
                 for index_x in range(grid.matrix_x):
@@ -548,18 +558,19 @@ class CrossroadEnd2end(End2endEnv):
                         else:
                             grid.set_value(0, index_x, index_y, infeasible_value, 0)
 
-            self.pre_grid_list = []
             for size_dict in self.grid_size_list:
                 pre_grid_3d = Grid_3D(size_dict['back_dist'], size_dict['forward_dist'],
-                                      size_dict['half_width'], self.grid_precision, self.gird_axis_z_type)
-                make_pre_grid(pre_grid_3d, self._INFEASIBLE_VALUE, self._FEASIBLE_VALUE)
+                                      size_dict['half_width'], self.grid_number_x,
+                                      self.grid_number_y, self.gird_axis_z_type)
+                if obs_type == 2:
+                    make_pre_grid(pre_grid_3d, self._INFEASIBLE_VALUE, self._FEASIBLE_VALUE)
                 self.pre_grid_list.append(pre_grid_3d)
 
         super(CrossroadEnd2end, self).__init__(obs_type, frameskip)
 
     def _get_obs(self):
-        if self._obs_type == 2:  # type 2: 3d grid + vector
-            return dict(grid=self._3d_grid_v2x_no_noise_obs_encoder(),
+        if self._obs_type == 1 or self._obs_type == 2:  # type 2: fixed grid + vector
+            return dict(grid=self._3d_grid_v2x_no_noise_obs_encoder(self._obs_type),
                         vector=self._vector_supplement_for_grid_encoder())
         elif self._obs_type == 0:
             return self._vector_supplement_for_grid_encoder()
@@ -571,15 +582,19 @@ class CrossroadEnd2end(End2endEnv):
                              else -history_len+1 for i in range(1, self.history_number)]
         history_obs_index.reverse()
         history_obs_index = np.array(history_obs_index) - 1
-        if self._obs_type == 2:
+        if self._obs_type == 1 or self._obs_type == 2:
             history_grids_list, history_vectors_list = [self.history_obs[i]['grid'] for i in history_obs_index],\
                                                        [self.history_obs[i]['vector'] for i in history_obs_index]
             history_grids = np.concatenate(history_grids_list, axis=0)
             ob_vector = np.concatenate(history_vectors_list, axis=0)
-            future_grids = self._3d_grid_v2x_no_noise_obs_encoder(prediction=True)[1:]
-            ob_grid = np.concatenate((history_grids, future_grids), axis=0)
-            return dict(grid=ob_grid,
-                        vector=ob_vector)
+            if self._obs_type == 1:
+                return dict(grid=history_grids,
+                            vector=ob_vector)
+            else:
+                future_grids = self._3d_grid_v2x_no_noise_obs_encoder(self._obs_type, prediction=True)[1:]
+                ob_grid = np.concatenate((history_grids, future_grids), axis=0)
+                return dict(grid=ob_grid,
+                            vector=ob_vector)
         elif self._obs_type == 0:
             history_vectors_list = [self.history_obs[i] for i in history_obs_index]
             ob_vector = np.concatenate(history_vectors_list, axis=0)
@@ -665,37 +680,49 @@ class CrossroadEnd2end(End2endEnv):
         vector = np.concatenate((_, key_points_vector), axis=0)
         return vector
 
-    def _3d_grid_v2x_no_noise_obs_encoder(self, prediction=False):  # func for grid encoder
+    def _3d_grid_v2x_no_noise_obs_encoder(self, obs_type, prediction=False):  # func for grid encoder
         import copy
         encoded_size_list = []
         all_vehicles = self._v2x_unify_format_for_3dgrid()
-        info_in_transformed_coordination = self._cal_info_in_transform_coordination(all_vehicles, 0, 0, 0)  # hard coded
-        if prediction:
-            for pre_grid in self.pre_grid_list:
-                self.grid_3d = copy.deepcopy(pre_grid)
-                encoded_time_list = []
-                vehicles_in_grid = [veh for veh in info_in_transformed_coordination if
-                                    self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
-                future_list_of_vehs = [self._prediction(veh, int(self.prediction_time/self.step_time))
-                                       for veh in vehicles_in_grid]
-                for timestep in range(0, int(self.prediction_time/self.step_time), self.prediction_frameskip):
+        if obs_type == 2:
+            info_in_transformed_coordination = self._cal_info_in_transform_coordination(all_vehicles, 0, 0, 0)  # hard coded
+            if prediction:
+                for pre_grid in self.pre_grid_list:
                     self.grid_3d = copy.deepcopy(pre_grid)
-                    vehs_of_this_timestep = [veh_future[timestep] for veh_future in future_list_of_vehs]
-                    vehicles_in_grid = [veh for veh in vehs_of_this_timestep if
+                    encoded_time_list = []
+                    vehicles_in_grid = [veh for veh in info_in_transformed_coordination if
+                                        self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
+                    future_list_of_vehs = [self._prediction(veh, int(self.prediction_time/self.step_time))
+                                           for veh in vehicles_in_grid]
+                    for timestep in range(0, int(self.prediction_time/self.step_time), self.prediction_frameskip):
+                        self.grid_3d = copy.deepcopy(pre_grid)
+                        vehs_of_this_timestep = [veh_future[timestep] for veh_future in future_list_of_vehs]
+                        vehicles_in_grid = [veh for veh in vehs_of_this_timestep if
+                                            self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
+                        self._add_vehicle_info_in_grid(vehicles_in_grid)
+                        encoded_time_list.append(self.grid_3d.get_encode_grid_and_flag()[0])
+                    grid_this_size = np.concatenate(encoded_time_list, axis=0)
+                    # self._add_feasible_area_info_in_grid(recover_orig_position_fn)
+                    encoded_size_list.append(grid_this_size)
+            else:
+                for pre_grid in self.pre_grid_list:
+                    self.grid_3d = copy.deepcopy(pre_grid)
+                    vehicles_in_grid = [veh for veh in info_in_transformed_coordination if
                                         self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
                     self._add_vehicle_info_in_grid(vehicles_in_grid)
-                    encoded_time_list.append(self.grid_3d.get_encode_grid_and_flag()[0])
-                grid_this_size = np.concatenate(encoded_time_list, axis=0)
-                # self._add_feasible_area_info_in_grid(recover_orig_position_fn)
-                encoded_size_list.append(grid_this_size)
-        else:
+                    encoded_size_list.append(self.grid_3d.get_encode_grid_and_flag()[0])
+            return encoded_size_list[0]
+        elif obs_type == 1:
+            ego_x, ego_y, ego_a = self.ego_dynamics['x'], self.ego_dynamics['y'], self.ego_dynamics['heading']
+            info_in_transformed_coordination = self._cal_info_in_transform_coordination(all_vehicles, ego_x, ego_y, ego_a)
             for pre_grid in self.pre_grid_list:
                 self.grid_3d = copy.deepcopy(pre_grid)
                 vehicles_in_grid = [veh for veh in info_in_transformed_coordination if
                                     self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
                 self._add_vehicle_info_in_grid(vehicles_in_grid)
                 encoded_size_list.append(self.grid_3d.get_encode_grid_and_flag()[0])
-        return encoded_size_list[0]
+            return encoded_size_list[0]
+
 
     def _route2behavior(self, route_list, edge_index):  # map dependent
         start = None
@@ -848,7 +875,8 @@ class CrossroadEnd2end(End2endEnv):
                 heading = veh['trans_heading']
                 length = veh['length']
                 width = veh['width']
-                self.grid_of_veh = Grid_3D(length/2, length/2, width/2, self.grid_precision, self.gird_axis_z_type)
+                self.grid_of_veh = Grid_3D(length/2, length/2, width/2, int(length/self.grid_precision_x),
+                                           int(width/self.grid_precision_x), self.gird_axis_z_type)
                 for i in range(self.grid_of_veh.matrix_x):
                     for j in range(self.grid_of_veh.matrix_y):
                         grid_x_in_veh_coordi, grid_y_in_veh_coordi = self.grid_of_veh.xyindex2centerposition(i, j)
@@ -939,7 +967,7 @@ class CrossroadEnd2end(End2endEnv):
         current_vector = None
         if self._obs_type == 0:
             current_vector = self.history_obs[-1]
-        elif self._obs_type == 2:
+        elif self._obs_type == 1 or self._obs_type == 2:
             current_vector = self.history_obs[-1]['vector']
         veh1x, veh1y = current_vector[10], current_vector[11]
         min_dist_to_veh = sqrt(veh1x**2 + veh1y**2)
