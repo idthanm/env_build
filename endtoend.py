@@ -637,13 +637,13 @@ class CrossroadEnd2end(End2endEnv):
         tmp = [(idx, sqrt(veh['trans_x']**2+veh['trans_y']**2))
                for idx, veh in enumerate(info_in_ego_coordination)]
         tmp.sort(key=lambda x: x[1])
-        n = 6
+        n = 3
         len_veh = len(tmp)
         for i in range(n):
             if i < len_veh:
                 veh = info_in_ego_coordination[tmp[i][0]]
                 vehs_vector.extend([veh['trans_x'], veh['trans_y'], veh['trans_v'],
-                                    veh['trans_heading']*pi/180, veh['length'], veh['width']])
+                                    veh['trans_heading']*pi/180])
             else:
                 vehs_vector.extend([100, 100, 0, 0, 5, 2.5])
 
@@ -939,7 +939,7 @@ class CrossroadEnd2end(End2endEnv):
                      self.ego_dynamics['heading'], self.ego_dynamics['v']
 
         goal_x, goal_y, goal_v, goal_a = self.goal_state
-        position_punishment = -10 * min(fabs(y - 3.75 / 2), fabs(y - 3.75 * 3 / 2))
+        position_punishment = -5 * min(fabs(y - 3.75 / 2), fabs(y - 3.75 * 3 / 2))
         heading_punishment = -fabs(a - goal_a)
         return 100 + position_punishment + heading_punishment
 
@@ -983,7 +983,7 @@ class CrossroadEnd2end(End2endEnv):
         # standard curve punishment
         reward -= min_dist_to_curve * 0.05
         # distance to other vehicle punishment
-        reward -= (1/abs(dist_to_veh1-3) * 0.1 + 1/abs(dist_to_veh2-3) * 0.1)
+        reward -= 1/abs(dist_to_veh1-3) * 0.1
         # print('dist_to_goal', dist_to_goal, '   v_difference', v_difference,
         #       '   min_dist_to_curve', min_dist_to_curve, '   min_dist_to_veh', 1/abs(min_dist_to_veh-3))
         return reward
