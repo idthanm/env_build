@@ -630,23 +630,34 @@ class CrossroadEnd2end(End2endEnv):
         goal_x, goal_y, goal_v, goal_a = self.goal_state
         rela_goal_x, rela_goal_y, rela_goal_a = shift_and_rotate_coordination(goal_x, goal_y, goal_a,
                                                                               ego_x, ego_y, ego_heading)
+        # vehicle related
+        vehs_vector = []
         all_vehicles = self._v2x_unify_format_for_3dgrid()
         info_in_ego_coordination = self._cal_info_in_transform_coordination(all_vehicles, ego_x, ego_y, ego_heading)
         tmp = [(idx, sqrt(veh['trans_x']**2+veh['trans_y']**2))
                for idx, veh in enumerate(info_in_ego_coordination)]
         tmp.sort(key=lambda x: x[1])
-        assert len(tmp) >= 3
-        # closest 3 vehicles
-        veh1, veh2, veh3 = info_in_ego_coordination[tmp[0][0]], info_in_ego_coordination[tmp[1][0]],\
-                           info_in_ego_coordination[tmp[2][0]]
+        n = 6
+        len_veh = len(tmp)
+        for i in range(n):
+            if i < len_veh:
+                veh = info_in_ego_coordination[tmp[i][0]]
+                vehs_vector.extend([veh['trans_x'], veh['trans_y'], veh['trans_v'],
+                                    veh['trans_heading']*pi/180, veh['length'], veh['width']])
+            else:
+                vehs_vector.extend([100, 100, 0, 0, 5, 2.5])
+
+        vehs_vector = np.array(vehs_vector)
+
         # map related
+        key_points_vector = []
         key_points = [(-7.5, 18), (0, 18), (7.5, 18),
                       (-7.5, -18), (0, -18), (7.5, -18),
                       (-18, -7.5), (-18, 0), (-18, 7.5),
                       (18, -7.5), (18, 0), (18, 7.5)]
         transfered_key_points = list(map(lambda x: shift_and_rotate_coordination(*x, 0, ego_x, ego_y, ego_heading)[0: 2],
                                          key_points))
-        key_points_vector = []
+
         for key_point in transfered_key_points:
             key_points_vector.extend([key_point[0], key_point[1]])
 
@@ -663,21 +674,9 @@ class CrossroadEnd2end(End2endEnv):
                            rela_goal_y=rela_goal_y,
                            rela_goal_a=rela_goal_a*pi/180,
                            goal_v=goal_v,
-                           veh1_rela_x=veh1['trans_x'],
-                           veh1_rela_y=veh1['trans_y'],
-                           veh1_v=veh1['trans_v'],
-                           veh1_rela_heading=veh1['trans_heading']*pi/180,
-                           veh2_rela_x=veh2['trans_x'],
-                           veh2_rela_y=veh2['trans_y'],
-                           veh2_v=veh2['trans_v'],
-                           veh2_rela_heading=veh2['trans_heading']*pi/180,
-                           veh3_rela_x=veh3['trans_x'],
-                           veh3_rela_y=veh3['trans_y'],
-                           veh3_v=veh3['trans_v'],
-                           veh3_rela_heading=veh3['trans_heading']*pi/180,
                            )
         _ = np.array(list(vector_dict.values()))
-        vector = np.concatenate((_, key_points_vector), axis=0)
+        vector = np.concatenate((_, vehs_vector, key_points_vector), axis=0)
         return vector
 
     def _3d_grid_v2x_no_noise_obs_encoder(self, obs_type, prediction=False):  # func for grid encoder
@@ -940,7 +939,7 @@ class CrossroadEnd2end(End2endEnv):
                      self.ego_dynamics['heading'], self.ego_dynamics['v']
 
         goal_x, goal_y, goal_v, goal_a = self.goal_state
-        position_punishment = -5 * min(fabs(y - 3.75 / 2), fabs(y - 3.75 * 3 / 2))
+        position_punishment = -10 * min(fabs(y - 3.75 / 2), fabs(y - 3.75 * 3 / 2))
         heading_punishment = -fabs(a - goal_a)
         return 100 + position_punishment + heading_punishment
 
@@ -970,7 +969,10 @@ class CrossroadEnd2end(End2endEnv):
         elif self._obs_type == 1 or self._obs_type == 2:
             current_vector = self.history_obs[-1]['vector']
         veh1x, veh1y = current_vector[10], current_vector[11]
-        min_dist_to_veh = sqrt(veh1x**2 + veh1y**2)
+        veh2x, veh2y = current_vector[16], current_vector[17]
+        dist_to_veh1 = sqrt(veh1x**2 + veh1y**2)
+        dist_to_veh2 = sqrt(veh2x**2 + veh2y**2)
+
 
         # step punishment
         reward = -1
@@ -981,7 +983,7 @@ class CrossroadEnd2end(End2endEnv):
         # standard curve punishment
         reward -= min_dist_to_curve * 0.05
         # distance to other vehicle punishment
-        reward -= 1/abs(min_dist_to_veh-3) * 0.1
+        reward -= (1/abs(dist_to_veh1-3) * 0.1 + 1/abs(dist_to_veh2-3) * 0.1)
         # print('dist_to_goal', dist_to_goal, '   v_difference', v_difference,
         #       '   min_dist_to_curve', min_dist_to_curve, '   min_dist_to_veh', 1/abs(min_dist_to_veh-3))
         return reward
