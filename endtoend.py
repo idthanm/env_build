@@ -514,8 +514,8 @@ def judge_feasible(orig_x, orig_y):  # map dependant TODO
 
 class CrossroadEnd2end(End2endEnv):
     def __init__(self,
-                 obs_type=1,  # 0:'vectors only', 1:'grids_plus_vecs', '2:fixed_grids_plus_vecs'
-                 frameskip=4,
+                 obs_type=0,  # 0:'vectors only', 1:'grids_plus_vecs', '2:fixed_grids_plus_vecs'
+                 frameskip=1,
                  repeat_action_probability=0
                  ):
         self.history_number = 4
