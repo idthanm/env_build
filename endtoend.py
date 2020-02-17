@@ -2,7 +2,7 @@ import gym
 from gym.utils import seeding
 import math
 import numpy as np
-from endtoend_env_utils import shift_coordination, rotate_coordination, shift_and_rotate_coordination,\
+from endtoend_env_utils import shift_coordination, rotate_coordination, shift_and_rotate_coordination, \
     Path
 from collections import OrderedDict, deque
 import matplotlib.pyplot as plt
@@ -94,7 +94,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
 
     def _print_done_info(self, done_type):
         done_info = ['collision', 'break_road_constrain', 'good_done', 'not_done_yet']
-        print(done_info[done_type-1], '\n')
+        print(done_info[done_type - 1], '\n')
 
     def reset(self, **kwargs):  # kwargs include three keys
         self.history_info.clear()
@@ -153,23 +153,23 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         y_prop = (y_prop - 0.5) * 2  # [-1, 1]
         y = x * max_y / max_x * y_prop
         x_a3 = (x_a3 - 0.5) * 2 * 30  # range of x_a3 is not sure for now
-        x_a2 = y / x**2 - x_a3 * x
+        x_a2 = y / x ** 2 - x_a3 * x
         v_prop = (v_prop - 0.5) * 2  # [-1, 1]
         v = v_prop * max_deltav  # [-max_deltav, max_deltav]
         v_a3 = (v_a3 - 0.5) * 2 * 30  # range of x_a3 is not sure for now
-        v_a2 = v / x**2 - v_a3 * x
+        v_a2 = v / x ** 2 - v_a3 * x
 
         return [0, 0, x_a2, x_a3], [0, 0, v_a2, v_a3]
 
     def _generate_practical_trajectory(self, x_coeff, v_coeff):
         def x_formula(x, coeff=x_coeff):
-            return coeff[0] + coeff[1] * x + coeff[2] * x**2 + coeff[3] * x**3
+            return coeff[0] + coeff[1] * x + coeff[2] * x ** 2 + coeff[3] * x ** 3
 
         def x_derivative_formula(x, coeff=x_coeff):
-            return coeff[1] + coeff[2] * x + coeff[3] * x**2
+            return coeff[1] + coeff[2] * x + coeff[3] * x ** 2
 
         def v_formula(x, coeff=v_coeff):
-            return coeff[0] + coeff[1] * x + coeff[2] * x**2 + coeff[3] * x**3
+            return coeff[0] + coeff[1] * x + coeff[2] * x ** 2 + coeff[3] * x ** 3
 
         current_v = self.ego_dynamics['v']
 
@@ -298,10 +298,9 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
             plt.plot([-2 * lane_width, -square_length / 2], [square_length / 2, 2 * lane_width],
                      color='black')
 
-
             def is_in_plot_area(x, y, tolerance=5):
-                if -square_length / 2 - extension+tolerance < x < square_length / 2 + extension-tolerance and \
-                        -square_length / 2 - extension+tolerance < y < square_length / 2 + extension-tolerance:
+                if -square_length / 2 - extension + tolerance < x < square_length / 2 + extension - tolerance and \
+                        -square_length / 2 - extension + tolerance < y < square_length / 2 + extension - tolerance:
                     return True
                 else:
                     return False
@@ -375,113 +374,6 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         raise NotImplementedError
 
 
-class Grid_3D(object):
-    """
-    Consider coordination of ego car
-    """
-
-    def __init__(self, back_dist, forward_dist, half_width, number_x, number_y, axis_z_type='single_layer'):
-        self.back_dist = back_dist
-        self.forward_dist = forward_dist
-        self.half_width = half_width
-        self.length = self.back_dist + self.forward_dist
-        self.width = 2 * self.half_width
-        self.number_x = number_x  # in car coordination ! not in matrix index
-        self.number_y = number_y
-        self.matrix_x = self.number_y
-        self.matrix_y = self.number_x
-        self.axis_z_name_dict = self.get_axis_z_name_dict(axis_z_type)
-        self.number_z = len(self.axis_z_name_dict)
-        self.increment_x = (back_dist+forward_dist)/self.number_x  # increment in x axis of car coordination
-        self.increment_y = 2*half_width/self.number_y
-        self._encode_grid = np.ones((self.number_z, self.matrix_x, self.matrix_y), dtype=np.float32) * 255.
-        self._encode_grid_flag = np.zeros((self.number_z, self.matrix_x, self.matrix_y), dtype=np.int)
-
-    def get_axis_z_name_dict(self, axis_z_type):  # dict from name to index
-        if axis_z_type == 'multi_layers':
-            return dict(position_x=0,
-                        position_y=1,
-                        v=2,
-                        heading=3,
-                        length=4,
-                        width=5)
-        elif axis_z_type == 'single_layer':
-            return dict(feasible=0)
-
-    def xyindex2range(self, index_x, index_y):  # index_x: [0, matrix_x - 1]
-        index_x_in_car_coordi = index_y
-        index_y_in_car_coordi = index_x
-        left_upper_point_coordination_of_the_indexed_grid \
-            = shift_coordination(index_x_in_car_coordi * self.increment_x, -index_y_in_car_coordi * self.increment_y,
-                                 self.back_dist, -self.half_width)
-        right_lower_point_coordination_of_the_indexed_grid \
-            = shift_coordination((index_x_in_car_coordi + 1) * self.increment_x,
-                                 -(index_y_in_car_coordi + 1) * self.increment_y,
-                                 self.back_dist, -self.half_width)
-        lower_x, upper_y = left_upper_point_coordination_of_the_indexed_grid
-        upper_x, lower_y = right_lower_point_coordination_of_the_indexed_grid
-        return lower_x, upper_x, lower_y, upper_y
-
-    def xyindex2centerposition(self, index_x, index_y):  # index_x: [0, matrix_x - 1]
-        lower_x, upper_x, lower_y, upper_y = self.xyindex2range(index_x, index_y)
-        return 0.5 * (lower_x + upper_x), 0.5 * (lower_y + upper_y)
-
-    def position2xyindex(self, x, y):
-        x, y = shift_coordination(x, y, -self.back_dist, self.half_width)
-        index_x_in_car_coordi = int(x // self.increment_x)
-        index_y_in_car_coordi = int((-y) // self.increment_y)
-        index_x = index_y_in_car_coordi
-        index_y = index_x_in_car_coordi
-        return index_x, index_y
-
-    def is_in_2d_grid(self, x, y):
-        if -self.back_dist < x < self.forward_dist and -self.half_width < y < self.half_width:
-            return True
-        else:
-            return False
-
-    def reset_grid(self):
-        self._encode_grid = np.zeros((self.number_z, self.matrix_x, self.matrix_y))
-        self._encode_grid_flag = np.zeros((self.number_z, self.matrix_x, self.matrix_y), dtype=np.int)
-
-    def set_value(self, index_z, index_x, index_y, grid_value, range_number):
-        min_index_x = max(0, index_x - range_number)
-        max_index_x = min(self.matrix_x - 1, index_x + range_number)
-        min_index_y = max(0, index_y - range_number)
-        max_index_y = min(self.matrix_y - 1, index_y + range_number)
-        for x in range(min_index_x, max_index_x+1):
-            for y in range(min_index_y, max_index_y+1):
-                self._encode_grid[index_z][x][y] = grid_value
-                self._encode_grid_flag[index_z][x][y] = 1
-
-    def set_same_xy_value_in_all_z(self, index_x, index_y, grid_value):
-        for i in range(self.number_z):
-            self.set_value(i, index_x, index_y, grid_value, 0)
-
-    def set_xy_value_with_list(self, index_x, index_y, z_list):
-        assert len(z_list) == self.number_z
-        for i in range(self.number_z):
-            self.set_value(i, index_x, index_y, z_list[i], 0)
-
-    def get_value(self, index_z, index_x, index_y):
-        return self._encode_grid[index_z][index_x][index_y], \
-               self._encode_grid_flag[index_z][index_x][index_y]
-
-    def get_encode_grid_and_flag(self):
-        return self._encode_grid, self._encode_grid_flag
-
-
-def judge_feasible_for_pre_grid(orig_x, orig_y):  # map dependant TODO
-    # return True if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150 else False
-    def is_in_straight(orig_x, orig_y):
-        return -3.75 * 2 < orig_x < 3.75 * 2 or -3.75 * 2 < orig_y < 3.75 * 2
-
-    def is_in_middle(orig_x, orig_y):
-        return -18 < orig_y < 18 and -18 < orig_x < 18
-
-    return True if is_in_straight(orig_x, orig_y) or is_in_middle(orig_x, orig_y) else False
-
-
 def judge_feasible(orig_x, orig_y):  # map dependant TODO
     # return True if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150 else False
     def is_in_straight_before(orig_x, orig_y):
@@ -498,10 +390,10 @@ def judge_feasible(orig_x, orig_y):  # map dependant TODO
 
     def is_in_middle(orig_x, orig_y):
         if -18 < orig_y < 18 and -18 < orig_x < 18:
-            if -3.75*2 < orig_x < 3.75*2:
+            if -3.75 * 2 < orig_x < 3.75 * 2:
                 return True if -18 < orig_y < 18 else False
-            elif orig_x > 3.75*2:
-                return True if orig_x - (18+3.75*2) < orig_y < -orig_x + (18+3.75*2) else False
+            elif orig_x > 3.75 * 2:
+                return True if orig_x - (18 + 3.75 * 2) < orig_y < -orig_x + (18 + 3.75 * 2) else False
             else:
                 return True if -orig_x - (18 + 3.75 * 2) < orig_y < orig_x + (18 + 3.75 * 2) else False
         else:
@@ -520,85 +412,22 @@ class CrossroadEnd2end(End2endEnv):
                  ):
         self.history_number = 4
         self.history_frameskip = 1
-        if obs_type == 1 or obs_type == 2:
-            # self.grid_setting_dict = dict(fill_type='cover_but_no_different_layers',  # single or cover
-            #                               size_list=[dict(back_dist=30, forward_dist=30, half_width=30)],
-            #                               number_x=150,
-            #                               number_y=150,
-            #                               axis_z_type='single_layer')
-            self.grid_setting_dict = dict(fill_type='cover_but_no_different_layers',  # single or cover
-                                          size_list=[dict(back_dist=20, forward_dist=20, half_width=20)],
-                                          number_x=160,
-                                          number_y=160,
-                                          axis_z_type='single_layer')
-
-            self.grid_3d = None
-            self.grid_fill_type = self.grid_setting_dict['fill_type']
-            self.grid_size_list = self.grid_setting_dict['size_list']
-            self.grid_number_x = self.grid_setting_dict['number_x']
-            self.grid_number_y = self.grid_setting_dict['number_y']
-            self.gird_axis_z_type = self.grid_setting_dict['axis_z_type']
-            self._FEASIBLE_VALUE = 255
-            self._INFEASIBLE_VALUE = 0
-            self.grid_precision_x = (self.grid_size_list[0]['back_dist']+self.grid_size_list[0]['forward_dist'])/self.grid_number_x
-            self.grid_precision_y = (2*self.grid_size_list[0]['half_width'])/self.grid_number_y
-
-            self.pre_grid_list = []
-
-            if obs_type == 2:
-                self.prediction_time = 3  # unit: s
-                self.prediction_frameskip = 4
-
-            def make_pre_grid(grid, infeasible_value, feasible_value):
-                for index_x in range(grid.matrix_x):
-                    for index_y in range(grid.matrix_y):
-                        x, y = grid.xyindex2centerposition(index_x, index_y)
-                        if judge_feasible_for_pre_grid(x, y):
-                            grid.set_value(0, index_x, index_y, feasible_value, 0)
-                        else:
-                            grid.set_value(0, index_x, index_y, infeasible_value, 0)
-
-            for size_dict in self.grid_size_list:
-                pre_grid_3d = Grid_3D(size_dict['back_dist'], size_dict['forward_dist'],
-                                      size_dict['half_width'], self.grid_number_x,
-                                      self.grid_number_y, self.gird_axis_z_type)
-                if obs_type == 2:
-                    make_pre_grid(pre_grid_3d, self._INFEASIBLE_VALUE, self._FEASIBLE_VALUE)
-                self.pre_grid_list.append(pre_grid_3d)
-
         super(CrossroadEnd2end, self).__init__(obs_type, frameskip)
 
     def _get_obs(self):
-        if self._obs_type == 1 or self._obs_type == 2:  # type 2: fixed grid + vector
-            return dict(grid=self._3d_grid_v2x_no_noise_obs_encoder(self._obs_type),
-                        vector=self._vector_supplement_for_grid_encoder())
-        elif self._obs_type == 0:
-            return self._vector_supplement_for_grid_encoder()
+        return self._vector_supplement_for_grid_encoder()
 
     def _process_obs(self):
         # history
         history_len = len(self.history_obs)
-        history_obs_index = [0] + [-i*self.history_frameskip if i*self.history_frameskip < history_len
-                             else -history_len+1 for i in range(1, self.history_number)]
+        history_obs_index = [0] + [-i * self.history_frameskip if i * self.history_frameskip < history_len
+                                   else -history_len + 1 for i in range(1, self.history_number)]
         history_obs_index.reverse()
         history_obs_index = np.array(history_obs_index) - 1
-        if self._obs_type == 1 or self._obs_type == 2:
-            history_grids_list, history_vectors_list = [self.history_obs[i]['grid'] for i in history_obs_index],\
-                                                       [self.history_obs[i]['vector'] for i in history_obs_index]
-            history_grids = np.concatenate(history_grids_list, axis=0)
-            ob_vector = np.concatenate(history_vectors_list, axis=0)
-            if self._obs_type == 1:
-                return dict(grid=history_grids,
-                            vector=ob_vector)
-            else:
-                future_grids = self._3d_grid_v2x_no_noise_obs_encoder(self._obs_type, prediction=True)[1:]
-                ob_grid = np.concatenate((history_grids, future_grids), axis=0)
-                return dict(grid=ob_grid,
-                            vector=ob_vector)
-        elif self._obs_type == 0:
-            history_vectors_list = [self.history_obs[i] for i in history_obs_index]
-            ob_vector = np.concatenate(history_vectors_list, axis=0)
-            return ob_vector
+
+        history_vectors_list = [self.history_obs[i] for i in history_obs_index]
+        ob_vector = np.concatenate(history_vectors_list, axis=0)
+        return ob_vector
 
     def _break_traffic_rule(self):  # TODO: hard coded
         # judge traffic light breakage
@@ -634,7 +463,7 @@ class CrossroadEnd2end(End2endEnv):
         vehs_vector = []
         all_vehicles = self._v2x_unify_format_for_3dgrid()
         info_in_ego_coordination = self._cal_info_in_transform_coordination(all_vehicles, ego_x, ego_y, ego_heading)
-        tmp = [(idx, sqrt(veh['trans_x']**2+veh['trans_y']**2))
+        tmp = [(idx, sqrt(veh['trans_x'] ** 2 + veh['trans_y'] ** 2))
                for idx, veh in enumerate(info_in_ego_coordination)]
         tmp.sort(key=lambda x: x[1])
         n = 3
@@ -643,7 +472,7 @@ class CrossroadEnd2end(End2endEnv):
             if i < len_veh:
                 veh = info_in_ego_coordination[tmp[i][0]]
                 vehs_vector.extend([veh['trans_x'], veh['trans_y'], veh['trans_v'],
-                                    veh['trans_heading']*pi/180])
+                                    veh['trans_heading'] * pi / 180])
             else:
                 vehs_vector.extend([100, 100, 0, 0, 5, 2.5])
 
@@ -655,8 +484,9 @@ class CrossroadEnd2end(End2endEnv):
                       (-7.5, -18), (0, -18), (7.5, -18),
                       (-18, -7.5), (-18, 0), (-18, 7.5),
                       (18, -7.5), (18, 0), (18, 7.5)]
-        transfered_key_points = list(map(lambda x: shift_and_rotate_coordination(*x, 0, ego_x, ego_y, ego_heading)[0: 2],
-                                         key_points))
+        transfered_key_points = list(
+            map(lambda x: shift_and_rotate_coordination(*x, 0, ego_x, ego_y, ego_heading)[0: 2],
+                key_points))
 
         for key_point in transfered_key_points:
             key_points_vector.extend([key_point[0], key_point[1]])
@@ -667,71 +497,27 @@ class CrossroadEnd2end(End2endEnv):
         vector_dict = dict(ego_x=ego_x,
                            ego_y=ego_y,
                            ego_v=ego_v,
-                           ego_heading=ego_heading*pi/180,
+                           ego_heading=ego_heading * pi / 180,
                            ego_length=ego_length,
                            ego_width=ego_width,
                            rela_goal_x=rela_goal_x,
                            rela_goal_y=rela_goal_y,
-                           rela_goal_a=rela_goal_a*pi/180,
+                           rela_goal_a=rela_goal_a * pi / 180,
                            goal_v=goal_v,
                            )
         _ = np.array(list(vector_dict.values()))
         vector = np.concatenate((_, vehs_vector, key_points_vector), axis=0)
         return vector
 
-    def _3d_grid_v2x_no_noise_obs_encoder(self, obs_type, prediction=False):  # func for grid encoder
-        import copy
-        encoded_size_list = []
-        all_vehicles = self._v2x_unify_format_for_3dgrid()
-        if obs_type == 2:
-            info_in_transformed_coordination = self._cal_info_in_transform_coordination(all_vehicles, 0, 0, 0)  # hard coded
-            if prediction:
-                for pre_grid in self.pre_grid_list:
-                    self.grid_3d = copy.deepcopy(pre_grid)
-                    encoded_time_list = []
-                    vehicles_in_grid = [veh for veh in info_in_transformed_coordination if
-                                        self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
-                    future_list_of_vehs = [self._prediction(veh, int(self.prediction_time/self.step_time))
-                                           for veh in vehicles_in_grid]
-                    for timestep in range(0, int(self.prediction_time/self.step_time), self.prediction_frameskip):
-                        self.grid_3d = copy.deepcopy(pre_grid)
-                        vehs_of_this_timestep = [veh_future[timestep] for veh_future in future_list_of_vehs]
-                        vehicles_in_grid = [veh for veh in vehs_of_this_timestep if
-                                            self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
-                        self._add_vehicle_info_in_grid(vehicles_in_grid)
-                        encoded_time_list.append(self.grid_3d.get_encode_grid_and_flag()[0])
-                    grid_this_size = np.concatenate(encoded_time_list, axis=0)
-                    # self._add_feasible_area_info_in_grid(recover_orig_position_fn)
-                    encoded_size_list.append(grid_this_size)
-            else:
-                for pre_grid in self.pre_grid_list:
-                    self.grid_3d = copy.deepcopy(pre_grid)
-                    vehicles_in_grid = [veh for veh in info_in_transformed_coordination if
-                                        self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
-                    self._add_vehicle_info_in_grid(vehicles_in_grid)
-                    encoded_size_list.append(self.grid_3d.get_encode_grid_and_flag()[0])
-            return encoded_size_list[0]
-        elif obs_type == 1:
-            ego_x, ego_y, ego_a = self.ego_dynamics['x'], self.ego_dynamics['y'], self.ego_dynamics['heading']
-            info_in_transformed_coordination = self._cal_info_in_transform_coordination(all_vehicles, ego_x, ego_y, ego_a)
-            for pre_grid in self.pre_grid_list:
-                self.grid_3d = copy.deepcopy(pre_grid)
-                vehicles_in_grid = [veh for veh in info_in_transformed_coordination if
-                                    self.grid_3d.is_in_2d_grid(veh['trans_x'], veh['trans_y'])]
-                self._add_vehicle_info_in_grid(vehicles_in_grid)
-                encoded_size_list.append(self.grid_3d.get_encode_grid_and_flag()[0])
-            return encoded_size_list[0]
-
-
     def _route2behavior(self, route_list, edge_index):  # map dependent
         start = None
         end = None
         if route_list[edge_index] in ['-gneE0', 'gneE3', 'gneE1', 'gneE2']:
-            start = route_list[edge_index-1]
+            start = route_list[edge_index - 1]
             end = route_list[edge_index]
         else:
             start = route_list[edge_index]
-            end = route_list[edge_index+1]
+            end = route_list[edge_index + 1]
         if (start, end) in [('-gneE3', '-gneE0'), ('-gneE1', 'gneE3'), ('-gneE2', 'gneE1'), ('gneE12', 'gneE2')]:
             return 0, start, end  # turn left
         elif (start, end) in [('-gneE3', 'gneE2'), ('-gneE1', '-gneE0'), ('-gneE2', 'gneE3'), ('gneE12', 'gneE1')]:
@@ -752,7 +538,7 @@ class CrossroadEnd2end(End2endEnv):
         trans_x, trans_y, trans_heading = rotate_coordination(x, y, heading, start2rotation[start])
         if behavior == 0:  # left
             if trans_y < -18:
-                future_traj = [(trans_x, trans_y + v * self.step_time * i, 90) for i in range(1, timesteps+1)]
+                future_traj = [(trans_x, trans_y + v * self.step_time * i, 90) for i in range(1, timesteps + 1)]
             elif trans_x < -18:
                 future_traj = [(trans_x - v * self.step_time * i, trans_y, 180) for i in range(1, timesteps + 1)]
             else:
@@ -769,12 +555,14 @@ class CrossroadEnd2end(End2endEnv):
                         a = a + step_length / 19.875
                         a = a if 0 < a < math.pi else math.pi
                         yield (x, y, a * 180 / math.pi)
-                future_traj = list(turn_right_path_generator(trans_x, trans_y, trans_heading, v, self.step_time, timesteps))
+
+                future_traj = list(
+                    turn_right_path_generator(trans_x, trans_y, trans_heading, v, self.step_time, timesteps))
         elif behavior == 1:  # go straight
             future_traj = [(trans_x, trans_y + v * self.step_time * i, 90) for i in range(1, timesteps + 1)]
         else:
             if trans_y < -18:
-                future_traj = [(trans_x, trans_y + v * self.step_time * i, 90) for i in range(1, timesteps+1)]
+                future_traj = [(trans_x, trans_y + v * self.step_time * i, 90) for i in range(1, timesteps + 1)]
             elif trans_x > 18:
                 future_traj = [(trans_x + v * self.step_time * i, trans_y, 0) for i in range(1, timesteps + 1)]
             else:
@@ -791,7 +579,9 @@ class CrossroadEnd2end(End2endEnv):
                         a = a - step_length / 12.375
                         a = a if 0 < a < math.pi else 0
                         yield (x, y, a * 180 / math.pi)
-                future_traj = list(turn_left_path_generator(trans_x, trans_y, trans_heading, v, self.step_time, timesteps))
+
+                future_traj = list(
+                    turn_left_path_generator(trans_x, trans_y, trans_heading, v, self.step_time, timesteps))
         future_traj = list(map(lambda x: rotate_coordination(*x, -start2rotation[start]), future_traj))
         future_data = [{'trans_x': point[0], 'trans_y': point[1], 'trans_v': v, 'trans_heading': point[2],
                         'length': veh['length'], 'width': veh['width'], 'route': veh['route'],
@@ -843,60 +633,10 @@ class CrossroadEnd2end(End2endEnv):
         return results
 
     def recover_orig_position_fn(self, transformed_x, transformed_y, x, y, d):  # x, y, d are used to transform
-                                                                                # coordination
+        # coordination
         transformed_x, transformed_y, _ = rotate_coordination(transformed_x, transformed_y, 0, -d)
         orig_x, orig_y = shift_coordination(transformed_x, transformed_y, -x, -y)
         return orig_x, orig_y
-
-    def _add_vehicle_info_in_grid(self, vehicles_in_grid):
-        cover_range = 1
-        if self.grid_fill_type == 'single':
-            for veh in vehicles_in_grid:
-                x = veh['trans_x']
-                y = veh['trans_y']
-                v = veh['trans_v']
-                heading = veh['trans_heading']
-                length = veh['length']
-                width = veh['width']
-                index_x, index_y = self.grid_3d.position2xyindex(x, y)
-                self.grid_3d.set_value(index_z=0, index_x=index_x, index_y=index_y, grid_value=x, range=cover_range)
-                self.grid_3d.set_value(index_z=1, index_x=index_x, index_y=index_y, grid_value=y, range=cover_range)
-                self.grid_3d.set_value(index_z=2, index_x=index_x, index_y=index_y, grid_value=v, range=cover_range)
-                self.grid_3d.set_value(index_z=3, index_x=index_x, index_y=index_y, grid_value=heading, range=cover_range)
-                self.grid_3d.set_value(index_z=4, index_x=index_x, index_y=index_y, grid_value=length, range=cover_range)
-                self.grid_3d.set_value(index_z=5, index_x=index_x, index_y=index_y, grid_value=width, range=cover_range)
-
-        elif self.grid_fill_type == 'cover_but_no_different_layers':
-            for veh in vehicles_in_grid:
-                x = veh['trans_x']
-                y = veh['trans_y']
-                v = veh['trans_v']
-                heading = veh['trans_heading']
-                length = veh['length']
-                width = veh['width']
-                self.grid_of_veh = Grid_3D(length/2, length/2, width/2, int(length/self.grid_precision_x),
-                                           int(width/self.grid_precision_x), self.gird_axis_z_type)
-                for i in range(self.grid_of_veh.matrix_x):
-                    for j in range(self.grid_of_veh.matrix_y):
-                        grid_x_in_veh_coordi, grid_y_in_veh_coordi = self.grid_of_veh.xyindex2centerposition(i, j)
-                        grid_x, grid_y = self.recover_orig_position_fn(grid_x_in_veh_coordi,
-                                                                       grid_y_in_veh_coordi, x, y, heading)
-                        index_x, index_y = self.grid_3d.position2xyindex(grid_x, grid_y)
-                        self.grid_3d.set_value(index_z=0, index_x=index_x, index_y=index_y,
-                                               grid_value=self._INFEASIBLE_VALUE, range_number=cover_range)
-
-    def _add_feasible_area_info_in_grid(self, recover_orig_position_fn):
-        number_x = self.grid_3d.number_x  # number_x is matrix_y
-        number_y = self.grid_3d.number_y
-        for index_x in range(number_y):
-            for index_y in range(number_x):
-                x_in_egocar_coordi, y_in_egocar_coordi = self.grid_3d.xyindex2centerposition(index_x, index_y)
-                orig_x, orig_y = recover_orig_position_fn(x_in_egocar_coordi, y_in_egocar_coordi)
-                if not self.grid_3d.get_value(0, index_x, index_y)[1]:
-                    if not judge_feasible(orig_x, orig_y):
-                        self.grid_3d.set_same_xy_value_in_all_z(index_x, index_y, self._INFEASIBLE_VALUE)
-                    else:
-                        self.grid_3d.set_same_xy_value_in_all_z(index_x, index_y, self._FEASIBLE_VALUE)
 
     def _break_road_constrain(self):
         results = list(map(lambda x: judge_feasible(*x), self.ego_dynamics['Corner_point']))
@@ -906,17 +646,17 @@ class CrossroadEnd2end(End2endEnv):
         goal_x, goal_y, goal_v, goal_a = self.goal_state
         x = self.ego_dynamics['x']
         y = self.ego_dynamics['y']
-        return True if goal_x-2 < x < goal_x+2 and goal_y-3.75 < y < goal_y+3.75 else False
+        return True if goal_x - 2 < x < goal_x + 2 and goal_y - 3.75 < y < goal_y + 3.75 else False
 
     def _reset_goal_state(self):  # decide center of goal area, [goal_x, goal_y, goal_a, goal_v]
-        return [-18-4, 3.75, 8, 180]
+        return [-18 - 4, 3.75, 8, 180]
 
     def _reset_init_state(self):
         nodes1 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
                                     [-18 - 10, -18 + 18, 3.75 / 2, 3.75 / 2]])
         curve1 = bezier.Curve(nodes1, degree=3)
-        nodes2 = np.asfortranarray([[3.75/2, 3.75/2, -18+10, -18],
-                                    [-18-10, -18+18, 3.75*3/2, 3.75*3/2]])
+        nodes2 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
+                                    [-18 - 10, -18 + 18, 3.75 * 3 / 2, 3.75 * 3 / 2]])
         curve2 = bezier.Curve(nodes2, degree=3)
         start_point = None
         if np.random.random() > 0.5:
@@ -927,8 +667,8 @@ class CrossroadEnd2end(End2endEnv):
         if y < -18:
             a = 90.
         else:
-            a = 90. + math.atan((y+18)/(x+18))*180/math.pi
-        v = np.random.random()*7+5
+            a = 90. + math.atan((y + 18) / (x + 18)) * 180 / math.pi
+        v = np.random.random() * 7 + 5
         return [x, y, v, a]
 
     def _cal_collision_reward(self):  # can be override to do an analytic calculation
@@ -945,10 +685,11 @@ class CrossroadEnd2end(End2endEnv):
 
     def _cal_step_reward(self):
         # data preparation
-        x, y, a, v = self.ego_dynamics['x'], self.ego_dynamics['y'], self.ego_dynamics['heading'], self.ego_dynamics['v']
+        x, y, a, v = self.ego_dynamics['x'], self.ego_dynamics['y'], self.ego_dynamics['heading'], self.ego_dynamics[
+            'v']
         goal_x, goal_y, goal_v, goal_a = self.goal_state
-        dist_to_goal = math.sqrt((goal_x-x)**2+(goal_y-y)**2)
-        v_difference = math.fabs(goal_v-v)
+        dist_to_goal = math.sqrt((goal_x - x) ** 2 + (goal_y - y) ** 2)
+        v_difference = math.fabs(goal_v - v)
         nodes1 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
                                     [-18 - 10, -18 + 18, 3.75 / 2, 3.75 / 2]])
         curve1 = bezier.Curve(nodes1, degree=3)
@@ -970,9 +711,8 @@ class CrossroadEnd2end(End2endEnv):
             current_vector = self.history_obs[-1]['vector']
         veh1x, veh1y = current_vector[10], current_vector[11]
         veh2x, veh2y = current_vector[16], current_vector[17]
-        dist_to_veh1 = sqrt(veh1x**2 + veh1y**2)
-        dist_to_veh2 = sqrt(veh2x**2 + veh2y**2)
-
+        dist_to_veh1 = sqrt(veh1x ** 2 + veh1y ** 2)
+        dist_to_veh2 = sqrt(veh2x ** 2 + veh2y ** 2)
 
         # step punishment
         reward = -1
@@ -983,7 +723,7 @@ class CrossroadEnd2end(End2endEnv):
         # standard curve punishment
         reward -= min_dist_to_curve * 0.05
         # distance to other vehicle punishment
-        reward -= 1/abs(dist_to_veh1-3) * 0.1
+        reward -= 1 / abs(dist_to_veh1 - 3) * 0.1
         # print('dist_to_goal', dist_to_goal, '   v_difference', v_difference,
         #       '   min_dist_to_curve', min_dist_to_curve, '   min_dist_to_veh', 1/abs(min_dist_to_veh-3))
         return reward
@@ -1005,6 +745,7 @@ def test_grid3d():
     position_x, position_y = grid.xyindex2centerposition(0, 0)
     print('position_x=', str(position_x), 'position_y=', str(position_y))
 
+
 def test_crossrode():
     env = CrossroadEnd2end()
     veh = {'trans_x': 1.875, 'trans_y': -17, 'trans_v': 7, 'trans_heading': 120,
@@ -1013,7 +754,7 @@ def test_crossrode():
            'route': ['-gneE1', 'gneE3'], 'edge_index': 0}
     veh = {'trans_x': 17, 'trans_y': 1.875, 'trans_v': 7, 'trans_heading': -180,
            'route': ['-gneE1', '-gneE0'], 'edge_index': 0}
-    veh = {'trans_x': 17, 'trans_y': 1.875*3, 'trans_v': 7, 'trans_heading': -180,
+    veh = {'trans_x': 17, 'trans_y': 1.875 * 3, 'trans_v': 7, 'trans_heading': -180,
            'route': ['-gneE1', 'gneE2'], 'edge_index': 0}
     veh = {'trans_x': -1.875, 'trans_y': 19, 'trans_v': 7, 'trans_heading': -90,
            'route': ['-gneE2', 'gneE1'], 'edge_index': 0}
@@ -1034,7 +775,6 @@ def test_crossrode():
     plt.show()
     plt.axis("equal")
     plt.pause(10)
-
 
 
 if __name__ == '__main__':
