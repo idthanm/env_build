@@ -54,7 +54,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         self.path_info = None
         self.task = None  # used to decide goal
         self.action_number = 2
-        self.action_space = gym.spaces.Box(low=0, high=1, shape=(self.action_number,), dtype=np.float32)
+        self.action_space = gym.spaces.Box(low=-1, high=1, shape=(self.action_number,), dtype=np.float32)
 
         self.seed()
         self.step_length = 100  # ms
@@ -377,7 +377,7 @@ def judge_feasible(orig_x, orig_y):  # map dependant TODO
 
 class CrossroadEnd2end(End2endEnv):
     def __init__(self,
-                 obs_type=0,  # 0:'vectors only', 1:'grids_plus_vecs', '2:fixed_grids_plus_vecs'
+                 obs_type=0,
                  frameskip=1,
                  repeat_action_probability=0
                  ):
@@ -401,8 +401,9 @@ class CrossroadEnd2end(End2endEnv):
         ob_vector = np.concatenate(history_vectors_list, axis=0)
         return ob_vector
 
-    def _action_transformation_for_end2end(self, action):
+    def _action_transformation_for_end2end(self, action):  # [-1, 1]
         prop, acc = action
+        prop, acc = (prop + 1)/2, (acc + 1)/2  # [0, 1]
         current_x, current_y = self.ego_dynamics['x'], self.ego_dynamics['y']
         down_left = self.interested_vehs['down_left']
         down_up = self.interested_vehs['down_up']
