@@ -29,6 +29,7 @@ def _convert_sumo_coord_to_car_coord(x_in_sumo_coord, y_in_sumo_coord, a_in_sumo
     y_in_car_coord = y_in_sumo_coord - (math.sin(a_in_car_coord / 180. * math.pi) * car_length / 2)
     return x_in_car_coord, y_in_car_coord, a_in_car_coord
 
+
 SUMO_BINARY = checkBinary('sumo')
 SIM_PERIOD = 1.0 / 10
 
@@ -82,11 +83,13 @@ class Traffic(object):
         generate initial random traffic
         """
         # wait for some time for cars to enter intersection
-        random_start_time = 15  # random.randint(10, 70)
+        random_start_time = random.randint(10, 30)
+        print(random_start_time)
         while True:
             if traci.simulation.getTime() > random_start_time:
                 random_traffic = traci.vehicle.getContextSubscriptionResults('ego')
                 break
+            traci.vehicle.moveToXY('ego', 'gneE20', 0, 1.875, -500, 0, 0)
             traci.simulationStep()
         # delete ego car in getContextSubscriptionResults
         del random_traffic['ego']
@@ -96,7 +99,7 @@ class Traffic(object):
         self.sim_time = 0
 
         # SUMO_BINARY = checkBinary('sumo-gui')
-        seed = random.randint(10, 15)
+        seed = random.randint(20, 30)
         dirname = os.path.dirname(__file__)
         traci.start(
             [SUMO_BINARY, "-c", dirname+"/sumo_files/configuration.sumocfg",
@@ -124,7 +127,7 @@ class Traffic(object):
             x, y, a = _convert_sumo_coord_to_car_coord(x_in_sumo, y_in_sumo, a_in_sumo, veh_length)
             x_in_ego_coord, y_in_ego_coord, a_in_ego_coord = shift_and_rotate_coordination(x, y, a, self.ego_x,
                                                                                            self.ego_y, self.ego_a)
-            if abs(x_in_ego_coord) < 6 and abs(y_in_ego_coord) < 3:
+            if abs(x_in_ego_coord) < 8 and abs(y_in_ego_coord) < 3:
                 traci.vehicle.remove(vehID=veh)
                 # traci.vehicle.moveToXY(vehID=veh,
                 #                        edgeID='gneE32',

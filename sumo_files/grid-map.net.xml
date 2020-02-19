@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2019年11月25日 星期一 15时06分27秒 by Eclipse SUMO netedit Version 1.2.0
+<!-- generated on 2020年02月18日 星期二 17时36分25秒 by Eclipse SUMO netedit Version 1.2.0
 <configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
 
     <input>
-        <sumo-net-file value="/home/yang/Documents/Work_Data/Project/Toyota_RL/Toyata_2019/201909/env_build/LasVSim/Map/Map1_Urban%20Road/grid-map.net.xml"/>
+        <sumo-net-file value="/home/yang/Documents/Work_Data/Project/Toyota_RL/Toyata_2019/201909/env_build/sumo_files/grid-map.net.xml"/>
     </input>
 
     <output>
-        <output-file value="/home/yang/Documents/Work_Data/Project/Toyota_RL/Toyata_2019/201909/env_build/LasVSim/Map/Map1_Urban%20Road/grid-map.net.xml"/>
+        <output-file value="/home/yang/Documents/Work_Data/Project/Toyota_RL/Toyata_2019/201909/env_build/sumo_files/grid-map.net.xml"/>
     </output>
 
     <processing>

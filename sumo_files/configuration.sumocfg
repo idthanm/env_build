@@ -2,6 +2,5 @@
 	<input>
 	<net-file value="grid-map.net.xml"/>
 	<route-files value="grid-map-traffic.rou.xml"/>
-	<additional-files value="grid-map-additions.add.xml"/>
 </input>
 </configuration>

@@ -6,7 +6,7 @@ import os
 
 def action_fn(obs):
     # grid_list, supplement_vector = obs
-    return np.array([1, 0])
+    return np.array([0, 0])
 
 
 # class Testt:
@@ -27,7 +27,7 @@ def action_fn(obs):
 
 
 if __name__ == '__main__':
-    env = CrossroadEnd2end()
+    env = CrossroadEnd2end(frameskip=1)
     done = 0
     episode_num = 10
     for i in range(episode_num):  # run episode_num episodes
@@ -37,7 +37,7 @@ if __name__ == '__main__':
         ite = 0
         while not done:
             ite += 1
-            obs, rew, done, info = env.step([1, 0.5])
+            obs, rew, done, info = env.step([np.random.random(), 1])
             env.render()
             ret += rew
             print('reward: ', rew)

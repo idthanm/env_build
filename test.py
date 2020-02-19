@@ -42,6 +42,7 @@ s_vals = np.linspace(0, 1.0, 30)
 data3=curve3.evaluate_multi(s_vals)
 x333=data3[0]
 y333=data3[1]
+print(x333, y333, type(data3))
 # plt.plot(x33, y33, color="#800080", linewidth=2.0, linestyle="-", label="y2")
 plt.plot(x332, y332, color="#100080", linewidth=2.0, linestyle="-", label="1")
 plt.plot(x333, y333, color="#200080", linewidth=2.0, linestyle="-", label="1")
