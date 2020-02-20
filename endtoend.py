@@ -733,9 +733,9 @@ class CrossroadEnd2end(End2endEnv):
         curve2 = bezier.Curve(nodes2, degree=3)
         start_point = None
         if np.random.random() > 0.5:
-            start_point = curve1.evaluate(0.2)
+            start_point = curve1.evaluate(0.4*np.random.random())
         else:
-            start_point = curve2.evaluate(0.2)
+            start_point = curve2.evaluate(0.4*np.random.random())
         x, y = start_point[0][0], start_point[1][0]
         if y < -18:
             a = 90.
