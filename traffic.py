@@ -83,8 +83,8 @@ class Traffic(object):
         generate initial random traffic
         """
         # wait for some time for cars to enter intersection
-        random_start_time = random.randint(10, 30)
-        print(random_start_time)
+        random_start_time = random.randint(20, 40)
+        # print(random_start_time)
         while True:
             if traci.simulation.getTime() > random_start_time:
                 random_traffic = traci.vehicle.getContextSubscriptionResults('ego')

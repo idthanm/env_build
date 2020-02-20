@@ -348,7 +348,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
 def judge_feasible(orig_x, orig_y):  # map dependant TODO
     # return True if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150 else False
     def is_in_straight_before(orig_x, orig_y):
-        return 0 < orig_x < 3.75 * 2 and orig_y <= -18
+        return -1 < orig_x < 3.75 * 2 and orig_y <= -18
 
     def is_in_straight_after(orig_x, orig_y):
         return 0 < orig_x < 3.75 * 2 and orig_y >= 18
@@ -405,6 +405,7 @@ class CrossroadEnd2end(End2endEnv):
         prop, acc = action
         prop, acc = (prop + 1)/2, (acc + 1)/2  # [0, 1]
         current_x, current_y = self.ego_dynamics['x'], self.ego_dynamics['y']
+        current_v = self.ego_dynamics['v']
         down_left = self.interested_vehs['down_left']
         down_up = self.interested_vehs['down_up']
         closest_down_left_dist = 99
@@ -417,8 +418,9 @@ class CrossroadEnd2end(End2endEnv):
                 closest_down_up_dist = sqrt((current_x-veh['x'])**2+(current_y-veh['y'])**2)
 
         close_forward_dist = min(closest_down_left_dist, closest_down_up_dist)
+        max_decel = min(current_v/3, 3)
 
-        return 1.875 + 3.75 * prop, acc * 5 - 3 if close_forward_dist > 10 or current_y > -3 else -6
+        return 1.875 + 3.75 * prop, acc * (2+max_decel) - max_decel if close_forward_dist > 10 or current_y > -3 else -6
 
         # return 7.5 * prop, acc * 4.5 - 3 if close_forward_dist > 10 or current_y > -3 else -6
 
@@ -731,15 +733,15 @@ class CrossroadEnd2end(End2endEnv):
         curve2 = bezier.Curve(nodes2, degree=3)
         start_point = None
         if np.random.random() > 0.5:
-            start_point = curve1.evaluate(0.8 * np.random.random())
+            start_point = curve1.evaluate(0.2)
         else:
-            start_point = curve2.evaluate(0.8 * np.random.random())
+            start_point = curve2.evaluate(0.2)
         x, y = start_point[0][0], start_point[1][0]
         if y < -18:
             a = 90.
         else:
             a = 90. + math.atan((y + 18) / (x + 18)) * 180 / math.pi
-        v = 5
+        v = 3 * np.random.random() + 5
         return [x, y, v, a]
         # return [1.875, -28, 5, 90]
 
