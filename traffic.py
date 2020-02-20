@@ -124,6 +124,7 @@ class Traffic(object):
             a_in_sumo = self.random_traffic[veh][traci.constants.VAR_ANGLE]
             veh_length = self.random_traffic[veh][traci.constants.VAR_LENGTH]
             veh_width = self.random_traffic[veh][traci.constants.VAR_WIDTH]
+            velocity = self.random_traffic[veh][traci.constants.VAR_SPEED]
             x, y, a = _convert_sumo_coord_to_car_coord(x_in_sumo, y_in_sumo, a_in_sumo, veh_length)
             x_in_ego_coord, y_in_ego_coord, a_in_ego_coord = shift_and_rotate_coordination(x, y, a, self.ego_x,
                                                                                            self.ego_y, self.ego_a)
@@ -136,6 +137,10 @@ class Traffic(object):
                 #                        y=-296.48,
                 #                        angle=0,
                 #                        keepRoute=2)
+
+            # delete vehs for left turn task
+            elif self.ego_y < y_in_sumo < -5:
+                traci.vehicle.remove(vehID=veh)
         ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(self.ego_x, self.ego_y,
                                                                                        self.ego_a, self.ego_length)
 

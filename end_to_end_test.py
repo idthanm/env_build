@@ -37,7 +37,7 @@ if __name__ == '__main__':
         ite = 0
         while not done:
             ite += 1
-            obs, rew, done, info = env.step([np.random.random(), 1])
+            obs, rew, done, info = env.step([np.random.random()*2-1, 1])
             env.render()
             ret += rew
             print('reward: ', rew)

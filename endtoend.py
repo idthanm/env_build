@@ -381,7 +381,7 @@ class CrossroadEnd2end(End2endEnv):
                  frameskip=1,
                  repeat_action_probability=0
                  ):
-        self.history_number = 4
+        self.history_number = 1
         self.history_frameskip = 1
         self.interested_vehs = None
         super(CrossroadEnd2end, self).__init__(obs_type, frameskip)
@@ -418,7 +418,7 @@ class CrossroadEnd2end(End2endEnv):
 
         close_forward_dist = min(closest_down_left_dist, closest_down_up_dist)
 
-        return 7.5 * prop, acc * 5 - 3 if close_forward_dist > 10 or current_y > -3 else -6
+        return 1.875 + 3.75 * prop, acc * 5 - 3 if close_forward_dist > 10 or current_y > -3 else -6
 
         # return 7.5 * prop, acc * 4.5 - 3 if close_forward_dist > 10 or current_y > -3 else -6
 
@@ -622,7 +622,7 @@ class CrossroadEnd2end(End2endEnv):
         for part in list(self.interested_vehs.values()):
             list_of_interested_veh_dict.extend(part)
 
-        list_of_interested_veh_dict_trans = self._cal_info_in_transform_coordination(all_vehicles, ego_x, ego_y,
+        list_of_interested_veh_dict_trans = self._cal_info_in_transform_coordination(list_of_interested_veh_dict, ego_x, ego_y,
                                                                                      ego_heading)
         for veh in list_of_interested_veh_dict_trans:
             vehs_vector.extend([veh['trans_x'], veh['trans_y'], veh['trans_v'],
@@ -727,13 +727,13 @@ class CrossroadEnd2end(End2endEnv):
                                     [-18 - 15, -18 + 18, 3.75 / 2, 3.75 / 2]])
         curve1 = bezier.Curve(nodes1, degree=3)
         nodes2 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
-                                    [-18 - 10, -18 + 18, 3.75 * 3 / 2, 3.75 * 3 / 2]])
+                                    [-18 - 15, -18 + 18, 3.75 * 3 / 2, 3.75 * 3 / 2]])
         curve2 = bezier.Curve(nodes2, degree=3)
         start_point = None
         if np.random.random() > 0.5:
-            start_point = curve1.evaluate(0.7 * np.random.random())
+            start_point = curve1.evaluate(0.8 * np.random.random())
         else:
-            start_point = curve2.evaluate(0.7 * np.random.random())
+            start_point = curve2.evaluate(0.8 * np.random.random())
         x, y = start_point[0][0], start_point[1][0]
         if y < -18:
             a = 90.
@@ -741,6 +741,7 @@ class CrossroadEnd2end(End2endEnv):
             a = 90. + math.atan((y + 18) / (x + 18)) * 180 / math.pi
         v = 5
         return [x, y, v, a]
+        # return [1.875, -28, 5, 90]
 
     def _cal_collision_reward(self):  # can be override to do an analytic calculation
         return -100

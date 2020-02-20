@@ -7,20 +7,20 @@
 	<vType id="self_car" length="4.5" width="1.8" accel="3.5" decel="2.2" sigma="1.0" guiShape="passenger/wagon" color="1,0,1" maxSpeed="30"/>
 
 <route id="self_route" edges="gneE2" />
-	<flow id="carflow_1.1" type="car_1" beg="0" end="5" number="20" from="-gneE3" to="-gneE0" departLane="best" departPos="random" departSpeed="random" />
-	<flow id="carflow_2.1" type="car_2" beg="0" end="5" number="20" from="-gneE3" to="gneE2" departLane="best" departPos="random" departSpeed="random"  />
-	<flow id="carflow_3.1" type="car_3" beg="0" end="5" number="20" from="-gneE3" to="gneE1" departLane="best" departPos="random" departSpeed="random"  />
+	<flow id="carflow_1.1" type="car_1" beg="0" end="5" number="30" from="-gneE3" to="-gneE0" departLane="best" departPos="random" departSpeed="random" />
+	<flow id="carflow_2.1" type="car_2" beg="0" end="5" number="30" from="-gneE3" to="gneE2" departLane="best" departPos="random" departSpeed="random"  />
+	<flow id="carflow_3.1" type="car_3" beg="0" end="5" number="30" from="-gneE3" to="gneE1" departLane="best" departPos="random" departSpeed="random"  />
 
-	<flow id="carflow_1.2" type="car_1" beg="0" end="5" number="20" from="-gneE1" to="gneE2" departLane="best" departPos="random" departSpeed="random"  />
-	<flow id="carflow_2.2" type="car_2" beg="0" end="5" number="20" from="-gneE1" to="-gneE0" departLane="best" departPos="random" departSpeed="random"  />
-	<flow id="carflow_3.2" type="car_3" beg="0" end="5" number="20" from="-gneE1" to="gneE3" departLane="best" departPos="random" departSpeed="random"  />
+	<flow id="carflow_1.2" type="car_1" beg="0" end="5" number="30" from="-gneE1" to="gneE2" departLane="best" departPos="random" departSpeed="random"  />
+	<flow id="carflow_2.2" type="car_2" beg="0" end="5" number="30" from="-gneE1" to="-gneE0" departLane="best" departPos="random" departSpeed="random"  />
+	<flow id="carflow_3.2" type="car_3" beg="0" end="5" number="30" from="-gneE1" to="gneE3" departLane="best" departPos="random" departSpeed="random"  />
 
-	<flow id="carflow_1.3" type="car_1" beg="0" end="5" number="20" from="-gneE2" to="-gneE0" departLane="best" departPos="random" departSpeed="random"  />
-	<flow id="carflow_2.3" type="car_2" beg="0" end="5" number="20" from="-gneE2" to="gneE3" departLane="best" departPos="random" departSpeed="random"  />
-	<flow id="carflow_3.3" type="car_3" beg="0" end="5" number="20" from="-gneE2" to="gneE1" departLane="best" departPos="random" departSpeed="random"  />
+	<flow id="carflow_1.3" type="car_1" beg="0" end="5" number="30" from="-gneE2" to="-gneE0" departLane="best" departPos="random" departSpeed="random"  />
+	<flow id="carflow_2.3" type="car_2" beg="0" end="5" number="30" from="-gneE2" to="gneE3" departLane="best" departPos="random" departSpeed="random"  />
+<!--	<flow id="carflow_3.3" type="car_3" beg="0" end="5" number="10" from="-gneE2" to="gneE1" departLane="best" departPos="random" departSpeed="random"  />-->
 
-	<flow id="carflow_1.4" type="car_1" beg="0" end="5" number="20" from="gneE12" to="gneE3" departLane="best" departPos="random" departSpeed="random"  />
-	<flow id="carflow_2.4" type="car_2" beg="0" end="5" number="20" from="gneE12" to="gneE1" departLane="best" departPos="random" departSpeed="random"  />
-	<flow id="carflow_3.4" type="car_3" beg="0" end="5" number="20" from="gneE12" to="gneE2" departLane="best" departPos="random" departSpeed="random"  />
+	<flow id="carflow_1.4" type="car_1" beg="0" end="5" number="30" from="gneE12" to="gneE3" departLane="best" departPos="random" departSpeed="random"  />
+	<flow id="carflow_2.4" type="car_2" beg="0" end="5" number="30" from="gneE12" to="gneE1" departLane="best" departPos="random" departSpeed="random"  />
+	<flow id="carflow_3.4" type="car_3" beg="0" end="5" number="30" from="gneE12" to="gneE2" departLane="best" departPos="random" departSpeed="random"  />
 
 </routes>
