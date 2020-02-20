@@ -11,16 +11,16 @@
 	<flow id="carflow_2.1" type="car_2" beg="0" end="5" number="30" from="-gneE3" to="gneE2" departLane="best" departPos="random" departSpeed="random"  />
 	<flow id="carflow_3.1" type="car_3" beg="0" end="5" number="30" from="-gneE3" to="gneE1" departLane="best" departPos="random" departSpeed="random"  />
 
-	<flow id="carflow_1.2" type="car_1" beg="0" end="5" number="30" from="-gneE1" to="gneE2" departLane="best" departPos="random" departSpeed="random"  />
-	<flow id="carflow_2.2" type="car_2" beg="0" end="5" number="30" from="-gneE1" to="-gneE0" departLane="best" departPos="random" departSpeed="random"  />
-	<flow id="carflow_3.2" type="car_3" beg="0" end="5" number="30" from="-gneE1" to="gneE3" departLane="best" departPos="random" departSpeed="random"  />
+	<flow id="carflow_1.2" type="car_1" beg="0" end="5" number="50" from="-gneE1" to="gneE2" departLane="best" departPos="500" departSpeed="random"  />
+	<flow id="carflow_2.2" type="car_2" beg="0" end="5" number="50" from="-gneE1" to="-gneE0" departLane="best" departPos="500" departSpeed="random"  />
+	<flow id="carflow_3.2" type="car_3" beg="0" end="5" number="50" from="-gneE1" to="gneE3" departLane="best" departPos="500" departSpeed="random"  />
 
 	<flow id="carflow_1.3" type="car_1" beg="0" end="5" number="30" from="-gneE2" to="-gneE0" departLane="best" departPos="random" departSpeed="random"  />
 	<flow id="carflow_2.3" type="car_2" beg="0" end="5" number="20" from="-gneE2" to="gneE3" departLane="best" departPos="random" departSpeed="random"  />
 <!--	<flow id="carflow_3.3" type="car_3" beg="0" end="5" number="3" from="-gneE2" to="gneE1" departLane="best" departPos="random" departSpeed="random"  />-->
 
-	<flow id="carflow_1.4" type="car_1" beg="0" end="5" number="30" from="gneE12" to="gneE3" departLane="best" departPos="random" departSpeed="random"  />
-	<flow id="carflow_2.4" type="car_2" beg="0" end="5" number="30" from="gneE12" to="gneE1" departLane="best" departPos="random" departSpeed="random"  />
-	<flow id="carflow_3.4" type="car_3" beg="0" end="5" number="30" from="gneE12" to="gneE2" departLane="best" departPos="random" departSpeed="random"  />
+	<flow id="carflow_1.4" type="car_1" beg="0" end="5" number="50" from="gneE12" to="gneE3" departLane="best" departPos="500" departSpeed="random"  />
+	<flow id="carflow_2.4" type="car_2" beg="0" end="5" number="50" from="gneE12" to="gneE1" departLane="best" departPos="500" departSpeed="random"  />
+	<flow id="carflow_3.4" type="car_3" beg="0" end="5" number="50" from="gneE12" to="gneE2" departLane="best" departPos="500" departSpeed="random"  />
 
 </routes>

@@ -177,7 +177,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         if mode == 'human':
             # plot basic map
             square_length = 36
-            extension = 20
+            extension = 40
             lane_width = 3.75
             dotted_line_style = '--'
 
@@ -420,7 +420,7 @@ class CrossroadEnd2end(End2endEnv):
         close_forward_dist = min(closest_down_left_dist, closest_down_up_dist)
         max_decel = min(current_v/3, 3)
 
-        return 1.875 + 3.75 * prop, acc * (2+max_decel) - max_decel if close_forward_dist > 10 or current_y > -3 else -6
+        return 1.875 + 3.75 * prop, acc * (3+max_decel) - max_decel if close_forward_dist > 10 or current_y > -3 else -6
 
         # return 7.5 * prop, acc * 4.5 - 3 if close_forward_dist > 10 or current_y > -3 else -6
 
@@ -469,7 +469,7 @@ class CrossroadEnd2end(End2endEnv):
                                      point_for_cal_heading[0] - next_point[0]) * 180 / pi
             else:
                 next_heading = 90 if point_for_cal_heading[0] > next_point[0] else -90
-        next_v = np.clip(current_v + acc * self.step_time, 0, 15)
+        next_v = np.clip(current_v + acc * self.step_time, 0, 10)
         next_x, next_y = next_point
         return next_x, next_y, next_v, next_heading
 
@@ -600,7 +600,7 @@ class CrossroadEnd2end(End2endEnv):
                                              edge_index=None)
 
             down_up = slice_or_fill(down_up, fill_value_for_down_up, 2)
-            down_left = slice_or_fill(down_left, fill_value_for_down_left, 3)
+            down_left = slice_or_fill(down_left, fill_value_for_down_left, 2)
             right_down = slice_or_fill(right_down, fill_value_for_right_down, 2)
             right_left = slice_or_fill(right_left, fill_value_for_right_left, 2)
             up_down = slice_or_fill(up_down, fill_value_for_up_down, 2)
@@ -624,13 +624,19 @@ class CrossroadEnd2end(End2endEnv):
         for part in list(self.interested_vehs.values()):
             list_of_interested_veh_dict.extend(part)
 
-        list_of_interested_veh_dict_trans = self._cal_info_in_transform_coordination(list_of_interested_veh_dict, ego_x, ego_y,
-                                                                                     ego_heading)
-        for veh in list_of_interested_veh_dict_trans:
-            vehs_vector.extend([veh['trans_x'], veh['trans_y'], veh['trans_v'],
-                                veh['trans_heading'] * pi / 180])
+        # list_of_interested_veh_dict_trans = self._cal_info_in_transform_coordination(list_of_interested_veh_dict, ego_x, ego_y,
+        #                                                                              ego_heading)
+        # for veh in list_of_interested_veh_dict_trans:
+        #     vehs_vector.extend([veh['trans_x'], veh['trans_y'], veh['trans_v'],
+        #                         veh['trans_heading'] * pi / 180])
+
+        for veh in list_of_interested_veh_dict:
+            vehs_vector.extend([veh['x'], veh['y'], veh['v'],
+                                veh['heading'] * pi / 180])
 
         vehs_vector = np.array(vehs_vector)
+
+
 
         # map related
         key_points_vector = []
@@ -652,15 +658,17 @@ class CrossroadEnd2end(End2endEnv):
                            ego_y=ego_y,
                            ego_v=ego_v,
                            ego_heading=ego_heading * pi / 180,
-                           ego_length=ego_length,
-                           ego_width=ego_width,
-                           rela_goal_x=rela_goal_x,
-                           rela_goal_y=rela_goal_y,
-                           rela_goal_a=rela_goal_a * pi / 180,
-                           goal_v=goal_v,
+                           # ego_length=ego_length,
+                           # ego_width=ego_width,
+                           # rela_goal_x=rela_goal_x,
+                           # rela_goal_y=rela_goal_y,
+                           # rela_goal_a=rela_goal_a * pi / 180,
+                           # goal_v=goal_v,
                            )
         _ = np.array(list(vector_dict.values()))
-        vector = np.concatenate((_, vehs_vector, key_points_vector), axis=0)
+        # vector = np.concatenate((_, vehs_vector, key_points_vector), axis=0)
+        vector = np.concatenate((_, vehs_vector), axis=0)
+
         return vector
 
     def _v2x_unify_format_for_3dgrid(self):  # unify output format
@@ -733,15 +741,15 @@ class CrossroadEnd2end(End2endEnv):
         curve2 = bezier.Curve(nodes2, degree=3)
         start_point = None
         if np.random.random() > 0.5:
-            start_point = curve1.evaluate(0.4*np.random.random())
+            start_point = curve1.evaluate(0.1*np.random.random())
         else:
-            start_point = curve2.evaluate(0.4*np.random.random())
+            start_point = curve2.evaluate(0.1*np.random.random())
         x, y = start_point[0][0], start_point[1][0]
         if y < -18:
             a = 90.
         else:
             a = 90. + math.atan((y + 18) / (x + 18)) * 180 / math.pi
-        v = 3 * np.random.random() + 5
+        v = 3
         return [x, y, v, a]
         # return [1.875, -28, 5, 90]
 

@@ -53,6 +53,8 @@ class Traffic(object):
         self.step_time_str = str(float(step_length) / 1000)
         self.collision_flag = False
 
+        self.need_delete = False
+
     def __del__(self):
         traci.close()
 
@@ -83,8 +85,10 @@ class Traffic(object):
         generate initial random traffic
         """
         # wait for some time for cars to enter intersection
-        random_start_time = random.randint(20, 40)
-        # print(random_start_time)
+        random_start_time = random.choice(list(range(25, 40))+list(range(76, 83)))
+        if random_start_time < 80:
+            self.need_delete = True
+        print(random_start_time)
         while True:
             if traci.simulation.getTime() > random_start_time:
                 random_traffic = traci.vehicle.getContextSubscriptionResults('ego')
@@ -107,7 +111,7 @@ class Traffic(object):
              "--lateral-resolution", "1.25",
              "--random",
              # "--start",
-             # "--quit-on-end",
+             "--quit-on-end",
              "--no-warnings",
              "--no-step-log",
              # '--seed', str(int(seed))
@@ -128,7 +132,7 @@ class Traffic(object):
             x, y, a = _convert_sumo_coord_to_car_coord(x_in_sumo, y_in_sumo, a_in_sumo, veh_length)
             x_in_ego_coord, y_in_ego_coord, a_in_ego_coord = shift_and_rotate_coordination(x, y, a, self.ego_x,
                                                                                            self.ego_y, self.ego_a)
-            if abs(x_in_ego_coord) < 8 and abs(y_in_ego_coord) < 3:
+            if abs(x_in_ego_coord) < 8 and abs(y_in_ego_coord) < 2:
                 traci.vehicle.remove(vehID=veh)
                 # traci.vehicle.moveToXY(vehID=veh,
                 #                        edgeID='gneE32',
@@ -139,7 +143,7 @@ class Traffic(object):
                 #                        keepRoute=2)
 
             # delete vehs for left turn task
-            elif self.ego_y < y_in_sumo < -5:
+            elif self.need_delete and -5 < x_in_sumo < 5 and self.ego_y < y_in_sumo < -5:
                 traci.vehicle.remove(vehID=veh)
         ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(self.ego_x, self.ego_y,
                                                                                        self.ego_a, self.ego_length)
