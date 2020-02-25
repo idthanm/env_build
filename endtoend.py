@@ -2,18 +2,13 @@ import gym
 from gym.utils import seeding
 import math
 import numpy as np
-from endtoend_env_utils import shift_coordination, rotate_coordination, shift_and_rotate_coordination, \
-    Path
+from endtoend_env_utils import shift_coordination, rotate_coordination, shift_and_rotate_coordination
 from collections import OrderedDict, deque
 import matplotlib.pyplot as plt
 import bezier
 from math import cos, sin, fabs, pi, sqrt, atan2
 from traffic import Traffic
 from collections import OrderedDict
-import matplotlib.patches as patches
-
-
-# env_closer = closer.Closer()
 
 
 def convert_observation_to_space(observation):
@@ -35,11 +30,11 @@ def convert_observation_to_space(observation):
 class End2endEnv(gym.Env):  # cannot be used directly, cause observation space is not known
     # can it be map and task independent? and subclass should be task and map specific
     def __init__(self,
-                 obs_type=2,  # 0:'vectors only', 1:'grids_plus_vecs', '2:fixed_grids_plus_vecs'
+                 training_task,  # 'left', 'straight', 'right'
                  frameskip=1,
-                 repeat_action_probability=0):
+                 display=False):
         metadata = {'render.modes': ['human']}
-        self._obs_type = obs_type
+        self.training_task = training_task
         self.frameskip = frameskip
         self.detected_vehicles = None
         self.all_vehicles = None
@@ -47,25 +42,25 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         self.road_related_info = None
         self.history_info = deque(maxlen=10)  # store infos of every step
         self.history_obs = deque(maxlen=10)  # store obs of every step
-        self.init_state = []
+        self.init_state = {}
         self.goal_state = []
-        self.init_v = None
-        self.goal_v = None
-        self.path_info = None
-        self.task = None  # used to decide goal
         self.action_number = 2
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(self.action_number,), dtype=np.float32)
 
         self.seed()
+        self.v_light = None
         self.step_length = 100  # ms
-        self.traffic = Traffic(self.step_length)
+
         self.step_time = self.step_length / 1000.0
-        self.reset()
-        action = self.action_space.sample()
-        observation, _reward, done, _info = self.step(action)
-        self._set_observation_space(observation)
+        self.goal_state = self._reset_goal_state()
+        if not display:
+            self.traffic = Traffic(self.step_length, mode='training')
+            self.reset()
+            action = self.action_space.sample()
+            observation, _reward, done, _info = self.step(action)
+            self._set_observation_space(observation)
+            plt.ion()
         self.planed_trj = None
-        plt.ion()
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -79,7 +74,10 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         for _ in range(self.frameskip):
             trans_action = self._action_transformation_for_end2end(action)
             next_x, next_y, next_v, next_heading = self._get_next_position(trans_action)
-            self.traffic.set_own_car(next_x, next_y, next_v, next_heading)
+            self.traffic.set_own_car(dict(ego=dict(x=next_x,
+                                                   y=next_y,
+                                                   v=next_v,
+                                                   a=next_heading)))
             self.traffic.sim_step()
             all_info = self._get_all_info()
             info_this_step.append(all_info)
@@ -103,7 +101,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         self.history_obs.clear()
         self.goal_state = self._reset_goal_state()
         self.init_state = self._reset_init_state()
-        self.traffic = Traffic(self.step_length)
+        self.traffic = Traffic(self.step_length, mode='training')
         self.traffic.init(self.init_state)
         self._get_all_info()
         self.history_obs.append(self._get_obs())
@@ -148,8 +146,9 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
 
     def _get_all_info(self):  # used to update info, must be called every timestep before _get_obs
         # to fetch info
-        self.all_vehicles = self.traffic.vehicles  # coordination 2
-        self.ego_dynamics = self.traffic.ego_info  # coordination 2
+        self.all_vehicles = self.traffic.n_ego_vehicles['ego']  # coordination 2
+        self.ego_dynamics = self.traffic.n_ego_info['ego']  # coordination 2
+        self.v_light = self.traffic.v_light
         # ego_dynamics
         # {'x': self.x,
         #  'y': self.y,
@@ -161,12 +160,13 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         #  }
 
         # all_vehicles
-        # dict(x=x, y=y, v=v, angle=a, length=length,
-        #      width=width, route=route, edge_index=edge_index)
+        # dict(x=x, y=y, v=v, heading=a, length=length,
+        #      width=width, route=route)
 
         all_info = dict(all_vehicles=self.all_vehicles,
                         ego_dynamics=self.ego_dynamics,
-                        goal_state=self.goal_state)
+                        goal_state=self.goal_state,
+                        v_light=self.v_light)
         return all_info
 
     def _get_obs(self):
@@ -285,7 +285,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
             for veh in self.all_vehicles:
                 x = veh['x']
                 y = veh['y']
-                a = veh['angle']
+                a = veh['heading']
                 l = veh['length']
                 w = veh['width']
                 if is_in_plot_area(x, y):
@@ -345,7 +345,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         raise NotImplementedError
 
 
-def judge_feasible(orig_x, orig_y):  # map dependant TODO
+def judge_feasible(orig_x, orig_y, task):  # map dependant TODO
     # return True if -900 < orig_x < 900 and -150 - 3.75 * 4 < orig_y < -150 else False
     def is_in_straight_before(orig_x, orig_y):
         return -1 < orig_x < 3.75 * 2 and orig_y <= -18
@@ -371,20 +371,27 @@ def judge_feasible(orig_x, orig_y):  # map dependant TODO
             return False
 
     # judge feasible for turn left
-    return True if is_in_straight_before(orig_x, orig_y) or is_in_left(orig_x, orig_y) \
-                   or is_in_middle(orig_x, orig_y) else False
+    if task == 'left':
+        return True if is_in_straight_before(orig_x, orig_y) or is_in_left(orig_x, orig_y) \
+                       or is_in_middle(orig_x, orig_y) else False
+    elif task == 'straight':
+        return True if is_in_straight_before(orig_x, orig_y) or is_in_straight_after(orig_x, orig_y) \
+                       or is_in_middle(orig_x, orig_y) else False
+    else:
+        assert task == 'right'
+        return True if is_in_straight_before(orig_x, orig_y) or is_in_right(orig_x, orig_y) \
+                       or is_in_middle(orig_x, orig_y) else False
 
 
 class CrossroadEnd2end(End2endEnv):
     def __init__(self,
-                 obs_type=0,
+                 training_task,  # 'left', 'straight', 'right'
                  frameskip=1,
-                 repeat_action_probability=0
-                 ):
+                 display=False):
         self.history_number = 1
         self.history_frameskip = 1
         self.interested_vehs = None
-        super(CrossroadEnd2end, self).__init__(obs_type, frameskip)
+        super(CrossroadEnd2end, self).__init__(training_task, frameskip, display=display)
 
     def _get_obs(self):
         return self._vector_supplement_for_grid_encoder()
@@ -406,50 +413,84 @@ class CrossroadEnd2end(End2endEnv):
         prop, acc = (prop + 1)/2, (acc + 1)/2  # [0, 1]
         current_x, current_y = self.ego_dynamics['x'], self.ego_dynamics['y']
         current_v = self.ego_dynamics['v']
-        down_left = self.interested_vehs['down_left']
-        down_up = self.interested_vehs['down_up']
-        closest_down_left_dist = 99
-        closest_down_up_dist = 99
-        for veh in down_left:
-            if veh['y'] > current_y and veh['x'] < 3.75:
-                closest_down_left_dist = sqrt((current_x-veh['x'])**2+(current_y-veh['y'])**2)
-        for veh in down_up:
-            if veh['y'] > current_y and veh['x'] < 3.75:
-                closest_down_up_dist = sqrt((current_x-veh['x'])**2+(current_y-veh['y'])**2)
+        max_decel = min(current_v / 3, 3)
 
-        close_forward_dist = min(closest_down_left_dist, closest_down_up_dist)
-        max_decel = min(current_v/3, 3)
+        if self.training_task == 'left' or self.training_task == 'straight':
+            if self.v_light != 0 and -18 - 5 < current_y < -10:
+                return 1.875 + 3.75 * prop, -6
 
-        return 1.875 + 3.75 * prop, acc * (3+max_decel) - max_decel if close_forward_dist > 10 or current_y > -3 else -6
+            down_left = self.interested_vehs['dl']
+            down_up = self.interested_vehs['du']
+            closest_down_left_dist = 99
+            closest_down_up_dist = 99
+            for veh in down_left:
+                if veh['y'] > current_y and veh['x'] < 3.75:
+                    closest_down_left_dist = sqrt((current_x-veh['x'])**2+(current_y-veh['y'])**2)
+            for veh in down_up:
+                if veh['y'] > current_y and veh['x'] < 3.75:
+                    closest_down_up_dist = sqrt((current_x-veh['x'])**2+(current_y-veh['y'])**2)
 
-        # return 7.5 * prop, acc * 4.5 - 3 if close_forward_dist > 10 or current_y > -3 else -6
+            close_forward_dist = min(closest_down_left_dist, closest_down_up_dist)
+            return 1.875 + 3.75 * prop, acc * (3+max_decel) - max_decel if close_forward_dist > 10 or current_y > -10 else -6
+
+        elif self.training_task == 'right':
+            down_right = self.interested_vehs['dr']
+            closest_down_right_dist = 99
+            for veh in down_right:
+                if veh['y'] > current_y and veh['x'] > 3.75:
+                    closest_down_right_dist = sqrt((current_x - veh['x']) ** 2 + (current_y - veh['y']) ** 2)
+            close_forward_dist = closest_down_right_dist
+            return 1.875 + 3.75 * prop, acc * (3 + max_decel) - max_decel if close_forward_dist > 10 or current_y > -10 else -6
 
     def _get_next_position(self, trans_action):
-        end_y, acc = trans_action
+        end_offset, acc = trans_action
         current_x = self.ego_dynamics['x']
         current_y = self.ego_dynamics['y']
         current_v = self.ego_dynamics['v']
         current_heading = self.ego_dynamics['heading']
         step_length = current_v * self.step_time + 0.5 * acc * self.step_time**2
         step_length = step_length if step_length > 0 else 0
-        u = current_x - (-20)
-        u = u if u > 3 else 3
+        if self.training_task == 'left':
+            u1 = (current_x - (-38))/3
+            u2 = (current_x - (-38))/2
+            straight_x = 1.875
 
-        control_point1 = (current_x, current_y) if current_y > -18 else (1.875, -18)
-        control_point2 = (current_x + u * cos(current_heading * pi / 180), current_y + u * sin(
-            current_heading * pi / 180)) if current_y > -18 else (1.875, -18 + u)
-        control_point3 = -38 + min(10, 0.5*(current_x+38)), end_y  #-18 - 10 * (current_y+30)/40, end_y
-        control_point4 = -38, end_y  #-28 - 10 * (current_y+30)/40, end_y
+            control_point1 = (current_x, current_y) if current_y > -18 else (1.875, -18)
+            control_point2 = (current_x + u1 * cos(current_heading * pi / 180), current_y + u1 * sin(
+                current_heading * pi / 180)) if current_y > -18 else (1.875, -18 + u1)
+            control_point3 = -38 + u2, end_offset
+            control_point4 = -38, end_offset
+        elif self.training_task == 'right':
+            u1 = (38 - current_x) / 3
+            u2 = (38 - current_x) / 2
+            straight_x = 5.625
+
+            control_point1 = (current_x, current_y) if current_y > -18 else (5.625, -18)
+            control_point2 = (current_x + u1 * cos(current_heading * pi / 180), current_y + u1 * sin(
+                current_heading * pi / 180)) if current_y > -18 else (5.625, -18 + u1)
+            control_point3 = 38 - u2, -end_offset
+            control_point4 = 38, -end_offset
+        else:
+            assert self.training_task == 'straight'
+            u1 = (38 - current_y) / 3 if current_y > -18 else (38 - (-18)) / 3
+            u2 = (38 - current_y) / 2 if current_y > -18 else (38 - (-18)) / 2
+            straight_x = 1.875
+
+            control_point1 = (current_x, current_y) if current_y > -18 else (1.875, -18)
+            control_point2 = (current_x + u1 * cos(current_heading * pi / 180), current_y + u1 * sin(
+                current_heading * pi / 180)) if current_y > -18 else (1.875, -18 + u1)
+            control_point3 = end_offset, 38 - u2
+            control_point4 = end_offset, 38
 
         node = np.asfortranarray([[control_point1[0], control_point2[0], control_point3[0], control_point4[0]],
                                   [control_point1[1], control_point2[1], control_point3[1], control_point4[1]]])
         curve = bezier.Curve(node, degree=3)
-        s_vals = np.linspace(0, 1.0, 500)
+        s_vals = np.linspace(0, 1.0, 1000)
         trj_data = curve.evaluate_multi(s_vals)
         straight_line_x, straight_line_y = np.array([]), np.array([])
         if current_y < -18:
-            straight_line_x = 1.875 * np.ones(shape=(100,))
-            straight_line_y = np.linspace(current_y, -18, 100)
+            straight_line_x = straight_x * np.ones(shape=(500,))
+            straight_line_y = np.linspace(current_y, -18, 500)
         self.planed_trj = np.append(straight_line_x, trj_data[0]), np.append(straight_line_y, trj_data[1])
         trj_x, trj_y = self.planed_trj[0], self.planed_trj[1]
         dist_sum = 0
@@ -468,7 +509,7 @@ class CrossroadEnd2end(End2endEnv):
                 next_heading = atan2(point_for_cal_heading[1] - next_point[1],
                                      point_for_cal_heading[0] - next_point[0]) * 180 / pi
             else:
-                next_heading = 90 if point_for_cal_heading[0] > next_point[0] else -90
+                next_heading = 90 if point_for_cal_heading[1] > next_point[1] else -90
         next_v = np.clip(current_v + acc * self.step_time, 0, 10)
         next_x, next_y = next_point
         return next_x, next_y, next_v, next_heading
@@ -490,7 +531,7 @@ class CrossroadEnd2end(End2endEnv):
         else:
             return False
 
-    def _vector_supplement_for_grid_encoder(self):  # func for supplement vector of grid
+    def _vector_supplement_for_grid_encoder(self, exit='D'):  # func for supplement vector of grid
         # encode road structure and task related info, hard coded for now TODO
 
         ego_x = self.ego_dynamics['x']
@@ -505,73 +546,74 @@ class CrossroadEnd2end(End2endEnv):
                                                                               ego_x, ego_y, ego_heading)
         # vehicle related
         vehs_vector = []
-        all_vehicles = self._v2x_unify_format_for_3dgrid()
 
-        name_setting = dict(down_exit='-gneE3',
-                            down_entra='gneE3',
-                            right_exit='-gneE1',
-                            right_entra='gneE1',
-                            up_exit='-gneE2',
-                            up_entra='gneE2',
-                            left_exit='gneE12',
-                            left_entra='-gneE0')
+        name_settings = dict(D=dict(do='1o', di='1i', ro='2o', ri='2i', uo='3o', ui='3i', lo='4o', li='4i'),
+                             R=dict(do='2o', di='2i', ro='3o', ri='3i', uo='4o', ui='4i', lo='1o', li='1i'),
+                             U=dict(do='3o', di='3i', ro='4o', ri='4i', uo='1o', ui='1i', lo='2o', li='2i'),
+                             L=dict(do='4o', di='4i', ro='1o', ri='1i', uo='2o', ui='2i', lo='3o', li='3i'))
 
-        def filter_interested_vehicles(vs):
-            down_up = []
-            down_left = []
-            right_down = []
-            right_left = []
-            up_down = []
-            up_left = []
-            left_up = []
-            left_right = []
+        name_setting = name_settings[exit]
+
+        def filter_interested_vehicles(vs, task):
+            dl, du, dr, rd, rl, ru, ur, ud, ul, lu, lr, ld = [], [], [], [], [], [], [], [], [], [], [], []
             for v in vs:
                 route_list = v['route']
-                edge_index = v['edge_index']
-                if route_list[edge_index] in ['-gneE0', 'gneE3', 'gneE1', 'gneE2']:
-                    start = route_list[edge_index - 1]
-                    end = route_list[edge_index]
-                else:
-                    start = route_list[edge_index]
-                    end = route_list[edge_index + 1]
-                if start == name_setting['down_exit'] and end == name_setting['up_entra']:
-                    down_up.append(v)
-                elif start == name_setting['down_exit'] and end == name_setting['left_entra']:
-                    down_left.append(v)
+                start = route_list[0]
+                end = route_list[1]
+                if start == name_setting['do'] and end == name_setting['li']:
+                    dl.append(v)
+                elif start == name_setting['do'] and end == name_setting['ui']:
+                    du.append(v)
+                elif start == name_setting['do'] and end == name_setting['ri']:
+                    dr.append(v)
 
-                elif start == name_setting['right_exit'] and end == name_setting['down_entra']:
-                    right_down.append(v)
-                elif start == name_setting['right_exit'] and end == name_setting['left_entra']:
-                    right_left.append(v)
+                elif start == name_setting['ro'] and end == name_setting['di']:
+                    rd.append(v)
+                elif start == name_setting['ro'] and end == name_setting['li']:
+                    rl.append(v)
+                elif start == name_setting['ro'] and end == name_setting['ui']:
+                    ru.append(v)
 
-                elif start == name_setting['up_exit'] and end == name_setting['down_entra']:
-                    up_down.append(v)
-                elif start == name_setting['up_exit'] and end == name_setting['left_entra']:
-                    up_left.append(v)
+                elif start == name_setting['uo'] and end == name_setting['ri']:
+                    ur.append(v)
+                elif start == name_setting['uo'] and end == name_setting['di']:
+                    ud.append(v)
+                elif start == name_setting['uo'] and end == name_setting['li']:
+                    ul.append(v)
 
-                elif start == name_setting['left_exit'] and end == name_setting['up_entra']:
-                    left_up.append(v)
-                elif start == name_setting['left_exit'] and end == name_setting['right_entra']:
-                    left_right.append(v)
+                elif start == name_setting['lo'] and end == name_setting['ui']:
+                    lu.append(v)
+                elif start == name_setting['lo'] and end == name_setting['ri']:
+                    lr.append(v)
+                elif start == name_setting['lo'] and end == name_setting['di']:
+                    ld.append(v)
             # fetch veh in range
-            down_up = list(filter(lambda v: -32 < v['y'] < 18, down_up))
-            down_left = list(filter(lambda v: v['x'] > -28 and v['y'] > -32, down_left))
-            right_down = list(filter(lambda v: v['x'] < 28 and v['y'] > -18, right_down))
-            right_left = list(filter(lambda v: -28 < v['x'] < 28, right_left))
-            up_down = list(filter(lambda v: -18 < v['y'] < 28, up_down))
-            up_left = list(filter(lambda v: v['x'] > -28 and v['y'] < 28, up_left))
-            left_up = list(filter(lambda v: v['x'] > -28 and v['y'] < 18, left_up))
-            left_right = list(filter(lambda v: -28 < v['x'] < 18, left_right))
+            dl = list(filter(lambda v: v['x'] > -28 and v['y'] > -32, dl))  # interest of left straight
+            du = list(filter(lambda v: -32 < v['y'] < 18, du))  # interest of left straight
+            dr = list(filter(lambda v: v['x'] < 28 and v['y'] > -32, dr))  # interest of right
+
+            rd = rd  # not interest in case of traffic light
+            rl = rl  # not interest in case of traffic light
+            ru = list(filter(lambda v: v['x'] < 28 and v['y'] < 28, ru))  # interest of straight
+
+            ur = list(filter(lambda v: v['x'] < 18 and v['y'] < 28, ur))  # interest of straight right
+            ud = list(filter(lambda v: -18 < v['y'] < 28, ud))  # interest of left
+            ul = list(filter(lambda v: v['x'] > -28 and v['y'] < 28, ul))  # interest of left
+
+            lu = lu  # not interest in case of traffic light
+            lr = lr  # not interest in case of traffic light
+            ld = ld  # not interest in case of traffic light
 
             # sort
-            down_up = sorted(down_up, key=lambda v: v['y'], reverse=True)
-            down_left = sorted(down_left, key=lambda v: v['y'], reverse=True)
-            right_down = sorted(right_down, key=lambda v: v['x'])
-            right_left = sorted(right_left, key=lambda v: v['x'])
-            up_down = sorted(up_down, key=lambda v: v['y'])
-            up_left = sorted(up_left, key=lambda v: v['y'])
-            left_up = sorted(left_up, key=lambda v: v['x'], reverse=True)
-            left_right = sorted(left_right, key=lambda v: v['x'], reverse=True)
+            dl = sorted(dl, key=lambda v: (v['y'], -v['x']), reverse=True)
+            du = sorted(du, key=lambda v: v['y'], reverse=True)
+            dr = sorted(dr, key=lambda v: (v['y'], v['x']), reverse=True)
+
+            ru = sorted(ru, key=lambda v: (-v['x'], v['y']), reverse=True)
+
+            ur = sorted(ur, key=lambda v: (-v['y'], v['x']), reverse=True)
+            ud = sorted(ud, key=lambda v: -v['y'], reverse=True)
+            ul = sorted(ul, key=lambda v: (-v['y'], -v['x']), reverse=True)
 
             # slice or fill to some number
             def slice_or_fill(sorted_list, fill_value, num):
@@ -582,61 +624,53 @@ class CrossroadEnd2end(End2endEnv):
                         sorted_list.append(fill_value)
                     return sorted_list
 
-            fill_value_for_down_up = dict(x=1.875, y=-35, v=0, heading=90, width=2.5, length=5, route=None,
-                                          edge_index=None)
-            fill_value_for_down_left = dict(x=1.875, y=-35, v=0, heading=90, width=2.5, length=5, route=None,
-                                            edge_index=None)
-            fill_value_for_right_down = dict(x=35, y=1.875, v=0, heading=180, width=2.5, length=5, route=None,
-                                             edge_index=None)
-            fill_value_for_right_left = dict(x=35, y=1.875, v=0, heading=180, width=2.5, length=5, route=None,
-                                             edge_index=None)
-            fill_value_for_up_down = dict(x=-1.875, y=35, v=0, heading=-90, width=2.5, length=5, route=None,
-                                          edge_index=None)
-            fill_value_for_up_left = dict(x=-5.625, y=35, v=0, heading=-90, width=2.5, length=5, route=None,
-                                          edge_index=None)
-            fill_value_for_left_up = dict(x=-35, y=-1.875, v=0, heading=0, width=2.5, length=5, route=None,
-                                          edge_index=None)
-            fill_value_for_left_right = dict(x=-35, y=-1.875, v=0, heading=0, width=2.5, length=5, route=None,
-                                             edge_index=None)
+            fill_value_for_dl = dict(x=1.875, y=-35, v=0, heading=90, width=2.5, length=5, route=None)
+            fill_value_for_du = dict(x=1.875, y=-35, v=0, heading=90, width=2.5, length=5, route=None)
+            fill_value_for_dr = dict(x=5.625, y=-35, v=0, heading=90, width=2.5, length=5, route=None)
 
-            down_up = slice_or_fill(down_up, fill_value_for_down_up, 2)
-            down_left = slice_or_fill(down_left, fill_value_for_down_left, 2)
-            right_down = slice_or_fill(right_down, fill_value_for_right_down, 2)
-            right_left = slice_or_fill(right_left, fill_value_for_right_left, 2)
-            up_down = slice_or_fill(up_down, fill_value_for_up_down, 2)
-            up_left = slice_or_fill(up_left, fill_value_for_up_left, 2)
-            left_up = slice_or_fill(left_up, fill_value_for_left_up, 2)
-            left_right = slice_or_fill(left_right, fill_value_for_left_right, 2)
+            fill_value_for_ru = dict(x=35, y=5.625, v=0, heading=180, width=2.5, length=5, route=None)
+
+            fill_value_for_ur = dict(x=-1.875, y=35, v=0, heading=-90, width=2.5, length=5, route=None)
+            fill_value_for_ud = dict(x=-1.875, y=35, v=0, heading=-90, width=2.5, length=5, route=None)
+            fill_value_for_ul = dict(x=-5.625, y=35, v=0, heading=-90, width=2.5, length=5, route=None)
+
+            dl = slice_or_fill(dl, fill_value_for_dl, 2)
+            du = slice_or_fill(du, fill_value_for_du, 2)
+            dr = slice_or_fill(dr, fill_value_for_dr, 2)
+
+            ru = slice_or_fill(ru, fill_value_for_ru, 2)
+
+            ur = slice_or_fill(ur, fill_value_for_ur, 2)
+            ud = slice_or_fill(ud, fill_value_for_ud, 2)
+            ul = slice_or_fill(ul, fill_value_for_ul, 2)
 
             tmp = OrderedDict()
-            tmp['down_left'] = down_left
-            tmp['down_up'] = down_up
-            tmp['right_down'] = []
-            tmp['right_left'] = []
-            tmp['up_down'] = up_down
-            tmp['up_left'] = up_left
-            tmp['left_up'] = []
-            tmp['left_right'] = []
+            if task == 'left':
+                tmp['dl'] = dl
+                tmp['du'] = du
+                tmp['ud'] = ud
+                tmp['ul'] = ul
+            elif task == 'straight':
+                tmp['dl'] = dl
+                tmp['du'] = du
+                tmp['ru'] = ru
+                tmp['ur'] = ur
+            elif task == 'right':
+                tmp['dr'] = dr
+                tmp['ur'] = ur
+
             return tmp
 
         list_of_interested_veh_dict = []
-        self.interested_vehs = filter_interested_vehicles(all_vehicles)
+        self.interested_vehs = filter_interested_vehicles(self.all_vehicles, self.training_task)
         for part in list(self.interested_vehs.values()):
             list_of_interested_veh_dict.extend(part)
-
-        # list_of_interested_veh_dict_trans = self._cal_info_in_transform_coordination(list_of_interested_veh_dict, ego_x, ego_y,
-        #                                                                              ego_heading)
-        # for veh in list_of_interested_veh_dict_trans:
-        #     vehs_vector.extend([veh['trans_x'], veh['trans_y'], veh['trans_v'],
-        #                         veh['trans_heading'] * pi / 180])
 
         for veh in list_of_interested_veh_dict:
             vehs_vector.extend([veh['x'], veh['y'], veh['v'],
                                 veh['heading'] * pi / 180])
 
         vehs_vector = np.array(vehs_vector)
-
-
 
         # map related
         key_points_vector = []
@@ -671,48 +705,6 @@ class CrossroadEnd2end(End2endEnv):
 
         return vector
 
-    def _v2x_unify_format_for_3dgrid(self):  # unify output format
-        results = []
-        for veh in range(len(self.all_vehicles)):
-            results.append({'x': self.all_vehicles[veh]['x'],
-                            'y': self.all_vehicles[veh]['y'],
-                            'v': self.all_vehicles[veh]['v'],
-                            'heading': self.all_vehicles[veh]['angle'],
-                            'width': self.all_vehicles[veh]['width'],
-                            'length': self.all_vehicles[veh]['length'],
-                            'route': self.all_vehicles[veh]['route'],
-                            'edge_index': self.all_vehicles[veh]['edge_index']})
-        return results
-
-    def _cal_info_in_transform_coordination(self, filtered_objects, x, y, rotate_d):  # rotate_d is positive if anti
-        results = []
-        # ego_x = self.ego_dynamics['x']
-        # ego_y = self.ego_dynamics['y']
-        # ego_v = self.ego_dynamics['v']
-        # ego_heading = self.ego_dynamics['heading']
-
-        for obj in filtered_objects:
-            orig_x = obj['x']
-            orig_y = obj['y']
-            orig_v = obj['v']
-            orig_heading = obj['heading']
-            width = obj['width']
-            length = obj['length']
-            route = obj['route']
-            edge_index = obj['edge_index']
-            shifted_x, shifted_y = shift_coordination(orig_x, orig_y, x, y)
-            trans_x, trans_y, trans_heading = rotate_coordination(shifted_x, shifted_y, orig_heading, rotate_d)
-            trans_v = orig_v
-            results.append({'trans_x': trans_x,
-                            'trans_y': trans_y,
-                            'trans_v': trans_v,
-                            'trans_heading': trans_heading,
-                            'width': width,
-                            'length': length,
-                            'route': route,
-                            'edge_index': edge_index})
-        return results
-
     def recover_orig_position_fn(self, transformed_x, transformed_y, x, y, d):  # x, y, d are used to transform
         # coordination
         transformed_x, transformed_y, _ = rotate_coordination(transformed_x, transformed_y, 0, -d)
@@ -720,38 +712,65 @@ class CrossroadEnd2end(End2endEnv):
         return orig_x, orig_y
 
     def _break_road_constrain(self):
-        results = list(map(lambda x: judge_feasible(*x), self.ego_dynamics['Corner_point']))
+        results = list(map(lambda x: judge_feasible(*x, self.training_task), self.ego_dynamics['Corner_point']))
         return not all(results)
 
     def _is_achieve_goal(self):  # for now, only support turn left with the specific map
         goal_x, goal_y, goal_v, goal_a = self.goal_state
         x = self.ego_dynamics['x']
         y = self.ego_dynamics['y']
-        return True if goal_x - 2 < x < goal_x + 2 and goal_y - 3.75 < y < goal_y + 3.75 else False
+        if self.training_task == 'left' or self.training_task == 'right':
+            return True if goal_x - 2 < x < goal_x + 2 and goal_y - 3.75 < y < goal_y + 3.75 else False
+        else:
+            assert self.training_task == 'straight'
+            return True if goal_y - 2 < y < goal_y + 2 and goal_x - 3.75 < x < goal_x + 3.75 else False
 
     def _reset_goal_state(self):  # decide center of goal area, [goal_x, goal_y, goal_a, goal_v]
-        return [-18 - 6, 3.75, 8, 180]
+        if self.training_task == 'left':
+            return [-18 - 6, 3.75, 8, 180]
+        elif self.training_task == 'straight':
+            return [3.75, 18 + 6, 8, 90]
+        else:
+            assert self.training_task == 'right'
+            return [18 + 6, -3.75, 8, 0]
 
     def _reset_init_state(self):
-        nodes1 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
-                                    [-18 - 15, -18 + 18, 3.75 / 2, 3.75 / 2]])
-        curve1 = bezier.Curve(nodes1, degree=3)
-        nodes2 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
-                                    [-18 - 15, -18 + 18, 3.75 * 3 / 2, 3.75 * 3 / 2]])
-        curve2 = bezier.Curve(nodes2, degree=3)
-        start_point = None
-        if np.random.random() > 0.5:
-            start_point = curve1.evaluate(0.1*np.random.random())
+        # nodes1 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
+        #                             [-18 - 15, -18 + 18, 3.75 / 2, 3.75 / 2]])
+        # curve1 = bezier.Curve(nodes1, degree=3)
+        # nodes2 = np.asfortranarray([[3.75 / 2, 3.75 / 2, -18 + 10, -18],
+        #                             [-18 - 15, -18 + 18, 3.75 * 3 / 2, 3.75 * 3 / 2]])
+        # curve2 = bezier.Curve(nodes2, degree=3)
+        # start_point = None
+        # if np.random.random() > 0.5:
+        #     start_point = curve1.evaluate(0.1 * np.random.random())
+        # else:
+        #     start_point = curve2.evaluate(0.1 * np.random.random())
+        # x, y = start_point[0][0], start_point[1][0]
+        # if y < -18:
+        #     a = 90.
+        # else:
+        #     a = 90. + math.atan((y + 18) / (x + 18)) * 180 / math.pi
+        # v = 3
+        # return dict(ego=dict(x=x, y=y, v=v, a=a, l=4.8, w=2.2))
+        x = 5.625 if self.training_task == 'right' else 1.875
+        y = -18 - 15 * np.random.random()
+        v = 3 + np.random.random()
+        a = 90
+        if self.training_task == 'left':
+            routeID = 'dl'
+        elif self.training_task == 'straight':
+            routeID = 'du'
         else:
-            start_point = curve2.evaluate(0.1*np.random.random())
-        x, y = start_point[0][0], start_point[1][0]
-        if y < -18:
-            a = 90.
-        else:
-            a = 90. + math.atan((y + 18) / (x + 18)) * 180 / math.pi
-        v = 3
-        return [x, y, v, a]
-        # return [1.875, -28, 5, 90]
+            assert self.training_task == 'right'
+            routeID = 'dr'
+        return dict(ego=dict(x=x,
+                             y=y,
+                             v=v,
+                             a=a,
+                             l=4.8,
+                             w=2.2,
+                             routeID=routeID))
 
     def _cal_collision_reward(self):  # can be override to do an analytic calculation
         return -100
@@ -761,8 +780,17 @@ class CrossroadEnd2end(End2endEnv):
                      self.ego_dynamics['heading'], self.ego_dynamics['v']
 
         goal_x, goal_y, goal_v, goal_a = self.goal_state
-        position_punishment = -30 * min(fabs(y - 3.75 / 2), fabs(y - 3.75 * 3 / 2))
-        heading_punishment = -fabs(a - (-180)) if a < 0 else -fabs(a - 180)
+        if self.training_task == 'left':
+            position_punishment = -30 * min(fabs(y - 3.75 / 2), fabs(y - 3.75 * 3 / 2))
+            heading_punishment = -fabs(a - (-180)) if a < 0 else -fabs(a - 180)
+        elif self.training_task == 'straight':
+            position_punishment = -30 * min(fabs(x - 3.75 / 2), fabs(x - 3.75 * 3 / 2))
+            heading_punishment = -fabs(a - 90)
+        else:
+            assert self.training_task == 'right'
+            position_punishment = -30 * min(fabs(y - (-3.75 / 2)), fabs(y - (-3.75 * 3 / 2)))
+            heading_punishment = -fabs(a)
+
         return 100 + position_punishment + heading_punishment
 
     def _cal_step_reward(self):
@@ -774,7 +802,7 @@ class CrossroadEnd2end(End2endEnv):
         v_difference = math.fabs(goal_v - v)
 
         # step punishment
-        reward = -1
+        reward = -0.2
         # goal position punishment
         # reward -= dist_to_goal * 0.005
         # goal velocity punishment
@@ -793,36 +821,5 @@ class CrossroadEnd2end(End2endEnv):
             return self._cal_collision_reward()
 
 
-def test_crossrode():
-    env = CrossroadEnd2end()
-    veh = {'trans_x': 1.875, 'trans_y': -17, 'trans_v': 7, 'trans_heading': 120,
-           'route': ['-gneE3', '-gneE0'], 'edge_index': 0}
-    veh = {'trans_x': 17, 'trans_y': 1.875, 'trans_v': 7, 'trans_heading': -160,
-           'route': ['-gneE1', 'gneE3'], 'edge_index': 0}
-    veh = {'trans_x': 17, 'trans_y': 1.875, 'trans_v': 7, 'trans_heading': -180,
-           'route': ['-gneE1', '-gneE0'], 'edge_index': 0}
-    veh = {'trans_x': 17, 'trans_y': 1.875 * 3, 'trans_v': 7, 'trans_heading': -180,
-           'route': ['-gneE1', 'gneE2'], 'edge_index': 0}
-    veh = {'trans_x': -1.875, 'trans_y': 19, 'trans_v': 7, 'trans_heading': -90,
-           'route': ['-gneE2', 'gneE1'], 'edge_index': 0}
-    veh = {'trans_x': -1.875, 'trans_y': 15, 'trans_v': 7, 'trans_heading': -70,
-           'route': ['-gneE2', 'gneE1'], 'edge_index': 0}
-    veh = {'trans_x': -1.875, 'trans_y': 15, 'trans_v': 7, 'trans_heading': -110,
-           'route': ['-gneE2', '-gneE0'], 'edge_index': 0}
-    veh = {'trans_x': -19, 'trans_y': -1.875, 'trans_v': 7, 'trans_heading': -10,
-           'route': ['gneE12', 'gneE2'], 'edge_index': 0}
-    veh = {'trans_x': -17, 'trans_y': -1.875, 'trans_v': 7, 'trans_heading': 20,
-           'route': ['gneE12', 'gneE2'], 'edge_index': 0}
-    veh = {'trans_x': -17, 'trans_y': -1.875, 'trans_v': 7, 'trans_heading': -10,
-           'route': ['gneE12', 'gneE3'], 'edge_index': 0}
-    future_traj = env._prediction(veh, 20)
-    x = [a[0] for a in future_traj]
-    y = [a[1] for a in future_traj]
-    plt.plot(x, y)
-    plt.show()
-    plt.axis("equal")
-    plt.pause(10)
-
-
 if __name__ == '__main__':
-    test_crossrode()
+    pass

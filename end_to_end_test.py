@@ -27,7 +27,7 @@ def action_fn(obs):
 
 
 if __name__ == '__main__':
-    env = CrossroadEnd2end(frameskip=1)
+    env = CrossroadEnd2end(frameskip=1, training_task='straight')
     done = 0
     episode_num = 10
     for i in range(episode_num):  # run episode_num episodes

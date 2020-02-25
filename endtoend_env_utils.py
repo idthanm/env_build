@@ -55,6 +55,51 @@ def rotate_and_shift_coordination(orig_x, orig_y, orig_d, coordi_shift_x, coordi
     return transformed_x, transformed_y, transformed_d
 
 
+def cal_info_in_transform_coordination(filtered_objects, x, y, rotate_d):  # rotate_d is positive if anti
+    results = []
+    for obj in filtered_objects:
+        orig_x = obj['x']
+        orig_y = obj['y']
+        orig_v = obj['v']
+        orig_heading = obj['heading']
+        width = obj['width']
+        length = obj['length']
+        route = obj['route']
+        shifted_x, shifted_y = shift_coordination(orig_x, orig_y, x, y)
+        trans_x, trans_y, trans_heading = rotate_coordination(shifted_x, shifted_y, orig_heading, rotate_d)
+        trans_v = orig_v
+        results.append({'x': trans_x,
+                        'y': trans_y,
+                        'v': trans_v,
+                        'heading': trans_heading,
+                        'width': width,
+                        'length': length,
+                        'route': route,})
+    return results
+
+
+def cal_ego_info_in_transform_coordination(ego_info, x, y, rotate_d):
+    orig_x, orig_y, orig_v, orig_a = ego_info['x'], ego_info['y'], ego_info['v'], ego_info['heading']
+    corner_points = ego_info['Corner_point']
+    shifted_x, shifted_y = shift_coordination(orig_x, orig_y, x, y)
+    trans_x, trans_y, trans_a = rotate_coordination(shifted_x, shifted_y, orig_a, rotate_d)
+    trans_v = orig_v
+    trans_corner_points = []
+    for corner_x, corner_y in corner_points:
+        shifted_x, shifted_y = shift_coordination(corner_x, corner_y, x, y)
+        trans_corner_x, trans_corner_y, _ = rotate_coordination(shifted_x, shifted_y, orig_a, rotate_d)
+        trans_corner_points.append((trans_corner_x, trans_corner_y))
+    return dict(x=trans_x,
+                y=trans_y,
+                v=trans_v,
+                heading=trans_a,
+                Car_length=ego_info['Car_length'],
+                Car_width=ego_info['Car_width'],
+                Corner_point=trans_corner_points)
+
+
+
+
 class Path(object):
     """
     manage generated path
