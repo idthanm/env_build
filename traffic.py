@@ -15,8 +15,10 @@ if 'SUMO_HOME' in os.environ:
 else:
     sys.exit("please declare environment variable 'SUMO_HOME'")
 
+import sumolib
 from sumolib import checkBinary
 import traci
+from traci.exceptions import FatalTraCIError
 
 
 def _convert_car_coord_to_sumo_coord(x_in_car_coord, y_in_car_coord, a_in_car_coord, car_length):  # a in deg
@@ -39,7 +41,7 @@ SIM_PERIOD = 1.0 / 10
 
 class Traffic(object):
 
-    def __init__(self, step_length, mode):  # mode 'display' or 'training'
+    def __init__(self, step_length, mode, training_task='left'):  # mode 'display' or 'training'
         self.traffic_change_flag = True
         self.random_traffic = None
         self.sim_time = 0
@@ -58,6 +60,10 @@ class Traffic(object):
         #      RU1=dict(x=5.625, y=-30, v=3, a=90, l=4.8, w=2.2))
 
         self.mode = mode
+        self.training_light_phase = 0
+        if training_task == 'right':
+            if random.random() > 0.5:
+                self.training_light_phase = 2
 
     def __del__(self):
         traci.close()
@@ -99,7 +105,7 @@ class Traffic(object):
                 break
             # traci.vehicle.moveToXY('ego_init', '1o', 1, 1.875, 200, 0)
             if self.mode == "training":
-                traci.trafficlight.setPhase('0', 0)
+                traci.trafficlight.setPhase('0', self.training_light_phase)
             traci.simulationStep()
         # delete ego car in getContextSubscriptionResults
         del random_traffic['ego_init']
@@ -112,17 +118,32 @@ class Traffic(object):
         # SUMO_BINARY = checkBinary('sumo-gui')
         seed = random.randint(30, 50)
         dirname = os.path.dirname(__file__)
-        traci.start(
-            [SUMO_BINARY, "-c", dirname + "/sumo_files/cross.sumocfg",
-             "--step-length", self.step_time_str,
-             "--lateral-resolution", "1.25",
-             "--random",
-             # "--start",
-             # "--quit-on-end",
-             "--no-warnings",
-             "--no-step-log",
-             # '--seed', str(int(seed))
-             ], numRetries=5)  # '--seed', str(int(seed))
+        try:
+            traci.start(
+                [SUMO_BINARY, "-c", dirname + "/sumo_files/cross.sumocfg",
+                 "--step-length", self.step_time_str,
+                 "--lateral-resolution", "1.25",
+                 "--random",
+                 # "--start",
+                 # "--quit-on-end",
+                 "--no-warnings",
+                 "--no-step-log",
+                 # '--seed', str(int(seed))
+                 ], numRetries=5)  # '--seed', str(int(seed))
+        except FatalTraCIError:
+            print('Retry by other port')
+            port = sumolib.miscutils.getFreeSocketPort()
+            traci.start(
+                [SUMO_BINARY, "-c", dirname + "/sumo_files/cross.sumocfg",
+                 "--step-length", self.step_time_str,
+                 "--lateral-resolution", "1.25",
+                 "--random",
+                 # "--start",
+                 # "--quit-on-end",
+                 "--no-warnings",
+                 "--no-step-log",
+                 # '--seed', str(int(seed))
+                 ], port=port, numRetries=5)  # '--seed', str(int(seed))
 
         # insert ego car and random traffic
 
@@ -155,7 +176,9 @@ class Traffic(object):
         self._get_vehicles()
         self._get_own_car()
         if self.mode == 'training':
-            traci.trafficlight.setPhase('0', 0)
+            traci.trafficlight.setPhase('0', self.training_light_phase)
+        else:
+            traci.trafficlight.setPhase('0', traci.trafficlight.getPhase('0'))
         self._get_traffic_light()
         self.collision_check()
         for egoID, collision_flag in self.n_ego_collision_flag.items():
@@ -190,7 +213,7 @@ class Traffic(object):
     def sim_step(self):
         self.sim_time += SIM_PERIOD
         if self.mode == 'training':
-            traci.trafficlight.setPhase('0', 0)
+            traci.trafficlight.setPhase('0', self.training_light_phase)
         traci.simulationStep()
         self._get_vehicles()
         self._get_own_car()

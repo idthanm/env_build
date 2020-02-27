@@ -32,7 +32,7 @@ class ImportGraph(object):
         obs = np.clip((obs - ob_mean) / np.sqrt(ob_std + 1e-8), -10, 10)
         obs = obs[np.newaxis, :]
         logits_ = self.sess.run(self.logits, feed_dict={self.x: obs})
-        return logits_[0]
+        return np.clip(logits_[0], -1, 1)
 
     def __del__(self):
         self.sess.close()

@@ -54,7 +54,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         self.step_time = self.step_length / 1000.0
         self.goal_state = self._reset_goal_state()
         if not display:
-            self.traffic = Traffic(self.step_length, mode='training')
+            self.traffic = Traffic(self.step_length, mode='training', training_task=self.training_task)
             self.reset()
             action = self.action_space.sample()
             observation, _reward, done, _info = self.step(action)
@@ -101,7 +101,7 @@ class End2endEnv(gym.Env):  # cannot be used directly, cause observation space i
         self.history_obs.clear()
         self.goal_state = self._reset_goal_state()
         self.init_state = self._reset_init_state()
-        self.traffic = Traffic(self.step_length, mode='training')
+        self.traffic = Traffic(self.step_length, mode='training', training_task=self.training_task)
         self.traffic.init(self.init_state)
         self._get_all_info()
         self.history_obs.append(self._get_obs())
@@ -805,7 +805,7 @@ class CrossroadEnd2end(End2endEnv):
             ul = list(filter(lambda v: v['x'] > -28 and v['y'] < 28, ul))  # interest of left
 
             lu = lu  # not interest in case of traffic light
-            lr = lr  # not interest in case of traffic light
+            lr = list(filter(lambda v: -28 < v['x'] < 28, lr))  # interest of right
             ld = ld  # not interest in case of traffic light
 
             # sort
@@ -820,6 +820,8 @@ class CrossroadEnd2end(End2endEnv):
 
             ud = sorted(ud, key=lambda v: v['y'])
             ul = sorted(ul, key=lambda v: (-v['y'], -v['x']), reverse=True)
+
+            lr = sorted(lr, key=lambda v: -v['x'])
 
             # slice or fill to some number
             def slice_or_fill(sorted_list, fill_value, num):
@@ -842,6 +844,8 @@ class CrossroadEnd2end(End2endEnv):
             fill_value_for_ud = dict(x=-1.875, y=40, v=0, heading=-90, width=2.5, length=5, route=None)
             fill_value_for_ul = dict(x=-5.625, y=40, v=0, heading=-90, width=2.5, length=5, route=None)
 
+            fill_value_for_lr = dict(x=-40, y=-1.875, v=0, heading=0, width=2.5, length=5, route=None)
+
             tmp = OrderedDict()
             if task == 'left':
                 tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, 2)
@@ -856,6 +860,7 @@ class CrossroadEnd2end(End2endEnv):
             elif task == 'right':
                 tmp['dr'] = slice_or_fill(dr, fill_value_for_dr, 2)
                 tmp['ur'] = slice_or_fill(ur_right, fill_value_for_ur_right, 3)
+                tmp['lr'] = slice_or_fill(lr, fill_value_for_lr, 3)
 
             return tmp
 

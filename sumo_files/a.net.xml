@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2020年02月21日 星期五 22时17分52秒 by Eclipse SUMO netedit Version 1.2.0
+<!-- generated on 2020年02月27日 星期四 13时18分37秒 by Eclipse SUMO netedit Version 1.2.0
 <configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
 
     <input>
-        <sumo-net-file value="/home/yang/Documents/Work_Data/Project/Toyota_RL/Toyata_2019/202003/1/a.net.xml"/>
+        <sumo-net-file value="/home/yang/Documents/Work_Data/Project/Toyota_RL/Toyata_2019/201909/env_build/sumo_files/a.net.xml"/>
     </input>
 
     <output>
-        <output-file value="/home/yang/Documents/Work_Data/Project/Toyota_RL/Toyata_2019/202003/1/a.net.xml"/>
+        <output-file value="/home/yang/Documents/Work_Data/Project/Toyota_RL/Toyata_2019/201909/env_build/sumo_files/a.net.xml"/>
     </output>
 
     <processing>
@@ -119,9 +119,9 @@
 
     <tlLogic id="0" type="static" programID="0" offset="0">
         <phase duration="25" state="GGGGrrGGGGrr"/>
-        <phase duration="3"  state="GyyGrrGyyGrr"/>
+        <phase duration="5"  state="GyyGrrGyyGrr"/>
         <phase duration="25" state="GrrGGGGrrGGG"/>
-        <phase duration="3"  state="GrrGyyGrrGyy"/>
+        <phase duration="5"  state="GrrGyyGrrGyy"/>
     </tlLogic>
 
     <junction id="0" type="traffic_light" x="0.00" y="0.00" incLanes="3o_0 3o_1 2o_0 2o_1 1o_0 1o_1 4o_0 4o_1" intLanes=":0_0_0 :0_1_0 :0_2_0 :0_3_0 :0_4_0 :0_5_0 :0_6_0 :0_7_0 :0_8_0 :0_9_0 :0_10_0 :0_11_0" shape="-7.50,18.00 7.50,18.00 18.00,7.50 18.00,-7.50 7.50,-18.00 -7.50,-18.00 -18.00,-7.50 -18.00,7.50" customShape="1">
