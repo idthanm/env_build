@@ -21,8 +21,8 @@ class ImportGraph(object):
         self.graph = tf.Graph()
         self.sess = tf.Session(graph=self.graph)
         with self.graph.as_default():
-            saver = tf.train.import_meta_graph(path + '/00001.meta', clear_devices=True)
-            saver.restore(self.sess, path + '/00001')
+            saver = tf.train.import_meta_graph(path + '/00406.meta', clear_devices=True)
+            saver.restore(self.sess, path + '/00406')
             self.x = self.graph.get_tensor_by_name('ppo2_model/Ob:0')
             self.logits = self.graph.get_tensor_by_name('ppo2_model/pi_1/add:0')
 
@@ -311,18 +311,18 @@ class Simulation(object):
 
 if __name__ == '__main__':
     init_n_ego_dict = dict(
-        DL1=dict(x=1.875, y=-30, v=3, a=90, l=4.8, w=2.2, routeID='dl'),
-        DU1=dict(x=1.875, y=-38, v=3, a=90, l=4.8, w=2.2, routeID='du'),
-        DR1=dict(x=5.625, y=-30, v=3, a=90, l=4.8, w=2.2, routeID='dr'),
-        RD1=dict(x=30, y=1.875, v=3, a=180, l=4.8, w=2.2, routeID='rd'),
-        RL1=dict(x=22, y=1.875, v=3, a=180, l=4.8, w=2.2, routeID='rl'),
-        RU1=dict(x=30, y=5.625, v=3, a=180, l=4.8, w=2.2, routeID='ru'),
-        UR1=dict(x=-1.875, y=30, v=3, a=-90, l=4.8, w=2.2, routeID='ur'),
-        UD1=dict(x=-1.875, y=22, v=3, a=-90, l=4.8, w=2.2, routeID='ud'),
-        UL1=dict(x=-5.625, y=22, v=3, a=-90, l=4.8, w=2.2, routeID='ul'),
-        LU1=dict(x=-30, y=-1.875, v=3, a=0, l=4.8, w=2.2, routeID='lu'),
-        LR1=dict(x=-38, y=-1.875, v=3, a=0, l=4.8, w=2.2, routeID='lr'),
-        LD1=dict(x=-30, y=-5.625, v=3, a=0, l=4.8, w=2.2, routeID='ld'),
+        DL1=dict(x=1.875, y=-30, v=3, a=90, l=4.3, w=1.9, routeID='dl'),
+        DU1=dict(x=1.875, y=-38, v=3, a=90, l=4.3, w=1.9, routeID='du'),
+        DR1=dict(x=5.625, y=-30, v=3, a=90, l=4.3, w=1.9, routeID='dr'),
+        RD1=dict(x=30, y=1.875, v=3, a=180, l=4.3, w=1.9, routeID='rd'),
+        RL1=dict(x=22, y=1.875, v=3, a=180, l=4.3, w=1.9, routeID='rl'),
+        RU1=dict(x=30, y=5.625, v=3, a=180, l=4.3, w=1.9, routeID='ru'),
+        UR1=dict(x=-1.875, y=30, v=3, a=-90, l=4.3, w=1.9, routeID='ur'),
+        UD1=dict(x=-1.875, y=22, v=3, a=-90, l=4.3, w=1.9, routeID='ud'),
+        UL1=dict(x=-5.625, y=22, v=3, a=-90, l=4.3, w=1.9, routeID='ul'),
+        LU1=dict(x=-30, y=-1.875, v=3, a=0, l=4.3, w=1.9, routeID='lu'),
+        LR1=dict(x=-38, y=-1.875, v=3, a=0, l=4.3, w=1.9, routeID='lr'),
+        LD1=dict(x=-30, y=-5.625, v=3, a=0, l=4.3, w=1.9, routeID='ld'),
     )
 
     simulation = Simulation(init_n_ego_dict)
