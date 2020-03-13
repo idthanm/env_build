@@ -302,8 +302,15 @@ class Simulation(object):
 
             # plot planed trj
             for egoID, planed_traj in n_ego_traj_trans.items():
+                alpha = 1
+                if v_color != 'green':
+                    if egoID[:2] in ['DL', 'DU', 'UD', 'UR']:
+                        alpha = 0.2
+                if h_color != 'green':
+                    if egoID[:2] in ['RD', 'RL', 'LR', 'LU']:
+                        alpha = 0.2
                 if planed_traj is not None:
-                    ax.plot(planed_traj[0], planed_traj[1], color='g')
+                    ax.plot(planed_traj[0], planed_traj[1], color='g', alpha=alpha)
 
             plt.show()
             plt.pause(0.1)
