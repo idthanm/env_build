@@ -21,8 +21,8 @@ class ImportGraph(object):
         self.graph = tf.Graph()
         self.sess = tf.Session(graph=self.graph)
         with self.graph.as_default():
-            saver = tf.train.import_meta_graph(path + '/00406.meta', clear_devices=True)
-            saver.restore(self.sess, path + '/00406')
+            saver = tf.train.import_meta_graph(path + '/00200.meta', clear_devices=True)
+            saver.restore(self.sess, path + '/00200')
             self.x = self.graph.get_tensor_by_name('ppo2_model/Ob:0')
             self.logits = self.graph.get_tensor_by_name('ppo2_model/pi_1/add:0')
 
