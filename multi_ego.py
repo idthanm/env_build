@@ -178,6 +178,16 @@ class Simulation(object):
             plt.plot([square_length / 2 + extension, square_length / 2], [-2 * lane_width, -2 * lane_width],
                      color='black')
 
+            #
+            plt.plot([-square_length / 2, -2 * lane_width], [-square_length / 2, -square_length / 2],
+                     color='black')
+            plt.plot([square_length / 2, 2 * lane_width], [-square_length / 2, -square_length / 2],
+                     color='black')
+            plt.plot([-square_length / 2, -2 * lane_width], [square_length / 2, square_length / 2],
+                     color='black')
+            plt.plot([square_length / 2, 2 * lane_width], [square_length / 2, square_length / 2],
+                     color='black')
+
             # ----------vertical----------------
             plt.plot([0, 0], [-square_length / 2 - extension, -square_length / 2], color='black')
             plt.plot([0, 0], [square_length / 2 + extension, square_length / 2], color='black')
@@ -202,6 +212,16 @@ class Simulation(object):
             plt.plot([-2 * lane_width, -2 * lane_width], [-square_length / 2 - extension, -square_length / 2],
                      color='black')
             plt.plot([-2 * lane_width, -2 * lane_width], [square_length / 2 + extension, square_length / 2],
+                     color='black')
+
+            #
+            plt.plot([-square_length / 2, -square_length / 2], [-square_length / 2, -2 * lane_width],
+                     color='black')
+            plt.plot([-square_length / 2, -square_length / 2], [square_length / 2, 2 * lane_width],
+                     color='black')
+            plt.plot([square_length / 2, square_length / 2], [-square_length / 2, -2 * lane_width],
+                     color='black')
+            plt.plot([square_length / 2, square_length / 2], [square_length / 2, 2 * lane_width],
                      color='black')
 
             # ----------stop line--------------
@@ -235,15 +255,15 @@ class Simulation(object):
             plt.plot([square_length / 2, square_length / 2], [2 * lane_width, lane_width],
                      color='green', linewidth=light_line_width)
 
-            # ----------Oblique--------------
-            plt.plot([2 * lane_width, square_length / 2], [-square_length / 2, -2 * lane_width],
-                     color='black')
-            plt.plot([2 * lane_width, square_length / 2], [square_length / 2, 2 * lane_width],
-                     color='black')
-            plt.plot([-2 * lane_width, -square_length / 2], [-square_length / 2, -2 * lane_width],
-                     color='black')
-            plt.plot([-2 * lane_width, -square_length / 2], [square_length / 2, 2 * lane_width],
-                     color='black')
+            # # ----------Oblique--------------
+            # plt.plot([2 * lane_width, square_length / 2], [-square_length / 2, -2 * lane_width],
+            #          color='black')
+            # plt.plot([2 * lane_width, square_length / 2], [square_length / 2, 2 * lane_width],
+            #          color='black')
+            # plt.plot([-2 * lane_width, -square_length / 2], [-square_length / 2, -2 * lane_width],
+            #          color='black')
+            # plt.plot([-2 * lane_width, -square_length / 2], [square_length / 2, 2 * lane_width],
+            #          color='black')
 
             def is_in_plot_area(x, y, tolerance=5):
                 if -square_length / 2 - extension + tolerance < x < square_length / 2 + extension - tolerance and \

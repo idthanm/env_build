@@ -7,9 +7,10 @@ else:
     sys.exit("please declare environment variable 'SUMO_HOME'")
 
 from sumolib import checkBinary
+import sumolib
 import traci
 
-SUMO_BINARY = checkBinary('sumo-gui')
+SUMO_BINARY = checkBinary('sumo')
 SIM_PERIOD = 1.0 / 10
 
 dirname = os.path.dirname(__file__)
@@ -62,15 +63,52 @@ traci.vehicle.subscribeContext('ego',
                                         traci.constants.VAR_ROUTE_INDEX],
                                0, 2147483647)
 
+traci.vehicle.subscribeContext('ego',
+                                       traci.constants.CMD_GET_VEHICLE_VARIABLE,
+                                       999999, [traci.constants.VAR_POSITION,
+                                                traci.constants.VAR_LENGTH,
+                                                traci.constants.VAR_WIDTH,
+                                                traci.constants.VAR_ANGLE,
+                                                traci.constants.VAR_SIGNALS,
+                                                traci.constants.VAR_SPEED,
+                                                traci.constants.VAR_TYPE,
+                                                traci.constants.VAR_EMERGENCY_DECEL,
+                                                traci.constants.VAR_LANE_INDEX,
+                                                traci.constants.VAR_LANEPOSITION,
+                                                traci.constants.VAR_EDGES,
+                                                traci.constants.VAR_ROUTE_INDEX],
+                                       0, 2147483647)
+
 for i in range(1000):
     if i <= 100:
+        port = sumolib.miscutils.getFreeSocketPort()
+        print(port)
+        traci.start(
+            [SUMO_BINARY, "-c", dirname + "/sumo_files/cross_test.sumocfg",
+             "--step-length", str(SIM_PERIOD),
+             "--lateral-resolution", "1.25",
+             "--random",
+             # "--start",
+             # "--quit-on-end",
+             "--no-warnings",
+             "--no-step-log",
+             # '--seed', str(int(seed))
+             ], port=port, numRetries=1)  # '--seed', str(int(seed))
+        # traci.vehicle.moveToXY('ego', '1o', 0, 16, 16, 90 - 129.2)
+        # traci.simulationStep()
+        # random_traffic = traci.vehicle.getContextSubscriptionResults('ego')
+        # del random_traffic['ego']
 
-        traci.vehicle.moveToXY('ego', '1o', 0, -2.241, -5.148, 90 - 129.2)
-        traci.simulationStep()
+
 
     # traci.vehicle.moveToXY('car2', '1o', 0, 5.625, -40)
     # traci.vehicle.moveToXY('car3', '1o', 1, 1.875, -30)
+    elif 100<i <500 :
+        random_traffic = traci.vehicle.getContextSubscriptionResults('ego')
+
+        traci.simulationStep()
     else:
+        traci.vehicle.moveToXY('ego', '1o', 0, -2.241, -5.148, 90 - 129.2)
         traci.simulationStep()
         # if i >= 150:
         #     random_traffic = traci.vehicle.getContextSubscriptionResults('ego')
