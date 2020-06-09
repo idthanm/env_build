@@ -348,15 +348,15 @@ class EnvironmentModel(object):  # all tensors
                                        tf.convert_to_tensor(rho_ego + rho_vehs, dtype=tf.float32)
                         veh2veh += 1/tf.square(veh2veh_dist)
 
-            reward_dict = dict(punish_steer=punish_steer.numpy()[0],
-                               punish_a_x=punish_a_x.numpy()[0],
-                               punish_yaw_rate=punish_yaw_rate.numpy()[0],
-                               devi_v=devi_v.numpy()[0],
-                               devi_y=devi_y.numpy()[0],
-                               devi_phi=devi_phi.numpy()[0],
-                               veh2road=-veh2road.numpy()[0],
-                               veh2veh=-veh2veh.numpy()[0])
-            print(reward_dict)
+            # reward_dict = dict(punish_steer=punish_steer.numpy()[0],
+            #                    punish_a_x=punish_a_x.numpy()[0],
+            #                    punish_yaw_rate=punish_yaw_rate.numpy()[0],
+            #                    devi_v=devi_v.numpy()[0],
+            #                    devi_y=devi_y.numpy()[0],
+            #                    devi_phi=devi_phi.numpy()[0],
+            #                    veh2road=-veh2road.numpy()[0],
+            #                    veh2veh=-veh2veh.numpy()[0])
+            # print(reward_dict)
             veh2road = tf.where(veh2road > 10000., 10000.*tf.ones_like(veh2road), veh2road)
             veh2veh = tf.where(veh2road > 10000., 10000.*tf.ones_like(veh2veh), veh2veh)
 
@@ -401,8 +401,8 @@ class EnvironmentModel(object):  # all tensors
                                   logical_and(ys > -18, ys < 18))
         zeros = tf.zeros_like(xs)
 
-        xs_delta = vs / self.base_frequency * np.cos(phis_rad)
-        ys_delta = vs / self.base_frequency * np.sin(phis_rad)
+        xs_delta = vs / self.base_frequency * tf.cos(phis_rad)
+        ys_delta = vs / self.base_frequency * tf.sin(phis_rad)
 
         if mode in ['dl', 'rd', 'ur', 'lu']:
             phis_rad_delta = tf.where(middle_cond, (vs/19.875)/self.base_frequency, zeros)
@@ -590,6 +590,7 @@ class ReferencePath(object):
 
     def _construct_ref_path(self, task):
         sl = 20
+        planed_trj = None
         meter_pointnum_ratio = 30
         if task == 'left':
             if self.mode == 'training':
@@ -614,7 +615,13 @@ class ReferencePath(object):
                 end_straight_line_x = np.linspace(-18, -18-sl, sl*meter_pointnum_ratio, dtype=np.float32)
                 end_straight_line_y = end_offset * np.ones(shape=(sl*meter_pointnum_ratio,), dtype=np.float32)
                 planed_trj = np.append(np.append(start_straight_line_x, trj_data[0]), end_straight_line_x),\
-                                  np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
+                             np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
+
+                xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
+                xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
+                phis_1 = np.arctan2(ys_2 - ys_1,
+                                    xs_2 - xs_1) * 180 / pi
+                planed_trj = xs_1, ys_1, phis_1
                 self.path_list.append(planed_trj)
 
         elif task == 'straight':
@@ -642,6 +649,11 @@ class ReferencePath(object):
                 end_straight_line_y = np.linspace(18, 18+sl, sl*meter_pointnum_ratio, dtype=np.float32)
                 planed_trj = np.append(np.append(start_straight_line_x, trj_data[0]), end_straight_line_x),\
                                   np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
+                xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
+                xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
+                phis_1 = np.arctan2(ys_2 - ys_1,
+                                    xs_2 - xs_1) * 180 / pi
+                planed_trj = xs_1, ys_1, phis_1
                 self.path_list.append(planed_trj)
         else:
             assert task == 'right'
@@ -668,7 +680,12 @@ class ReferencePath(object):
                 end_straight_line_x = np.linspace(18, 18+sl, sl*meter_pointnum_ratio, dtype=np.float32)
                 end_straight_line_y = end_offset * np.ones(shape=(sl*meter_pointnum_ratio,), dtype=np.float32)
                 planed_trj = np.append(np.append(start_straight_line_x, trj_data[0]), end_straight_line_x),\
-                                  np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
+                             np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
+                xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
+                xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
+                phis_1 = np.arctan2(ys_2 - ys_1,
+                                    xs_2 - xs_1) * 180 / pi
+                planed_trj = xs_1, ys_1, phis_1
                 self.path_list.append(planed_trj)
 
     def find_closest_point(self, xs, ys):
@@ -684,6 +701,7 @@ class ReferencePath(object):
 
     def future_n_data(self, current_indexs, n):
         future_data_list = []
+        current_indexs = tf.cast(current_indexs, tf.int32)
         for _ in range(n):
             current_indexs += 50
             current_indexs = tf.where(current_indexs >= len(self.path[0])-2, len(self.path[0])-2, current_indexs)
@@ -691,15 +709,11 @@ class ReferencePath(object):
         return future_data_list
 
     def indexs2points(self, indexs):
-        # points = self.path[0][indexs], self.path[1][indexs]
-        # previous_points = self.path[0][indexs - 1], self.path[1][indexs - 1]
-        # phis = np.arctan2(points[1] - previous_points[1],
-        #                   points[0] - previous_points[0]) * 180 / pi
-        points = tf.gather(self.path[0], indexs), tf.gather(self.path[1], indexs)
-        previous_points = tf.gather(self.path[0], indexs - 1), tf.gather(self.path[1], indexs - 1)
-        phis = tf.atan2(points[1] - previous_points[1],
-                        points[0] - previous_points[0]) * 180 / pi
-        return points[0], points[1], phis
+        points = tf.gather(self.path[0], indexs), \
+                 tf.gather(self.path[1], indexs), \
+                 tf.gather(self.path[2], indexs)
+
+        return points[0], points[1], points[2]
 
     def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, n):
         indexs, current_points = self.find_closest_point(ego_xs, ego_ys)

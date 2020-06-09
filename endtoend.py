@@ -709,11 +709,13 @@ class CrossroadEnd2end(gym.Env):
 
 
 def test_end2end():
+    import time
     env = CrossroadEnd2end('left')
     obs = env.reset()
     i = 0
     done = 0
-    while i < 2048:
+    start = time.time()
+    while i < 512:
         while not done:
             print(i)
             i += 1
@@ -723,6 +725,8 @@ def test_end2end():
         done = 0
         obs = env.reset()
         # env.render()
+    end = time.time()
+    print(end-start)
 
 
 if __name__ == '__main__':
