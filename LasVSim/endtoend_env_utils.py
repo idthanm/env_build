@@ -1,3 +1,12 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# =====================================
+# @Time    : 2020/6/10
+# @Author  : Yang Guan (Tsinghua Univ.)
+# @FileName: endtoend_env_utils.py
+# =====================================
+
 import math
 
 

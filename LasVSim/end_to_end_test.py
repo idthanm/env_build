@@ -1,8 +1,14 @@
-from LasVSim.endtoend import EndtoendEnv, ObservationWrapper
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# =====================================
+# @Time    : 2020/6/10
+# @Author  : Yang Guan (Tsinghua Univ.)
+# @FileName: end_to_end_test.py
+# =====================================
+
 import gym
-import matplotlib.pyplot as plt
 import numpy as np
-import os
 from gym.wrappers import ObservationWrapper
 
 # def action_fn(last_timestep_vector, horizon):
