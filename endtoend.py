@@ -1,14 +1,26 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# =====================================
+# @Time    : 2020/6/10
+# @Author  : Yang Guan (Tsinghua Univ.)
+# @FileName: endtoend.py
+# =====================================
+
 import warnings
-import gym
-from gym.utils import seeding
-import numpy as np
-from endtoend_env_utils import shift_coordination, rotate_coordination, shift_and_rotate_coordination
-import matplotlib.pyplot as plt
-from dynamics_and_models import VehicleDynamics, ReferencePath
-from math import cos, sin, fabs, pi, sqrt, atan2
-from traffic import Traffic
 from collections import OrderedDict
+from math import sqrt
+
+import gym
+import matplotlib.pyplot as plt
+import numpy as np
 import tensorflow as tf
+from gym.utils import seeding
+
+from dynamics_and_models import VehicleDynamics, ReferencePath
+from endtoend_env_utils import shift_coordination, rotate_coordination
+from traffic import Traffic
+
 warnings.filterwarnings("ignore")
 
 

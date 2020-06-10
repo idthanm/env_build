@@ -1,13 +1,20 @@
-# coding=utf-8
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# =====================================
+# @Time    : 2020/6/10
+# @Author  : Yang Guan (Tsinghua Univ.)
+# @FileName: traffic.py
+# =====================================
+
 import math
-import optparse
 import os
-import sys
-import copy
 import random
-from math import fabs, cos, sin, pi
-from endtoend_env_utils import shift_and_rotate_coordination, rotate_and_shift_coordination
+import sys
 from collections import defaultdict
+from math import fabs, cos, sin, pi
+
+from endtoend_env_utils import shift_and_rotate_coordination, rotate_and_shift_coordination
 
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')

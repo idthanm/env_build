@@ -1,10 +1,21 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# =====================================
+# @Time    : 2020/6/10
+# @Author  : Yang Guan (Tsinghua Univ.)
+# @FileName: dynamics_and_models.py
+# =====================================
+
 from collections import OrderedDict
+from math import pi
+
+import bezier
+import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-import bezier
-from math import cos, sin, fabs, pi, sqrt, atan2
-import matplotlib.pyplot as plt
 from tensorflow.math import logical_and, logical_or
+
 from endtoend_env_utils import rotate_coordination
 
 

@@ -1,6 +1,15 @@
-import numpy as np
-import matplotlib.pyplot as plt
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
+# =====================================
+# @Time    : 2020/6/10
+# @Author  : Yang Guan (Tsinghua Univ.)
+# @FileName: test.py
+# =====================================
+
+import bezier
+import matplotlib.pyplot as plt
+import numpy as np
 
 # def test_reference():
 #     x = np.linspace(0, 22.375, 100)
@@ -16,8 +25,6 @@ import matplotlib.pyplot as plt
 #
 #     plt.plot([0, 1], [0, 1], linestyle='--')
 #     plt.show()
-
-import bezier
 # x=9
 # nodes1 = np.asfortranarray([[0.0, 0.0, -18+x, -18.0], [0.0, x, 18, 18]])  # [[0.0, 0.0, -18.0], [0.0, 18.0, 18.0]]
 # curve1 = bezier.Curve(nodes1, degree=3)
