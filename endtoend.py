@@ -1,18 +1,24 @@
-import gym
-from gym.utils import seeding
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# =====================================
+# @Time    : 2020/6/10
+# @Author  : Yang Guan (Tsinghua Univ.)
+# @FileName: endtoend.py
+# =====================================
+
 import math
-import numpy as np
-from endtoend_env_utils import shift_coordination, rotate_coordination, shift_and_rotate_coordination,\
-    Path
 from collections import OrderedDict, deque
-import matplotlib.pyplot as plt
-import bezier
 from math import cos, sin, fabs, pi, sqrt
+
+import bezier
+import gym
+import matplotlib.pyplot as plt
+import numpy as np
+from gym.utils import seeding
+
+from endtoend_env_utils import shift_coordination, rotate_coordination, shift_and_rotate_coordination
 from traffic import Traffic
-import matplotlib.patches as patches
-
-
-# env_closer = closer.Closer()
 
 
 def convert_observation_to_space(observation):

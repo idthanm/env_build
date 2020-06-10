@@ -1,4 +1,14 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# =====================================
+# @Time    : 2020/6/10
+# @Author  : Yang Guan (Tsinghua Univ.)
+# @FileName: endtoend_env_utils.py
+# =====================================
+
 import math
+
 import numpy as np
 
 
@@ -117,7 +127,6 @@ class Path(object):
 
 
 def test_path():
-    import matplotlib.pyplot as plt
     path = Path(0.01)
     path.reset_path(5, 1, 1, 5)
     print(path.get_init_state())
