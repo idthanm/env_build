@@ -1,14 +1,23 @@
-from traffic import Traffic
-import tensorflow as tf
-import os
-import numpy as np
-from collections import OrderedDict
-from endtoend_env_utils import shift_coordination, rotate_coordination, shift_and_rotate_coordination, \
-    cal_ego_info_in_transform_coordination, cal_info_in_transform_coordination
-from math import pi
-from endtoend import CrossroadEnd2end
-import matplotlib.pyplot as plt
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# =====================================
+# @Time    : 2020/6/10
+# @Author  : Yang Guan (Tsinghua Univ.)
+# @FileName: multi_ego.py
+# =====================================
+
 import copy
+import os
+
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+
+from endtoend import CrossroadEnd2end
+from endtoend_env_utils import rotate_coordination, cal_ego_info_in_transform_coordination, \
+    cal_info_in_transform_coordination
+from traffic import Traffic
 
 
 # traffic = Traffic(100, mode='display')
