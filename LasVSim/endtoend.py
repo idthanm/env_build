@@ -1,14 +1,22 @@
-import gym
-from LasVSim import lasvsim
-from gym.utils import seeding
-import math
-import numpy as np
-from LasVSim.endtoend_env_utils import shift_coordination, rotate_coordination, shift_and_rotate_coordination,\
-    Path
-from collections import OrderedDict, deque
-import matplotlib.pyplot as plt
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-import matplotlib.patches as patches
+# =====================================
+# @Time    : 2020/6/10
+# @Author  : Yang Guan (Tsinghua Univ.)
+# @FileName: endtoend.py
+# =====================================
+
+from collections import OrderedDict, deque
+
+import gym
+import matplotlib.pyplot as plt
+import numpy as np
+from gym.utils import seeding
+
+from LasVSim import lasvsim
+from LasVSim.endtoend_env_utils import shift_coordination, rotate_coordination, shift_and_rotate_coordination, \
+    Path
 
 
 # env_closer = closer.Closer()

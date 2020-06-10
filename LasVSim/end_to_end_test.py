@@ -1,8 +1,16 @@
-from LasVSim.endtoend import CrossroadEnd2end
-# import gym
-import matplotlib.pyplot as plt
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# =====================================
+# @Time    : 2020/6/10
+# @Author  : Yang Guan (Tsinghua Univ.)
+# @FileName: end_to_end_test.py
+# =====================================
+
 import numpy as np
-import os
+
+from LasVSim.endtoend import CrossroadEnd2end
+
 
 def action_fn(obs):
     # grid_list, supplement_vector = obs
