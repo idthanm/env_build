@@ -162,7 +162,7 @@ class CrossroadEnd2end(gym.Env):
                                                alpha_f=next_ego_params[0],
                                                alpha_r=next_ego_params[1],
                                                miu_f=next_ego_params[2],
-                                               miu_r=next_ego_params[2],)
+                                               miu_r=next_ego_params[3],)
                                       ))
         self.traffic.sim_step()
         all_info = self._get_all_info()
@@ -291,7 +291,7 @@ class CrossroadEnd2end(gym.Env):
         steer, a_x = trans_action
         state = np.array([[current_v_x, current_v_y, current_r, current_x, current_y, current_phi]], dtype=np.float32)
         action = np.array([[steer, a_x]], dtype=np.float32)
-        next_ego_state,  next_ego_params = self.dynamics.prediction(state, action, 10, 1)
+        next_ego_state, next_ego_params = self.dynamics.prediction(state, action, 10, 1)
         next_ego_state, next_ego_params = next_ego_state.numpy()[0],  next_ego_params.numpy()[0]
         return next_ego_state, next_ego_params
 
@@ -878,7 +878,7 @@ class CrossroadEnd2end(gym.Env):
             plt.text(text_x, text_y_start - 3 * next(ge), r'$\alpha_r$ bound: [{:.2f}, {:.2f}] '.format(-alpha_r_bound,
                                                                                                         alpha_r_bound))
             if self.action is not None:
-                steer, a_x = self.action[0], self.action[0]
+                steer, a_x = self.action[0], self.action[1]
                 plt.text(text_x, text_y_start - 3 * next(ge), r'steer: {:.2f}rad (${:.2f}\degree$)'.format(steer, steer * 180 / np.pi))
                 plt.text(text_x, text_y_start - 3 * next(ge), 'a_x: {:.2f}m/s^2'.format(a_x))
 
@@ -908,7 +908,7 @@ def test_end2end():
         while not done:
             # print(i)
             i += 1
-            action = np.array([0, 0], dtype=np.float32)
+            action = np.array([0.5, 0], dtype=np.float32)
             obs, reward, done, info = env.step(action)
             env.render()
         done = 0
