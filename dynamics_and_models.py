@@ -411,20 +411,19 @@ class EnvironmentModel(object):  # all tensors
                                        tf.convert_to_tensor(rho_ego + rho_vehs, dtype=tf.float32)
                         veh2veh -= 1 / tf.square(veh2veh_dist)
 
-            self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
-                               punish_a_x=punish_a_x.numpy()[0],
-                               punish_yaw_rate=punish_yaw_rate.numpy()[0],
-                               devi_v=devi_v.numpy()[0],
-                               devi_y=devi_y.numpy()[0],
-                               devi_phi=devi_phi.numpy()[0],
-                               veh2road=-veh2road.numpy()[0],
-                               veh2veh=-veh2veh.numpy()[0],
-                               rew_alpha_f=rew_alpha_f.numpy()[0],
-                               rew_alpha_r=rew_alpha_r.numpy()[0],
-                               rew_r=rew_r.numpy()[0]
-                               )
+            # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
+            #                    punish_a_x=punish_a_x.numpy()[0],
+            #                    punish_yaw_rate=punish_yaw_rate.numpy()[0],
+            #                    devi_v=devi_v.numpy()[0],
+            #                    devi_y=devi_y.numpy()[0],
+            #                    devi_phi=devi_phi.numpy()[0],
+            #                    veh2road=-veh2road.numpy()[0],
+            #                    veh2veh=-veh2veh.numpy()[0],
+            #                    rew_alpha_f=rew_alpha_f.numpy()[0],
+            #                    rew_alpha_r=rew_alpha_r.numpy()[0],
+            #                    rew_r=rew_r.numpy()[0]
+            #                    )
 
-            # print(reward_dict)
             rew_alpha_f = tf.where(rew_alpha_f < -10000., -10000. * tf.ones_like(rew_alpha_f), rew_alpha_f)
             rew_alpha_r = tf.where(rew_alpha_r < -10000., -10000. * tf.ones_like(rew_alpha_r), rew_alpha_r)
             rew_r = tf.where(rew_r < -10000., -10000. * tf.ones_like(rew_r), rew_r)
