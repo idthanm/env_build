@@ -130,9 +130,7 @@ class CrossroadEnd2end(gym.Env):
         self.obs = None
         self.action = None
         self.veh_mode_list = []
-        self.alpha_f_bound = None
-        self.alpha_r_bound = None
-        self.r_bound = None
+
         self.done_type = 6
         self.reward_info = None
 
@@ -188,6 +186,15 @@ class CrossroadEnd2end(gym.Env):
         self.all_vehicles = self.traffic.n_ego_vehicles['ego']  # coordination 2
         self.ego_dynamics = self.traffic.n_ego_info['ego']  # coordination 2
         self.v_light = self.traffic.v_light
+
+        miu_f, miu_r = self.ego_dynamics['miu_f'], self.ego_dynamics['miu_r']
+        F_zf, F_zr = self.dynamics.vehicle_params['F_zf'], self.dynamics.vehicle_params['F_zr']
+        C_f, C_r = self.dynamics.vehicle_params['C_f'], self.dynamics.vehicle_params['C_r']
+        alpha_f_bound, alpha_r_bound = 3 * miu_f * F_zf / C_f, 3 * miu_r * F_zr / C_r
+        r_bound = miu_r * self.dynamics.vehicle_params['g'] / self.ego_dynamics['v_x']
+        self.ego_dynamics.update(dict(alpha_f_bound=alpha_f_bound,
+                                      alpha_r_bound=alpha_r_bound,
+                                      r_bound=r_bound))
         # ego_dynamics
         # dict(v_x=ego_dict['v_x'],
         #      v_y=ego_dict['v_y'],
@@ -201,7 +208,10 @@ class CrossroadEnd2end(gym.Env):
         #      alpha_r = ego_dict['alpha_r'],
         #      miu_f = ego_dict['miu_f'],
         #      miu_r = ego_dict['miu_r'],
-        #      Corner_point=self.cal_corner_point_of_ego_car(ego_dict))
+        #      Corner_point=self.cal_corner_point_of_ego_car(ego_dict)
+        #      alpha_f_bound=alpha_f_bound
+        #      alpha_r_bound=alpha_r_bound
+        #      r_bound=r_bound)
 
         # all_vehicles
         # dict(x=x, y=y, v=v, phi=a, l=length,
@@ -245,13 +255,11 @@ class CrossroadEnd2end(gym.Env):
     def _break_stability(self):
         alpha_f, alpha_r, miu_f, miu_r = self.ego_dynamics['alpha_f'], self.ego_dynamics['alpha_r'], \
                                          self.ego_dynamics['miu_f'], self.ego_dynamics['miu_r']
-        F_zf, F_zr = self.dynamics.vehicle_params['F_zf'], self.dynamics.vehicle_params['F_zr']
-        C_f, C_r = self.dynamics.vehicle_params['C_f'], self.dynamics.vehicle_params['C_r']
-        self.alpha_f_bound, self.alpha_r_bound = 3 * miu_f * F_zf / C_f, 3 * miu_r * F_zr / C_r
-        self.r_bound = miu_r * self.dynamics.vehicle_params['g'] / self.ego_dynamics['v_x']
-        if -self.alpha_f_bound < alpha_f < self.alpha_f_bound \
-                and -self.alpha_r_bound < alpha_r < self.alpha_r_bound and \
-                -self.r_bound < self.ego_dynamics['r'] < self.r_bound:
+        alpha_f_bound, alpha_r_bound = self.ego_dynamics['alpha_f_bound'], self.ego_dynamics['alpha_r_bound']
+        r_bound = self.ego_dynamics['r_bound']
+        if -alpha_f_bound < alpha_f < alpha_f_bound \
+                and -alpha_r_bound < alpha_r < alpha_r_bound and \
+                -r_bound < self.ego_dynamics['r'] < r_bound:
             return False
         else:
             return True
@@ -489,14 +497,12 @@ class CrossroadEnd2end(gym.Env):
 
         # rewards related to ego stability
         alpha_f, alpha_r, miu_f, miu_r = ego_infos[8], ego_infos[9], ego_infos[10], ego_infos[11]
-        F_zf, F_zr = self.dynamics.vehicle_params['F_zf'], self.dynamics.vehicle_params['F_zr']
-        C_f, C_r = self.dynamics.vehicle_params['C_f'], self.dynamics.vehicle_params['C_r']
-        self.alpha_f_bound, self.alpha_r_bound = 3 * miu_f * F_zf / C_f, 3 * miu_r * F_zr / C_r
-        self.r_bound = miu_r * self.dynamics.vehicle_params['g'] / self.ego_dynamics['v_x']
+        alpha_f_bound, alpha_r_bound = self.ego_dynamics['alpha_f_bound'], self.ego_dynamics['alpha_r_bound']
+        r_bound = self.ego_dynamics['r_bound']
 
-        rew_alpha_f = -1 / tf.cast(tf.square(alpha_f - self.alpha_f_bound), dtype=tf.float32)
-        rew_alpha_r = -1 / tf.cast(tf.square(alpha_r - self.alpha_r_bound), dtype=tf.float32)
-        rew_r = -1 / tf.cast(tf.square(ego_infos[2] - self.r_bound), dtype=tf.float32)
+        rew_alpha_f = -1 / tf.cast(tf.square(alpha_f - alpha_f_bound), dtype=tf.float32)
+        rew_alpha_r = -1 / tf.cast(tf.square(alpha_r - alpha_r_bound), dtype=tf.float32)
+        rew_r = -1 / tf.cast(tf.square(ego_infos[2] - r_bound), dtype=tf.float32)
 
         # rewards related to action
         punish_steer = -tf.square(steers)
@@ -813,7 +819,10 @@ class CrossroadEnd2end(gym.Env):
             #      phi=ego_dict['phi'],
             #      l=ego_dict['l'],
             #      w=ego_dict['w'],
-            #      Corner_point=self.cal_corner_point_of_ego_car(ego_dict))
+            #      Corner_point=self.cal_corner_point_of_ego_car(ego_dict)
+            #      alpha_f_bound=alpha_f_bound,
+            #      alpha_r_bound=alpha_r_bound,
+            #      r_bound=r_bound)
 
             ego_v_x = self.ego_dynamics['v_x']
             ego_v_y = self.ego_dynamics['v_y']
@@ -827,6 +836,10 @@ class CrossroadEnd2end(gym.Env):
             ego_alpha_r = self.ego_dynamics['alpha_r']
             ego_miu_f = self.ego_dynamics['miu_f']
             ego_miu_r = self.ego_dynamics['miu_r']
+            alpha_f_bound = self.ego_dynamics['alpha_f_bound']
+            alpha_r_bound = self.ego_dynamics['alpha_r_bound']
+            r_bound = self.ego_dynamics['r_bound']
+
 
             plot_phi_line(ego_x, ego_y, ego_phi, 'red')
             draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'red')
@@ -856,14 +869,14 @@ class CrossroadEnd2end(gym.Env):
             plt.text(text_x, text_y_start - 3 * next(ge), 'exp_v: {:.2f}m/s'.format(self.exp_v))
             plt.text(text_x, text_y_start - 3 * next(ge), 'v_y: {:.2f}m/s'.format(ego_v_y))
             plt.text(text_x, text_y_start - 3 * next(ge), 'yaw_rate: {:.2f}rad/s'.format(ego_r))
-            plt.text(text_x, text_y_start - 3 * next(ge), 'yaw_rate bound: [{:.2f}, {:.2f}]'.format(-self.r_bound, self.r_bound))
+            plt.text(text_x, text_y_start - 3 * next(ge), 'yaw_rate bound: [{:.2f}, {:.2f}]'.format(-r_bound, r_bound))
 
             plt.text(text_x, text_y_start - 3 * next(ge), r'$\alpha_f$: {:.2f} rad'.format(ego_alpha_f))
-            plt.text(text_x, text_y_start - 3 * next(ge), r'$\alpha_f$ bound: [{:.2f}, {:.2f}] '.format(-self.alpha_f_bound,
-                                                                                                        self.alpha_f_bound))
+            plt.text(text_x, text_y_start - 3 * next(ge), r'$\alpha_f$ bound: [{:.2f}, {:.2f}] '.format(-alpha_f_bound,
+                                                                                                        alpha_f_bound))
             plt.text(text_x, text_y_start - 3 * next(ge), r'$\alpha_r$: {:.2f} rad'.format(ego_alpha_r))
-            plt.text(text_x, text_y_start - 3 * next(ge), r'$\alpha_r$ bound: [{:.2f}, {:.2f}] '.format(-self.alpha_r_bound,
-                                                                                                        self.alpha_r_bound))
+            plt.text(text_x, text_y_start - 3 * next(ge), r'$\alpha_r$ bound: [{:.2f}, {:.2f}] '.format(-alpha_r_bound,
+                                                                                                        alpha_r_bound))
             if self.action is not None:
                 steer, a_x = self.action[0], self.action[0]
                 plt.text(text_x, text_y_start - 3 * next(ge), r'steer: {:.2f}rad (${:.2f}\degree$)'.format(steer, steer * 180 / np.pi))
