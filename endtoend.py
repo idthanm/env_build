@@ -9,7 +9,7 @@
 
 import warnings
 from collections import OrderedDict
-from math import sqrt
+from math import sqrt, cos, sin, pi
 
 import gym
 import matplotlib.pyplot as plt
@@ -82,6 +82,16 @@ def judge_feasible(orig_x, orig_y, task):  # map dependant TODO
                        or is_in_middle(orig_x, orig_y) else False
 
 
+ROUTE2MODE = {('1o', '2i'): 'dr', ('1o', '3i'): 'du', ('1o', '4i'): 'dl',
+              ('2o', '1i'): 'rd', ('2o', '3i'): 'ru', ('2o', '4i'): 'rl',
+              ('3o', '1i'): 'ud', ('3o', '2i'): 'ur', ('3o', '4i'): 'ul',
+              ('4o', '1i'): 'ld', ('4o', '2i'): 'lr', ('4o', '3i'): 'lu'}
+MODE2TASK = {'dr': 'right', 'du': 'straight', 'dl': 'left',
+             'rd': 'left', 'ru': 'right', 'rl': ' straight',
+             'ud': 'straight', 'ur': 'left', 'ul': 'right',
+             'ld': 'right', 'lr': 'straight', 'lu': 'left'}
+
+
 class CrossroadEnd2end(gym.Env):
     def __init__(self,
                  training_task,  # 'left', 'straight', 'right'
@@ -118,6 +128,13 @@ class CrossroadEnd2end(gym.Env):
             self._set_observation_space(observation)
             plt.ion()
         self.obs = None
+        self.action = None
+        self.veh_mode_list = []
+        self.alpha_f_bound = None
+        self.alpha_r_bound = None
+        self.r_bound = None
+        self.done_type = 6
+        self.reward_info = None
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -126,15 +143,6 @@ class CrossroadEnd2end(gym.Env):
     def reset(self, **kwargs):  # kwargs include three keys
         self.ref_path = ReferencePath(self.training_task)
         self.init_state = self._reset_init_state()
-        # self.init_state = dict(ego=dict(v_x=10.,
-        #                                 v_y=0.,
-        #                                 r=0.,
-        #                                 x=1.5,
-        #                                 y=-21,
-        #                                 phi=90.,
-        #                                 l=4.2,
-        #                                 w=1.8,
-        #                                 routeID='dl'))
         self.traffic.init_traffic(self.init_state)
         self.traffic.sim_step()
         self._get_all_info()
@@ -142,22 +150,30 @@ class CrossroadEnd2end(gym.Env):
         return self.obs
 
     def step(self, action):
-        trans_action = self._action_transformation_for_end2end(action)
-        next_ego_state = self._get_next_ego_state(trans_action)
+        self.action = self._action_transformation_for_end2end(action)
+        next_ego_state, next_ego_params = self._get_next_ego_state(self.action)
         self.traffic.set_own_car(dict(ego=dict(v_x=next_ego_state[0],
                                                v_y=next_ego_state[1],
                                                r=next_ego_state[2],
                                                x=next_ego_state[3],
                                                y=next_ego_state[4],
-                                               phi=next_ego_state[5])))
+                                               phi=next_ego_state[5],
+                                               alpha_f=next_ego_params[0],
+                                               alpha_r=next_ego_params[1],
+                                               miu_f=next_ego_params[2],
+                                               miu_r=next_ego_params[2],)
+                                      ))
         self.traffic.sim_step()
         all_info = self._get_all_info()
         self.obs = self._get_obs()
-        reward, reward_info = self.compute_reward(self.obs, trans_action)
-        done_type, done = self._judge_done()
+        self.done_type, done = self._judge_done()
+        done_rew = 0
+        reward, self.reward_info = self.compute_reward(self.obs, self.action)
+        reward += done_rew
+        self.reward_info.update({'done_rew':done_rew})
         # if done:
-        #     self._print_done_info(done_type)
-        all_info.update(reward_info)
+        #     print(self._done_info(done_type))
+        all_info.update(self.reward_info)
         return self.obs, reward, done, all_info
 
     def _set_observation_space(self, observation):
@@ -178,6 +194,10 @@ class CrossroadEnd2end(gym.Env):
         #      phi=ego_dict['phi'],
         #      l=ego_dict['l'],
         #      w=ego_dict['w'],
+        #      alpha_f = ego_dict['alpha_f'],
+        #      alpha_r = ego_dict['alpha_r'],
+        #      miu_f = ego_dict['miu_f'],
+        #      miu_r = ego_dict['miu_r'],
         #      Corner_point=self.cal_corner_point_of_ego_car(ego_dict))
 
         # all_vehicles
@@ -189,9 +209,10 @@ class CrossroadEnd2end(gym.Env):
                         v_light=self.v_light)
         return all_info
 
-    def _print_done_info(self, done_type):
-        done_info = ['collision', 'break_road_constrain', 'break_red_light', 'good_done', 'not_done_yet']
-        print(done_info[done_type - 1], '\n')
+    def _done_info(self, done_type):
+        done_info = ['collision', 'break_road_constrain', 'break_stability',
+                     'break_red_light', 'good_done', 'not_done_yet']
+        return done_info[done_type - 1]
 
     def _judge_done(self):
         """
@@ -205,16 +226,32 @@ class CrossroadEnd2end(gym.Env):
             return 1, 1
         elif self._break_road_constrain():
             return 2, 1
-        elif self._break_red_light():
+        elif self._break_stability():
             return 3, 1
-        elif self._is_achieve_goal():
+        elif self._break_red_light():
             return 4, 1
+        elif self._is_achieve_goal():
+            return 5, 1
         else:
-            return 5, 0
+            return 6, 0
 
     def _break_road_constrain(self):
         results = list(map(lambda x: judge_feasible(*x, self.training_task), self.ego_dynamics['Corner_point']))
         return not all(results)
+
+    def _break_stability(self):
+        alpha_f, alpha_r, miu_f, miu_r = self.ego_dynamics['alpha_f'], self.ego_dynamics['alpha_r'], \
+                                         self.ego_dynamics['miu_f'], self.ego_dynamics['miu_r']
+        F_zf, F_zr = self.dynamics.vehicle_params['F_zf'], self.dynamics.vehicle_params['F_zr']
+        C_f, C_r = self.dynamics.vehicle_params['C_f'], self.dynamics.vehicle_params['C_r']
+        self.alpha_f_bound, self.alpha_r_bound = 3 * miu_f * F_zf / C_f, 3 * miu_r * F_zr / C_r
+        self.r_bound = miu_r * self.dynamics.vehicle_params['g'] / self.ego_dynamics['v_x']
+        if -self.alpha_f_bound < alpha_f < self.alpha_f_bound \
+                and -self.alpha_r_bound < alpha_r < self.alpha_r_bound and \
+                -self.r_bound < self.ego_dynamics['r'] < self.r_bound:
+            return False
+        else:
+            return True
 
     def _break_red_light(self):
         return True if self.v_light != 0 and self.ego_dynamics['y'] > -18 and self.training_task != 'right' else False
@@ -243,8 +280,9 @@ class CrossroadEnd2end(gym.Env):
         steer, a_x = trans_action
         state = np.array([[current_v_x, current_v_y, current_r, current_x, current_y, current_phi]], dtype=np.float32)
         action = np.array([[steer, a_x]], dtype=np.float32)
-        next_ego_state = self.dynamics.prediction(state, action, 10, 1).numpy()[0]
-        return next_ego_state
+        next_ego_state,  next_ego_params = self.dynamics.prediction(state, action, 10, 1)
+        next_ego_state, next_ego_params = next_ego_state.numpy()[0],  next_ego_params.numpy()[0]
+        return next_ego_state, next_ego_params
 
     def _get_obs(self, exit='D'):
         ego_v_x = self.ego_dynamics['v_x']
@@ -256,6 +294,10 @@ class CrossroadEnd2end(gym.Env):
         ego_phi = self.ego_dynamics['phi']
         ego_l = self.ego_dynamics['l']
         ego_w = self.ego_dynamics['w']
+        ego_alpha_f = self.ego_dynamics['alpha_f']
+        ego_alpha_r = self.ego_dynamics['alpha_r']
+        ego_miu_f = self.ego_dynamics['miu_f']
+        ego_miu_r = self.ego_dynamics['miu_r']
         v_light = self.v_light
         vehs_vector = []
 
@@ -344,41 +386,45 @@ class CrossroadEnd2end(gym.Env):
                         sorted_list.append(fill_value)
                     return sorted_list
 
-            fill_value_for_dl = dict(x=-40, y=1.875, v=0, phi=180, w=2.5, l=5, route=None)
-            fill_value_for_du = dict(x=1.875, y=40, v=0, phi=90, w=2.5, l=5, route=None)
-            fill_value_for_dr = dict(x=40, y=-5.625, v=0, phi=0, w=2.5, l=5, route=None)
+            fill_value_for_dl = dict(x=-40, y=1.875, v=0, phi=180, w=2.5, l=5, route=('1o', '4i'))
+            fill_value_for_du = dict(x=1.875, y=40, v=0, phi=90, w=2.5, l=5, route=('1o', '3i'))
+            fill_value_for_dr = dict(x=40, y=-5.625, v=0, phi=0, w=2.5, l=5, route=('1o', '2i'))
 
-            fill_value_for_ru = dict(x=35, y=5.625, v=0, phi=180, w=2.5, l=5, route=None)
+            fill_value_for_ru = dict(x=35, y=5.625, v=0, phi=180, w=2.5, l=5, route=('2o', '3i'))
 
-            fill_value_for_ur_straight = dict(x=-1.875, y=40, v=0, phi=-90, w=2.5, l=5, route=None)
-            fill_value_for_ur_right = dict(x=-1.875, y=40, v=0, phi=-90, w=2.5, l=5, route=None)
+            fill_value_for_ur_straight = dict(x=-1.875, y=40, v=0, phi=-90, w=2.5, l=5, route=('3o', '2i'))
+            fill_value_for_ur_right = dict(x=-1.875, y=40, v=0, phi=-90, w=2.5, l=5, route=('3o', '2i'))
 
-            fill_value_for_ud = dict(x=-1.875, y=40, v=0, phi=-90, w=2.5, l=5, route=None)
-            fill_value_for_ul = dict(x=-5.625, y=40, v=0, phi=-90, w=2.5, l=5, route=None)
+            fill_value_for_ud = dict(x=-1.875, y=40, v=0, phi=-90, w=2.5, l=5, route=('3o', '1i'))
+            fill_value_for_ul = dict(x=-5.625, y=40, v=0, phi=-90, w=2.5, l=5, route=('3o', '4i'))
 
-            fill_value_for_lr = dict(x=-40, y=-1.875, v=0, phi=0, w=2.5, l=5, route=None)
+            fill_value_for_lr = dict(x=-40, y=-1.875, v=0, phi=0, w=2.5, l=5, route=('4o', '2i'))
 
             tmp = OrderedDict()
+            veh_mode_list = []
             if task == 'left':
                 tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, 2)
                 tmp['du'] = slice_or_fill(du, fill_value_for_du, 2)
                 tmp['ud'] = slice_or_fill(ud, fill_value_for_ud, 3)
                 tmp['ul'] = slice_or_fill(ul, fill_value_for_ul, 3)
+                veh_mode_list = [('dl', 2), ('du', 2), ('ud', 3), ('ul', 3)]
             elif task == 'straight':
                 tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, 2)
                 tmp['du'] = slice_or_fill(du, fill_value_for_du, 2)
                 tmp['ud'] = slice_or_fill(ud, fill_value_for_ud, 2)
                 tmp['ru'] = slice_or_fill(ru, fill_value_for_ru, 3)
                 tmp['ur'] = slice_or_fill(ur_straight, fill_value_for_ur_straight, 3)
+                veh_mode_list = [('dl', 2), ('du', 2), ('ud', 2), ('ru', 3), ('ur', 3)]
             elif task == 'right':
                 tmp['dr'] = slice_or_fill(dr, fill_value_for_dr, 2)
                 tmp['ur'] = slice_or_fill(ur_right, fill_value_for_ur_right, 3)
                 tmp['lr'] = slice_or_fill(lr, fill_value_for_lr, 3)
+                veh_mode_list = [('dr', 2), ('ur', 3), ('lr', 3)]
 
-            return tmp
+            return tmp, veh_mode_list
 
         list_of_interested_veh_dict = []
-        self.interested_vehs = filter_interested_vehicles(self.all_vehicles, self.training_task)
+        self.interested_vehs, self.veh_mode_list = filter_interested_vehicles(self.all_vehicles, self.training_task)
         for part in list(self.interested_vehs.values()):
             list_of_interested_veh_dict.extend(part)
 
@@ -389,7 +435,8 @@ class CrossroadEnd2end(gym.Env):
         vehs_vector = np.array(vehs_vector, dtype=np.float32)
 
         # construct vector dict
-        ego_vector = np.array([ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi, ego_l, ego_w], dtype=np.float32)
+        ego_vector = np.array([ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi,
+                               ego_l, ego_w, ego_alpha_f, ego_alpha_r, ego_miu_f, ego_miu_r], dtype=np.float32)
 
         # tracking related
         tracking_error = self.ref_path.tracking_error_vector(np.array([ego_x], dtype=np.float32),
@@ -408,7 +455,7 @@ class CrossroadEnd2end(gym.Env):
         return orig_x, orig_y
 
     def _reset_init_state(self):
-        random_index = int(np.random.random()*1500) + 200
+        random_index = int(np.random.random()*(len(self.ref_path.path[0])-600)) + 100
         x, y, phi = self.ref_path.indexs2points(random_index)
         v = 7 + 6 * np.random.random()
         if self.training_task == 'left':
@@ -426,12 +473,22 @@ class CrossroadEnd2end(gym.Env):
                              phi=phi.numpy(),
                              l=4.2,
                              w=1.8,
-                             routeID=routeID))
+                             routeID=routeID,
+                             alpha_f=0.,
+                             alpha_r=0.,
+                             miu_f=self.dynamics.vehicle_params['miu'],
+                             miu_r=self.dynamics.vehicle_params['miu']))
 
     def compute_reward(self, obs, action):
-        ego_infos, tracking_infos, veh_infos = obs[:8], obs[8:8 + 3 + 3 * self.num_future_data], \
-                                               obs[8 + 3 + 3 * self.num_future_data:]
+        ego_infos, tracking_infos, veh_infos = obs[:12], obs[12:12 + 3 + 3 * self.num_future_data], \
+                                               obs[12 + 3 + 3 * self.num_future_data:]
         steers, a_xs = action[0], action[1]
+
+        # rewards related to ego stability
+        alpha_f, alpha_r, miu_f, miu_r = ego_infos[8], ego_infos[9], ego_infos[10], ego_infos[11]
+        rew_alpha_f = -1 / tf.cast(tf.square(alpha_f - self.alpha_f_bound), dtype=tf.float32)
+        rew_alpha_r = -1 / tf.cast(tf.square(alpha_r - self.alpha_r_bound), dtype=tf.float32)
+        rew_r = -1 / tf.cast(tf.square(ego_infos[2] - self.r_bound), dtype=tf.float32)
 
         # rewards related to action
         punish_steer = -tf.square(steers)
@@ -468,7 +525,7 @@ class CrossroadEnd2end(gym.Env):
                 after2 = 1 / tf.square(7.5 - ego_point[1] - rho_ego) if ego_point[0] < -18 else tf.constant(0.)
 
                 this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
-                veh2road += this_point
+                veh2road -= this_point
 
         elif self.training_task == 'straight':
             veh2road = tf.constant(0.)
@@ -486,7 +543,7 @@ class CrossroadEnd2end(gym.Env):
                 after2 = 1 / tf.square(7.5 - ego_point[0] - rho_ego) if ego_point[1] > 18 else tf.constant(0.)
 
                 this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
-                veh2road += this_point
+                veh2road -= this_point
 
         else:
             veh2road = tf.constant(0.)
@@ -505,7 +562,7 @@ class CrossroadEnd2end(gym.Env):
                 after2 = 1 / tf.square(ego_point[1] - (-7.5) - rho_ego) if ego_point[0] > 18 else tf.constant(0.)
 
                 this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
-                veh2road += this_point
+                veh2road -= this_point
         # rewards related to veh2veh collision
         veh2veh = tf.constant(0.)
         for veh_index in range(int(len(veh_infos) / 6)):
@@ -520,7 +577,7 @@ class CrossroadEnd2end(gym.Env):
                 for veh_point in [veh_front_point, veh_rear_point]:
                     veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(
                         ego_point[1] - veh_point[1])) - tf.convert_to_tensor(rho_ego + rho_veh, dtype=tf.float32)
-                    veh2veh += 1. / tf.square(veh2veh_dist)
+                    veh2veh -= 1. / tf.square(veh2veh_dist)
 
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
@@ -529,12 +586,21 @@ class CrossroadEnd2end(gym.Env):
                            devi_y=devi_y.numpy(),
                            devi_phi=devi_phi.numpy(),
                            veh2road=-veh2road.numpy(),
-                           veh2veh=-veh2veh.numpy())
+                           veh2veh=-veh2veh.numpy(),
+                           rew_alpha_f=rew_alpha_f.numpy(),
+                           rew_alpha_r=rew_alpha_r.numpy(),
+                           rew_r=rew_r.numpy()
+                           )
         # print(reward_dict)
-        veh2road = 10000. if veh2road > 10000. else veh2road
-        veh2veh = 10000. if veh2veh > 10000. else veh2veh
-        rewards = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                  0.05 * punish_steer + 0.0005 * punish_a_x - 0.1 * veh2road - 0.1 * veh2veh
+        rew_alpha_f = -10000. if rew_alpha_f < -10000. else rew_alpha_f
+        rew_alpha_r = -10000. if rew_alpha_r < -10000. else rew_alpha_r
+        rew_r = -10000. if rew_r < -10000. else rew_r
+        veh2road = -10000. if veh2road < -10000. else veh2road
+        veh2veh = -10000. if veh2veh < -10000. else veh2veh
+
+        rewards = 0.01 * devi_v + 0.04 * devi_y + devi_phi + 0.02 * punish_yaw_rate + \
+                  0.05 * punish_steer + 0.0005 * punish_a_x + 0.1 * veh2road + 0.1 * veh2veh + \
+                  0.001 * rew_alpha_f + 0.001 * rew_alpha_r + 0.01 * rew_r
         return rewards.numpy(), reward_dict
 
     def render(self, mode='human'):
@@ -547,10 +613,11 @@ class CrossroadEnd2end(gym.Env):
             light_line_width = 3
 
             plt.cla()
-            plt.title("Demo")
+            plt.title("Crossroad")
             ax = plt.axes(xlim=(-square_length / 2 - extension, square_length / 2 + extension),
                           ylim=(-square_length / 2 - extension, square_length / 2 + extension))
             plt.axis("equal")
+            plt.axis('off')
 
             # ax.add_patch(plt.Rectangle((-square_length / 2, -square_length / 2),
             #                            square_length, square_length, edgecolor='black', facecolor='none'))
@@ -685,36 +752,125 @@ class CrossroadEnd2end(gym.Env):
                 else:
                     return False
 
-            def draw_rotate_rec(x, y, a, l, w, color):
+            def draw_rotate_rec(x, y, a, l, w, color, linestyle='-'):
                 RU_x, RU_y, _ = rotate_coordination(l / 2, w / 2, 0, -a)
                 RD_x, RD_y, _ = rotate_coordination(l / 2, -w / 2, 0, -a)
                 LU_x, LU_y, _ = rotate_coordination(-l / 2, w / 2, 0, -a)
                 LD_x, LD_y, _ = rotate_coordination(-l / 2, -w / 2, 0, -a)
-                ax.plot([RU_x + x, RD_x + x], [RU_y + y, RD_y + y], color=color)
-                ax.plot([RU_x + x, LU_x + x], [RU_y + y, LU_y + y], color=color)
-                ax.plot([LD_x + x, RD_x + x], [LD_y + y, RD_y + y], color=color)
-                ax.plot([LD_x + x, LU_x + x], [LD_y + y, LU_y + y], color=color)
+                ax.plot([RU_x + x, RD_x + x], [RU_y + y, RD_y + y], color=color, linestyle=linestyle)
+                ax.plot([RU_x + x, LU_x + x], [RU_y + y, LU_y + y], color=color, linestyle=linestyle)
+                ax.plot([LD_x + x, RD_x + x], [LD_y + y, RD_y + y], color=color, linestyle=linestyle)
+                ax.plot([LD_x + x, LU_x + x], [LD_y + y, LU_y + y], color=color, linestyle=linestyle)
+
+            def plot_phi_line(x, y, phi, color):
+                line_length = 3
+                x_forw, y_forw = x + line_length * cos(phi*pi/180.),\
+                                 y + line_length * sin(phi*pi/180.)
+                plt.plot([x, x_forw], [y, y_forw], color=color, linewidth=0.5)
 
             # plot cars
             for veh in self.all_vehicles:
-                x = veh['x']
-                y = veh['y']
-                a = veh['phi']
-                l = veh['l']
-                w = veh['w']
-                if is_in_plot_area(x, y):
-                    draw_rotate_rec(x, y, a, l, w, 'black')
+                veh_x = veh['x']
+                veh_y = veh['y']
+                veh_phi = veh['phi']
+                veh_l = veh['l']
+                veh_w = veh['w']
+                if is_in_plot_area(veh_x, veh_y):
+                    plot_phi_line(veh_x, veh_y, veh_phi, 'black')
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, 'black')
+
+            # # plot_interested vehs
+            for mode, num in self.veh_mode_list:
+                for i in range(num):
+                    veh = self.interested_vehs[mode][i]
+                    veh_x = veh['x']
+                    veh_y = veh['y']
+                    veh_phi = veh['phi']
+                    veh_l = veh['l']
+                    veh_w = veh['w']
+                    task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+
+                    if is_in_plot_area(veh_x, veh_y):
+                        plot_phi_line(veh_x, veh_y, veh_phi, 'black')
+                        task = MODE2TASK[mode]
+                        color = task2color[task]
+                        draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
 
             # plot own car
+            # dict(v_x=ego_dict['v_x'],
+            #      v_y=ego_dict['v_y'],
+            #      r=ego_dict['r'],
+            #      x=ego_dict['x'],
+            #      y=ego_dict['y'],
+            #      phi=ego_dict['phi'],
+            #      l=ego_dict['l'],
+            #      w=ego_dict['w'],
+            #      Corner_point=self.cal_corner_point_of_ego_car(ego_dict))
+
+            ego_v_x = self.ego_dynamics['v_x']
+            ego_v_y = self.ego_dynamics['v_y']
+            ego_r = self.ego_dynamics['r']
             ego_x = self.ego_dynamics['x']
             ego_y = self.ego_dynamics['y']
-            ego_a = self.ego_dynamics['phi']
+            ego_phi = self.ego_dynamics['phi']
             ego_l = self.ego_dynamics['l']
             ego_w = self.ego_dynamics['w']
-            draw_rotate_rec(ego_x, ego_y, ego_a, ego_l, ego_w, 'red')
+            ego_alpha_f = self.ego_dynamics['alpha_f']
+            ego_alpha_r = self.ego_dynamics['alpha_r']
+            ego_miu_f = self.ego_dynamics['miu_f']
+            ego_miu_r = self.ego_dynamics['miu_r']
+
+            plot_phi_line(ego_x, ego_y, ego_phi, 'red')
+            draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'red')
 
             # plot planed trj
             ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
+            indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
+            path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+            delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
+            plt.plot(path_x, path_y, 'go')
+            plot_phi_line(path_x, path_y, path_phi, 'g')
+
+            # plot ego dynamics
+            text_x, text_y_start = -110, 60
+            ge = iter(range(0, 100, 2))
+            plt.text(text_x, text_y_start - 3 * next(ge), 'ego_x: {:.2f}m'.format(ego_x))
+            plt.text(text_x, text_y_start - 3 * next(ge), 'ego_y: {:.2f}m'.format(ego_y))
+            plt.text(text_x, text_y_start - 3 * next(ge), 'path_x: {:.2f}m'.format(path_x))
+            plt.text(text_x, text_y_start - 3 * next(ge), 'path_y: {:.2f}m'.format(path_y))
+            plt.text(text_x, text_y_start - 3 * next(ge), 'delta_x: {:.2f}m'.format(delta_x))
+            plt.text(text_x, text_y_start - 3 * next(ge), 'delta_y: {:.2f}m'.format(delta_y))
+            plt.text(text_x, text_y_start - 3 * next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
+            plt.text(text_x, text_y_start - 3 * next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
+            plt.text(text_x, text_y_start - 3 * next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
+
+            plt.text(text_x, text_y_start - 3 * next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
+            plt.text(text_x, text_y_start - 3 * next(ge), 'exp_v: {:.2f}m/s'.format(self.exp_v))
+            plt.text(text_x, text_y_start - 3 * next(ge), 'v_y: {:.2f}m/s'.format(ego_v_y))
+            plt.text(text_x, text_y_start - 3 * next(ge), 'yaw_rate: {:.2f}rad/s'.format(ego_r))
+            plt.text(text_x, text_y_start - 3 * next(ge), 'yaw_rate bound: [{:.2f}, {:.2f}]'.format(-self.r_bound, self.r_bound))
+
+            plt.text(text_x, text_y_start - 3 * next(ge), r'$\alpha_f$: {:.2f} rad'.format(ego_alpha_f))
+            plt.text(text_x, text_y_start - 3 * next(ge), r'$\alpha_f$ bound: [{:.2f}, {:.2f}] '.format(-self.alpha_f_bound,
+                                                                                                        self.alpha_f_bound))
+            plt.text(text_x, text_y_start - 3 * next(ge), r'$\alpha_r$: {:.2f} rad'.format(ego_alpha_r))
+            plt.text(text_x, text_y_start - 3 * next(ge), r'$\alpha_r$ bound: [{:.2f}, {:.2f}] '.format(-self.alpha_r_bound,
+                                                                                                        self.alpha_r_bound))
+            if self.action is not None:
+                steer, a_x = self.action[0], self.action[0]
+                plt.text(text_x, text_y_start - 3 * next(ge), r'steer: {:.2f}rad (${:.2f}\degree$)'.format(steer, steer * 180 / np.pi))
+                plt.text(text_x, text_y_start - 3 * next(ge), 'a_x: {:.2f}m/s^2'.format(a_x))
+
+            text_x, text_y_start = 70, 60
+            ge = iter(range(0, 100, 2))
+
+            # done info
+            plt.text(text_x, text_y_start - 3 * next(ge), 'done info: {}'.format(self._done_info(self.done_type)))
+
+            # reward info
+            if self.reward_info is not None:
+                for key, val in self.reward_info.items():
+                    plt.text(text_x, text_y_start - 3 * next(ge), '{}: {:.4f}'.format(key, val))
 
             plt.show()
             plt.pause(0.1)
@@ -727,16 +883,16 @@ def test_end2end():
     i = 0
     done = 0
     start = time.time()
-    while i < 512:
+    while i < 100000:
         while not done:
-            print(i)
+            # print(i)
             i += 1
             action = np.array([0, 0], dtype=np.float32)
             obs, reward, done, info = env.step(action)
-            # env.render()
+            env.render()
         done = 0
         obs = env.reset()
-        # env.render()
+        env.render()
     end = time.time()
     print(end-start)
 

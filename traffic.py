@@ -269,6 +269,11 @@ class Traffic(object):
             self.n_ego_dict[egoID]['x'] = ego_x = n_ego_dict_[egoID]['x']
             self.n_ego_dict[egoID]['y'] = ego_y = n_ego_dict_[egoID]['y']
             self.n_ego_dict[egoID]['phi'] = ego_phi = n_ego_dict_[egoID]['phi']
+            self.n_ego_dict[egoID]['alpha_f'] = alpha_f = n_ego_dict_[egoID]['alpha_f']
+            self.n_ego_dict[egoID]['alpha_r'] = alpha_r = n_ego_dict_[egoID]['alpha_r']
+            self.n_ego_dict[egoID]['miu_f'] = miu_f = n_ego_dict_[egoID]['miu_f']
+            self.n_ego_dict[egoID]['miu_r'] = miu_r = n_ego_dict_[egoID]['miu_r']
+
             ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi,
                                                                                            self.n_ego_dict[egoID]['l'])
             traci.vehicle.moveToXY(egoID, '0', 1, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
@@ -285,6 +290,10 @@ class Traffic(object):
                                           phi=ego_dict['phi'],
                                           l=ego_dict['l'],
                                           w=ego_dict['w'],
+                                          alpha_f=ego_dict['alpha_f'],
+                                          alpha_r=ego_dict['alpha_r'],
+                                          miu_f=ego_dict['miu_f'],
+                                          miu_r=ego_dict['miu_r'],
                                           Corner_point=self.cal_corner_point_of_ego_car(ego_dict))
 
     def cal_corner_point_of_ego_car(self, ego_dict):
