@@ -486,6 +486,11 @@ class CrossroadEnd2end(gym.Env):
 
         # rewards related to ego stability
         alpha_f, alpha_r, miu_f, miu_r = ego_infos[8], ego_infos[9], ego_infos[10], ego_infos[11]
+        F_zf, F_zr = self.dynamics.vehicle_params['F_zf'], self.dynamics.vehicle_params['F_zr']
+        C_f, C_r = self.dynamics.vehicle_params['C_f'], self.dynamics.vehicle_params['C_r']
+        self.alpha_f_bound, self.alpha_r_bound = 3 * miu_f * F_zf / C_f, 3 * miu_r * F_zr / C_r
+        self.r_bound = miu_r * self.dynamics.vehicle_params['g'] / self.ego_dynamics['v_x']
+
         rew_alpha_f = -1 / tf.cast(tf.square(alpha_f - self.alpha_f_bound), dtype=tf.float32)
         rew_alpha_r = -1 / tf.cast(tf.square(alpha_r - self.alpha_r_bound), dtype=tf.float32)
         rew_r = -1 / tf.cast(tf.square(ego_infos[2] - self.r_bound), dtype=tf.float32)

@@ -847,7 +847,7 @@ class ReferencePath(object):
         return future_data_list
 
     def indexs2points(self, indexs):
-        assert tf.reduce_all(indexs < len(self.path[0]))
+        tf.assert_equal(tf.reduce_all(indexs < len(self.path[0])), tf.constant(True, dtype=tf.bool))
         points = tf.gather(self.path[0], indexs), \
                  tf.gather(self.path[1], indexs), \
                  tf.gather(self.path[2], indexs)
