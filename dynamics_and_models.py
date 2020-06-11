@@ -155,9 +155,14 @@ class EnvironmentModel(object):  # all tensors
 
     def reset(self, obses, task):
         self.obses = obses
+        self.actions = None
         self.dones = tf.cast(tf.zeros_like(self.obses[:, 0]), tf.bool)
         self.task = task
         self.ref_path = ReferencePath(task, mode='training')
+        self.alpha_f_bounds = None
+        self.alpha_r_bounds = None
+        self.r_bounds = None
+        self.reward_info = None
 
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:

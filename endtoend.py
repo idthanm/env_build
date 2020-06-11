@@ -147,6 +147,9 @@ class CrossroadEnd2end(gym.Env):
         self.traffic.sim_step()
         self._get_all_info()
         self.obs = self._get_obs()
+        self.action = None
+        self.reward_info = None
+        self.done_type = 6
         return self.obs
 
     def step(self, action):
