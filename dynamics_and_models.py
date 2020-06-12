@@ -169,7 +169,7 @@ class EnvironmentModel(object):  # all tensors
             prev_dones = self.dones
             self.judge_dones(self.obses)
             done_rews = tf.zeros_like(self.obses[:, 0], dtype=tf.float32)
-            rewards = self.compute_rewards(self.obses, self.actions, prev_dones)
+            rewards = self.compute_rewards2(self.obses, self.actions, prev_dones)
             rewards += done_rews
 
         return self.obses, rewards, self.dones
@@ -177,10 +177,10 @@ class EnvironmentModel(object):  # all tensors
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         alpha_f_bounds = self.alpha_f_bounds
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
-        steer_scale, a_xs_scale = 1.2 * np.pi / 9 * steer_norm, 3. * a_xs_norm
+        steer_scale, a_xs_scale = 0.2 * steer_norm, 3. * a_xs_norm
 
-        steer_scale = tf.where(steer_scale<alpha_f_bounds-0.01, steer_scale, alpha_f_bounds)
-        steer_scale = tf.where(steer_scale>-alpha_f_bounds+0.01, steer_scale, -alpha_f_bounds)
+        # steer_scale = tf.where(steer_scale<alpha_f_bounds-0.01, steer_scale, alpha_f_bounds)
+        # steer_scale = tf.where(steer_scale>-alpha_f_bounds+0.01, steer_scale, -alpha_f_bounds)
 
         return tf.stack([steer_scale, a_xs_scale], 1)
 
@@ -437,8 +437,8 @@ class EnvironmentModel(object):  # all tensors
             #                    devi_v=devi_v.numpy()[0],
             #                    devi_y=devi_y.numpy()[0],
             #                    devi_phi=devi_phi.numpy()[0],
-            #                    veh2road=-veh2road.numpy()[0],
-            #                    veh2veh=-veh2veh.numpy()[0],
+            #                    veh2road=veh2road.numpy()[0],
+            #                    veh2veh=veh2veh.numpy()[0],
             #                    rew_alpha_f=rew_alpha_f.numpy()[0],
             #                    rew_alpha_r=rew_alpha_r.numpy()[0],
             #                    rew_r=rew_r.numpy()[0]
@@ -455,6 +455,159 @@ class EnvironmentModel(object):  # all tensors
                       100 * rew_alpha_f + 100 * rew_alpha_r + 100 * rew_r
             rewards = tf.cast(tf.math.logical_not(prev_dones), tf.float32) * rewards
             return rewards
+
+    def compute_rewards2(self, obses, actions, prev_dones):
+        with tf.name_scope('compute_reward') as scope:
+
+            ego_infos, tracking_infos, veh_infos = obses[:, :12], obses[:, 12:12 + 3 + 3 * self.num_future_data], \
+                                                   obses[:, 12 + 3 + 3 * self.num_future_data:]
+            steers, a_xs = actions[:, 0], actions[:, 1]
+
+            # rewards related to ego stability
+            alpha_fs, alpha_rs, miu_fs, miu_rs = ego_infos[:, 8], ego_infos[:, 9], ego_infos[:, 10], ego_infos[:, 11]
+            # rew_alpha_f = -1 / tf.cast(tf.square(alpha_fs - self.alpha_f_bounds), dtype=tf.float32)
+            # rew_alpha_r = -1 / tf.cast(tf.square(alpha_rs - self.alpha_r_bounds), dtype=tf.float32)
+            # rew_r = -1 / tf.cast(tf.square(ego_infos[:, 2] - self.r_bounds), dtype=tf.float32)
+
+            rew_alpha_f = - tf.cast(tf.nn.relu(tf.abs(alpha_fs) - self.alpha_f_bounds), dtype=tf.float32)
+            rew_alpha_r = - tf.cast(tf.nn.relu(tf.abs(alpha_rs) - self.alpha_r_bounds), dtype=tf.float32)
+            rew_r = - tf.cast(tf.nn.relu(tf.abs(ego_infos[:, 2]) - self.r_bounds), dtype=tf.float32)
+
+            # rewards related to action
+            punish_steer = -tf.square(steers)
+            punish_a_x = -tf.square(a_xs)
+
+            # rewards related to ego stability
+            punish_yaw_rate = -tf.square(ego_infos[:, 2])
+
+            # rewards related to tracking error
+            devi_v = -tf.cast(tf.square(ego_infos[:, 0] - self.exp_v), dtype=tf.float32)
+            devi_y = -tf.square(tracking_infos[:, 0]) - tf.square(tracking_infos[:, 1])
+            devi_phi = -tf.cast(tf.square(tracking_infos[:, 2] * np.pi / 180.), dtype=tf.float32)
+
+            # rewards related to veh2road collision
+            ego_lws = (ego_infos[:, 6] - ego_infos[:, 7]) / 2.
+            ego_front_points = tf.cast(ego_infos[:, 3] + ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.),
+                                       dtype=tf.float32), \
+                               tf.cast(ego_infos[:, 4] + ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.),
+                                       dtype=tf.float32)
+            ego_rear_points = tf.cast(ego_infos[:, 3] - ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.),
+                                      dtype=tf.float32), \
+                              tf.cast(ego_infos[:, 4] - ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.),
+                                      dtype=tf.float32)
+            rho_ego = ego_infos[0, 7] / 2.
+            zeros = tf.zeros_like(ego_front_points[0])
+            if self.task == 'left':
+                veh2road = tf.zeros_like(ego_front_points[0])
+                for ego_point in [ego_front_points, ego_rear_points]:
+                    before1 = tf.where(ego_point[1] < -18, tf.nn.relu(-(ego_point[0] - 0 - rho_ego)), zeros)
+                    before2 = tf.where(ego_point[1] < -18, tf.nn.relu(-(3.75 - ego_point[0] - rho_ego)), zeros)
+                    middle_cond = logical_and(logical_and(ego_point[0] > -18, ego_point[0] < 18),
+                                              logical_and(ego_point[1] > -18, ego_point[1] < 18))
+                    middle1 = tf.where(middle_cond, tf.nn.relu(-(18 - ego_point[1] - rho_ego)), zeros)
+                    middle2 = tf.where(middle_cond, tf.nn.relu(-(18 - ego_point[0] - rho_ego)), zeros)
+                    middle3 = tf.where(logical_and(middle_cond, ego_point[1] > 7.5),
+                                       tf.nn.relu(-(ego_point[0] - (-18) - rho_ego)), zeros)
+                    middle4 = tf.where(logical_and(middle_cond, ego_point[1] < 0),
+                                       tf.nn.relu(-(ego_point[0] - (-18) - rho_ego)), zeros)
+                    middle5 = tf.where(logical_and(middle_cond, ego_point[0] < 0),
+                                       tf.nn.relu(-(ego_point[1] - (-18) - rho_ego)), zeros)
+                    middle6 = tf.where(logical_and(middle_cond, ego_point[0] > 3.75),
+                                       tf.nn.relu(-(ego_point[1] - (-18) - rho_ego)), zeros)
+                    after1 = tf.where(ego_point[0] < -18, tf.nn.relu(-(ego_point[1] - 0 - rho_ego)), zeros)
+                    after2 = tf.where(ego_point[0] < -18, tf.nn.relu(-(7.5 - ego_point[1] - rho_ego)), zeros)
+
+                    this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
+                    veh2road -= this_point
+
+            elif self.task == 'straight':
+                veh2road = tf.zeros_like(ego_front_points[0])
+                for ego_point in [ego_front_points, ego_rear_points]:
+                    before1 = tf.where(ego_point[1] < -18, tf.nn.relu(-(ego_point[0] - 0 - rho_ego)), zeros)
+                    before2 = tf.where(ego_point[1] < -18, tf.nn.relu(-(3.75 - ego_point[0] - rho_ego)), zeros)
+                    middle_cond = logical_and(logical_and(ego_point[0] > -18, ego_point[0] < 18),
+                                              logical_and(ego_point[1] > -18, ego_point[1] < 18))
+                    middle1 = tf.where(middle_cond, tf.nn.relu(-(ego_point[0] - (-18) - rho_ego)), zeros)
+                    middle2 = tf.where(middle_cond, tf.nn.relu(-(18 - ego_point[0] - rho_ego)), zeros)
+                    middle3 = tf.where(logical_and(middle_cond, ego_point[0] < 0),
+                                       tf.nn.relu(-(18 - ego_point[1] - rho_ego)), zeros)
+                    middle4 = tf.where(logical_and(middle_cond, ego_point[0] > 7.5),
+                                       tf.nn.relu(-(18 - ego_point[1] - rho_ego)), zeros)
+                    middle5 = tf.where(logical_and(middle_cond, ego_point[0] < 0),
+                                       tf.nn.relu(-(ego_point[1] - (-18) - rho_ego)), zeros)
+                    middle6 = tf.where(logical_and(middle_cond, ego_point[0] > 3.75),
+                                       tf.nn.relu(-(ego_point[1] - (-18) - rho_ego)), zeros)
+                    after1 = tf.where(ego_point[1] > 18, tf.nn.relu(-(ego_point[0] - 0 - rho_ego)), zeros)
+                    after2 = tf.where(ego_point[1] > 18, tf.nn.relu(-(7.5 - ego_point[0] - rho_ego)), zeros)
+                    this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
+                    veh2road -= this_point
+
+            else:
+                veh2road = tf.zeros_like(ego_front_points[0])
+                assert self.task == 'right'
+                for ego_point in [ego_front_points, ego_rear_points]:
+                    before1 = tf.where(ego_point[1] < -18, tf.nn.relu(-(ego_point[0] - 3.75 - rho_ego)), zeros)
+                    before2 = tf.where(ego_point[1] < -18, tf.nn.relu(-(7.5 - ego_point[0] - rho_ego)), zeros)
+                    middle_cond = logical_and(logical_and(ego_point[0] > -18, ego_point[0] < 18),
+                                              logical_and(ego_point[1] > -18, ego_point[1] < 18))
+                    middle1 = tf.where(middle_cond, tf.nn.relu(-(ego_point[0] - (-18) - rho_ego)), zeros)
+                    middle2 = tf.where(middle_cond, tf.nn.relu(-(18 - ego_point[1] - rho_ego)), zeros)
+                    middle3 = tf.where(logical_and(middle_cond, ego_point[1] > 0),
+                                       tf.nn.relu(-(18 - ego_point[0] - rho_ego)), zeros)
+                    middle4 = tf.where(logical_and(middle_cond, ego_point[1] < -7.5),
+                                       tf.nn.relu(-(18 - ego_point[0] - rho_ego)), zeros)
+                    middle5 = tf.where(logical_and(middle_cond, ego_point[0] > 7.5),
+                                       tf.nn.relu(-(ego_point[1] - (-18) - rho_ego)), zeros)
+                    middle6 = tf.where(logical_and(middle_cond, ego_point[0] < 3.75),
+                                       tf.nn.relu(-(ego_point[1] - (-18) - rho_ego)), zeros)
+                    after1 = tf.where(ego_point[0] > 18, tf.nn.relu(-(0 - ego_point[1] - rho_ego)), zeros)
+                    after2 = tf.where(ego_point[0] > 18, tf.nn.relu(-(ego_point[1] - (-7.5) - rho_ego)), zeros)
+
+                    this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
+                    veh2road -= this_point
+
+            # rewards related to veh2veh collision
+            veh2veh = tf.zeros_like(ego_front_points[0])
+            for veh_index in range(int(tf.shape(veh_infos)[1] / 6)):
+                vehs = veh_infos[:, veh_index * 6:6 * (veh_index + 1)]
+                veh_lws = (vehs[:, 4] - vehs[:, 5]) / 2.
+                rho_vehs = vehs[:, 5] / 2.
+                veh_front_points = tf.cast(vehs[:, 0] + veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
+                                   tf.cast(vehs[:, 1] + veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
+                veh_rear_points = tf.cast(vehs[:, 0] - veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
+                                  tf.cast(vehs[:, 1] - veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
+                for ego_point in [ego_front_points, ego_rear_points]:
+                    for veh_point in [veh_front_points, veh_rear_points]:
+                        veh2veh_dist = tf.sqrt(
+                            tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - \
+                                       tf.convert_to_tensor(rho_ego + rho_vehs, dtype=tf.float32)
+                        veh2veh -= 1 / tf.square(veh2veh_dist)
+
+            # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
+            #                    punish_a_x=punish_a_x.numpy()[0],
+            #                    punish_yaw_rate=punish_yaw_rate.numpy()[0],
+            #                    devi_v=devi_v.numpy()[0],
+            #                    devi_y=devi_y.numpy()[0],
+            #                    devi_phi=devi_phi.numpy()[0],
+            #                    veh2road=veh2road.numpy()[0],
+            #                    veh2veh=veh2veh.numpy()[0],
+            #                    rew_alpha_f=rew_alpha_f.numpy()[0],
+            #                    rew_alpha_r=rew_alpha_r.numpy()[0],
+            #                    rew_r=rew_r.numpy()[0]
+            #                    )
+
+            # rew_alpha_f = tf.where(rew_alpha_f < -10000., -10000. * tf.ones_like(rew_alpha_f), rew_alpha_f)
+            # rew_alpha_r = tf.where(rew_alpha_r < -10000., -10000. * tf.ones_like(rew_alpha_r), rew_alpha_r)
+            # rew_r = tf.where(rew_r < -10000., -10000. * tf.ones_like(rew_r), rew_r)
+            # veh2road = tf.where(veh2road < -10000., -10000. * tf.ones_like(veh2road), veh2road)
+            veh2veh = tf.where(veh2road < -10000., -10000. * tf.ones_like(veh2veh), veh2veh)
+
+            rewards = 0.01 * devi_v + 0.04 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
+                      0.05 * punish_steer + 0.0005 * punish_a_x + 100 * veh2road + 0.1 * veh2veh + \
+                      100 * rew_alpha_f + 100 * rew_alpha_r + 100 * rew_r
+            rewards = tf.cast(tf.math.logical_not(prev_dones), tf.float32) * rewards
+            return rewards
+
 
     def compute_next_obses(self, obses, actions):
         ego_infos, tracking_infos, veh_infos = obses[:, :12], obses[:, 12:12 + 3 + 3 * self.num_future_data], \
