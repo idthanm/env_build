@@ -500,9 +500,13 @@ class CrossroadEnd2end(gym.Env):
         alpha_f_bound, alpha_r_bound = self.ego_dynamics['alpha_f_bound'], self.ego_dynamics['alpha_r_bound']
         r_bound = self.ego_dynamics['r_bound']
 
-        rew_alpha_f = -1 / tf.cast(tf.square(alpha_f - alpha_f_bound), dtype=tf.float32)
-        rew_alpha_r = -1 / tf.cast(tf.square(alpha_r - alpha_r_bound), dtype=tf.float32)
-        rew_r = -1 / tf.cast(tf.square(ego_infos[2] - r_bound), dtype=tf.float32)
+        rew_alpha_f = - tf.cast(tf.nn.relu(tf.abs(alpha_f) - alpha_f_bound), dtype=tf.float32)
+        rew_alpha_r = - tf.cast(tf.nn.relu(tf.abs(alpha_r) - alpha_r_bound), dtype=tf.float32)
+        rew_r = - tf.cast(tf.nn.relu(tf.abs(ego_infos[2]) - r_bound), dtype=tf.float32)
+
+        # rew_alpha_f = -1 / tf.cast(tf.square(alpha_f - alpha_f_bound), dtype=tf.float32)
+        # rew_alpha_r = -1 / tf.cast(tf.square(alpha_r - alpha_r_bound), dtype=tf.float32)
+        # rew_r = -1 / tf.cast(tf.square(ego_infos[2] - r_bound), dtype=tf.float32)
 
         # rewards related to action
         punish_steer = -tf.square(steers)
@@ -606,15 +610,15 @@ class CrossroadEnd2end(gym.Env):
                            rew_r=rew_r.numpy()
                            )
         # print(reward_dict)
-        rew_alpha_f = -10000. if rew_alpha_f < -10000. else rew_alpha_f
-        rew_alpha_r = -10000. if rew_alpha_r < -10000. else rew_alpha_r
-        rew_r = -10000. if rew_r < -10000. else rew_r
+        # rew_alpha_f = -10000. if rew_alpha_f < -10000. else rew_alpha_f
+        # rew_alpha_r = -10000. if rew_alpha_r < -10000. else rew_alpha_r
+        # rew_r = -10000. if rew_r < -10000. else rew_r
         veh2road = -10000. if veh2road < -10000. else veh2road
         veh2veh = -10000. if veh2veh < -10000. else veh2veh
 
         rewards = 0.01 * devi_v + 0.04 * devi_y + devi_phi + 0.02 * punish_yaw_rate + \
                   0.05 * punish_steer + 0.0005 * punish_a_x + 0.1 * veh2road + 0.1 * veh2veh + \
-                  0.001 * rew_alpha_f + 0.001 * rew_alpha_r + 0.01 * rew_r
+                  100 * rew_alpha_f + 100 * rew_alpha_r + 100 * rew_r
         return rewards.numpy(), reward_dict
 
     def render(self, mode='human'):
@@ -908,7 +912,7 @@ def test_end2end():
         while not done:
             # print(i)
             i += 1
-            action = np.array([0.5, 0], dtype=np.float32)
+            action = np.array([1, 0], dtype=np.float32)
             obs, reward, done, info = env.step(action)
             env.render()
         done = 0

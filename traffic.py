@@ -49,6 +49,7 @@ def deal_with_phi(phi):
         phi += 360
     return phi
 
+
 SUMO_BINARY = checkBinary('sumo')
 SIM_PERIOD = 1.0 / 10
 

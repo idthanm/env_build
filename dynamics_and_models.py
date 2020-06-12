@@ -302,9 +302,13 @@ class EnvironmentModel(object):  # all tensors
 
             # rewards related to ego stability
             alpha_fs, alpha_rs, miu_fs, miu_rs = ego_infos[:, 8], ego_infos[:, 9], ego_infos[:, 10], ego_infos[:, 11]
-            rew_alpha_f = -1 / tf.cast(tf.square(alpha_fs - self.alpha_f_bounds), dtype=tf.float32)
-            rew_alpha_r = -1 / tf.cast(tf.square(alpha_rs - self.alpha_r_bounds), dtype=tf.float32)
-            rew_r = -1 / tf.cast(tf.square(ego_infos[:, 2] - self.r_bounds), dtype=tf.float32)
+            # rew_alpha_f = -1 / tf.cast(tf.square(alpha_fs - self.alpha_f_bounds), dtype=tf.float32)
+            # rew_alpha_r = -1 / tf.cast(tf.square(alpha_rs - self.alpha_r_bounds), dtype=tf.float32)
+            # rew_r = -1 / tf.cast(tf.square(ego_infos[:, 2] - self.r_bounds), dtype=tf.float32)
+
+            rew_alpha_f = - tf.cast(tf.nn.relu(tf.abs(alpha_fs) - self.alpha_f_bounds), dtype=tf.float32)
+            rew_alpha_r = - tf.cast(tf.nn.relu(tf.abs(alpha_rs) - self.alpha_r_bounds), dtype=tf.float32)
+            rew_r = - tf.cast(tf.nn.relu(tf.abs(ego_infos[:, 2]) - self.r_bounds), dtype=tf.float32)
 
             # rewards related to action
             punish_steer = -tf.square(steers)
@@ -429,15 +433,15 @@ class EnvironmentModel(object):  # all tensors
             #                    rew_r=rew_r.numpy()[0]
             #                    )
 
-            rew_alpha_f = tf.where(rew_alpha_f < -10000., -10000. * tf.ones_like(rew_alpha_f), rew_alpha_f)
-            rew_alpha_r = tf.where(rew_alpha_r < -10000., -10000. * tf.ones_like(rew_alpha_r), rew_alpha_r)
-            rew_r = tf.where(rew_r < -10000., -10000. * tf.ones_like(rew_r), rew_r)
+            # rew_alpha_f = tf.where(rew_alpha_f < -10000., -10000. * tf.ones_like(rew_alpha_f), rew_alpha_f)
+            # rew_alpha_r = tf.where(rew_alpha_r < -10000., -10000. * tf.ones_like(rew_alpha_r), rew_alpha_r)
+            # rew_r = tf.where(rew_r < -10000., -10000. * tf.ones_like(rew_r), rew_r)
             veh2road = tf.where(veh2road < -10000., -10000. * tf.ones_like(veh2road), veh2road)
             veh2veh = tf.where(veh2road < -10000., -10000. * tf.ones_like(veh2veh), veh2veh)
 
             rewards = 0.01 * devi_v + 0.04 * devi_y + devi_phi + 0.02 * punish_yaw_rate + \
                       0.05 * punish_steer + 0.0005 * punish_a_x + 0.1 * veh2road + 0.1 * veh2veh + \
-                      0.001 * rew_alpha_f + 0.001 * rew_alpha_r + 0.01 * rew_r
+                      100 * rew_alpha_f + 100 * rew_alpha_r + 100 * rew_r
             rewards = tf.cast(tf.math.logical_not(prev_dones), tf.float32) * rewards
             return rewards
 
