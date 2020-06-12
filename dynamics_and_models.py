@@ -159,15 +159,12 @@ class EnvironmentModel(object):  # all tensors
         self.dones = tf.cast(tf.zeros_like(self.obses[:, 0]), tf.bool)
         self.task = task
         self.ref_path = ReferencePath(task, mode='training')
-        self.alpha_f_bounds = None
-        self.alpha_r_bounds = None
-        self.r_bounds = None
+        self._compute_bounds(obses)
         self.reward_info = None
 
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
-            steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
-            self.actions = tf.stack([steer_norm * 1.2 * np.pi / 9, a_xs_norm * 3.], 1)
+            self.actions = self._action_transformation_for_end2end(actions)
             self.obses = self.compute_next_obses(self.obses, self.actions)
             prev_dones = self.dones
             self.judge_dones(self.obses)
@@ -177,15 +174,29 @@ class EnvironmentModel(object):  # all tensors
 
         return self.obses, rewards, self.dones
 
+    def _action_transformation_for_end2end(self, actions):  # [-1, 1]
+        alpha_f_bounds = self.alpha_f_bounds
+        steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
+        steer_scale, a_xs_scale = 1.2 * np.pi / 9 * steer_norm, 3. * a_xs_norm
+
+        steer_scale = tf.where(steer_scale<alpha_f_bounds-0.01, steer_scale, alpha_f_bounds)
+        steer_scale = tf.where(steer_scale>-alpha_f_bounds+0.01, steer_scale, -alpha_f_bounds)
+
+        return tf.stack([steer_scale, a_xs_scale], 1)
+
+    def _compute_bounds(self, obses):
+        F_zf, F_zr = self.vehicle_dynamics.vehicle_params['F_zf'], self.vehicle_dynamics.vehicle_params['F_zr']
+        C_f, C_r = self.vehicle_dynamics.vehicle_params['C_f'], self.vehicle_dynamics.vehicle_params['C_r']
+        miu_fs, miu_rs = obses[:, 10], obses[:, 11]
+        self.alpha_f_bounds, self.alpha_r_bounds = 3 * miu_fs * F_zf / C_f, 3 * miu_rs * F_zr / C_r
+        self.r_bounds = miu_rs * self.vehicle_dynamics.vehicle_params['g'] / obses[:, 0]
+
     def judge_dones(self, obses):
         ego_infos, tracking_infos, veh_infos = obses[:, :12], obses[:, 12:12 + 3 + 3 * self.num_future_data], \
                                                obses[:, 12 + 3 + 3 * self.num_future_data:]
         # dones related to ego stability
-        F_zf, F_zr = self.vehicle_dynamics.vehicle_params['F_zf'], self.vehicle_dynamics.vehicle_params['F_zr']
-        C_f, C_r = self.vehicle_dynamics.vehicle_params['C_f'], self.vehicle_dynamics.vehicle_params['C_r']
-        alpha_fs, alpha_rs, miu_fs, miu_rs = ego_infos[:, 8], ego_infos[:, 9], ego_infos[:, 10], ego_infos[:, 11]
-        self.alpha_f_bounds, self.alpha_r_bounds = 3 * miu_fs * F_zf / C_f, 3 * miu_rs * F_zr / C_r
-        self.r_bounds = miu_rs * self.vehicle_dynamics.vehicle_params['g'] / ego_infos[:, 0]
+        self._compute_bounds(obses)
+        alpha_fs, alpha_rs = ego_infos[:, 8], ego_infos[:, 9]
         dones_alpha_f = logical_or(alpha_fs > self.alpha_f_bounds, alpha_fs < -self.alpha_f_bounds)
         dones_alpha_r = logical_or(alpha_rs > self.alpha_r_bounds, alpha_rs < -self.alpha_r_bounds)
         dones_r = logical_or(ego_infos[:, 2] > self.r_bounds, ego_infos[:, 2] < -self.r_bounds)
@@ -918,13 +929,14 @@ def test_model():
     done = 0
     while not done:
         obs_list.append(obs)
-        action = np.array([0, 0], dtype=np.float32)
+        action = np.array([1, 0], dtype=np.float32)
         obs, reward, done, info = env.step(action)
         env.render()
     obses = np.stack(obs_list, 0)
     model.reset(obses, 'right')
+    print(obses.shape)
     for rollout_step in range(100):
-        actions = tf.zeros_like(obses)
+        actions = tf.tile(tf.constant([[1, 0]], dtype=tf.float32), tf.constant([len(obses), 1]))
         obses, rewards, dones = model.rollout_out(actions)
         print(rewards.numpy()[0], dones.numpy()[0])
         model.render()

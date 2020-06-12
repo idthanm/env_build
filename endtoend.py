@@ -279,7 +279,11 @@ class CrossroadEnd2end(gym.Env):
             return True if y > 18 + 5 and 0 < x < 7.5 else False
 
     def _action_transformation_for_end2end(self, action):  # [-1, 1]
-        return action * np.array([1.2 * np.pi / 9, 3], dtype=np.float32)
+        alpha_f_bound = self.ego_dynamics['alpha_f_bound']
+        scaled_action = action * np.array([1.2 * np.pi / 9, 3], dtype=np.float32)
+        return np.clip(scaled_action,
+                       np.array([-alpha_f_bound+0.01, -5.], dtype=np.float32),
+                       np.array([alpha_f_bound-0.01, 5], dtype=np.float32))
 
     def _get_next_ego_state(self, trans_action):
         current_v_x = self.ego_dynamics['v_x']
