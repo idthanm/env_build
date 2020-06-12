@@ -754,7 +754,7 @@ class CrossroadEnd2end(gym.Env):
         veh2veh = -10000. if veh2veh < -10000. else veh2veh
 
         rewards = 0.01 * devi_v + 0.04 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
-                  0.05 * punish_steer + 0.0005 * punish_a_x + 100 * veh2road + 0.1 * veh2veh + \
+                  0.05 * punish_steer + 0.0005 * punish_a_x + 1000 * veh2road + 0.1 * veh2veh + \
                   100 * rew_alpha_f + 100 * rew_alpha_r + 100 * rew_r
         return rewards.numpy(), reward_dict
 
