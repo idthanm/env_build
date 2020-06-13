@@ -252,6 +252,9 @@ class CrossroadEnd2end(gym.Env):
         results = list(map(lambda x: judge_feasible(*x, self.training_task), self.ego_dynamics['Corner_point']))
         return not all(results)
 
+    # def _break_road_constrain_model(self):
+    #     pass
+
     def _break_stability(self):
         alpha_f, alpha_r, miu_f, miu_r = self.ego_dynamics['alpha_f'], self.ego_dynamics['alpha_r'], \
                                          self.ego_dynamics['miu_f'], self.ego_dynamics['miu_r']
@@ -488,7 +491,7 @@ class CrossroadEnd2end(gym.Env):
                              v_y=0,
                              r=0,
                              phi=phi.numpy(),
-                             l=4.2,
+                             l=4.8,
                              w=1.8,
                              routeID=routeID,
                              alpha_f=0.,
@@ -496,136 +499,136 @@ class CrossroadEnd2end(gym.Env):
                              miu_f=self.dynamics.vehicle_params['miu'],
                              miu_r=self.dynamics.vehicle_params['miu']))
 
-    def compute_reward(self, obs, action):
-        ego_infos, tracking_infos, veh_infos = obs[:12], obs[12:12 + 3 + 3 * self.num_future_data], \
-                                               obs[12 + 3 + 3 * self.num_future_data:]
-        steers, a_xs = action[0], action[1]
-
-        # rewards related to ego stability
-        alpha_f, alpha_r, miu_f, miu_r = ego_infos[8], ego_infos[9], ego_infos[10], ego_infos[11]
-        alpha_f_bound, alpha_r_bound = self.ego_dynamics['alpha_f_bound'], self.ego_dynamics['alpha_r_bound']
-        r_bound = self.ego_dynamics['r_bound']
-
-        rew_alpha_f = - tf.cast(tf.nn.relu(tf.abs(alpha_f) - alpha_f_bound), dtype=tf.float32)
-        rew_alpha_r = - tf.cast(tf.nn.relu(tf.abs(alpha_r) - alpha_r_bound), dtype=tf.float32)
-        rew_r = - tf.cast(tf.nn.relu(tf.abs(ego_infos[2]) - r_bound), dtype=tf.float32)
-
-        # rew_alpha_f = -1 / tf.cast(tf.square(alpha_f - alpha_f_bound), dtype=tf.float32)
-        # rew_alpha_r = -1 / tf.cast(tf.square(alpha_r - alpha_r_bound), dtype=tf.float32)
-        # rew_r = -1 / tf.cast(tf.square(ego_infos[2] - r_bound), dtype=tf.float32)
-
-        # rewards related to action
-        punish_steer = -tf.square(steers)
-        punish_a_x = -tf.square(a_xs)
-
-        # rewards related to ego stability
-        punish_yaw_rate = -tf.square(ego_infos[2])
-
-        # rewards related to tracking error
-        devi_v = -tf.cast(tf.square(ego_infos[0] - self.exp_v), dtype=tf.float32)
-        devi_y = -tf.square(tracking_infos[0]) - tf.square(tracking_infos[1])
-        devi_phi = -tf.cast(tf.square(tracking_infos[2] * np.pi / 180.), dtype=tf.float32)
-
-        # rewards related to veh2road collision
-        ego_lw = (ego_infos[6] - ego_infos[7]) / 2.
-        rho_ego = ego_infos[7] / 2.
-        ego_front_point = tf.cast(ego_infos[3] + ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32),\
-                          tf.cast(ego_infos[4] + ego_lw * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
-        ego_rear_point = tf.cast(ego_infos[3] - ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32), \
-                         tf.cast(ego_infos[4] - ego_lw * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
-        if self.training_task == 'left':
-            veh2road = tf.constant(0.)
-            for ego_point in [ego_front_point, ego_rear_point]:
-                before1 = 1 / tf.square(ego_point[0] - 0 - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
-                before2 = 1 / tf.square(3.75 - ego_point[0] - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
-                middle_cond = True if -18 < ego_point[0] < 18 and -18 < ego_point[1] < 18 else False
-                middle1 = 1 / tf.square(18 - ego_point[1] - rho_ego) if middle_cond else tf.constant(0.)
-                middle2 = 1 / tf.square(18 - ego_point[0] - rho_ego) if middle_cond else tf.constant(0.)
-                middle3 = 1 / tf.square(ego_point[0] - (-18) - rho_ego) if middle_cond and ego_point[1] > 7.5 else tf.constant(0.)
-                middle4 = 1 / tf.square(ego_point[0] - (-18) - rho_ego) if middle_cond and ego_point[1] < 0 else tf.constant(0.)
-                middle5 = 1 / tf.square(ego_point[1] - (-18) - rho_ego) if middle_cond and ego_point[0] < 0 else tf.constant(0.)
-                middle6 = 1 / tf.square(ego_point[1] - (-18) - rho_ego) if middle_cond and ego_point[0] > 3.75 else tf.constant(0.)
-                after1 = 1 / tf.square(ego_point[1] - 0 - rho_ego) if ego_point[0] < -18 else tf.constant(0.)
-                after2 = 1 / tf.square(7.5 - ego_point[1] - rho_ego) if ego_point[0] < -18 else tf.constant(0.)
-
-                this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
-                veh2road -= this_point
-
-        elif self.training_task == 'straight':
-            veh2road = tf.constant(0.)
-            for ego_point in [ego_front_point, ego_rear_point]:
-                before1 = 1 / tf.square(ego_point[0] - 0 - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
-                before2 = 1 / tf.square(3.75 - ego_point[0] - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
-                middle_cond = True if -18 < ego_point[0] < 18 and -18 < ego_point[1] < 18 else False
-                middle1 = 1 / tf.square(ego_point[0] - (-18) - rho_ego) if middle_cond else tf.constant(0.)
-                middle2 = 1 / tf.square(18 - ego_point[0] - rho_ego) if middle_cond else tf.constant(0.)
-                middle3 = 1 / tf.square(18 - ego_point[1] - rho_ego) if middle_cond and ego_point[0] < 0 else tf.constant(0.)
-                middle4 = 1 / tf.square(18 - ego_point[1] - rho_ego) if middle_cond and ego_point[0] > 7.5 else tf.constant(0.)
-                middle5 = 1 / tf.square(ego_point[1] - (-18) - rho_ego) if middle_cond and ego_point[0] < 0 else tf.constant(0.)
-                middle6 = 1 / tf.square(ego_point[1] - (-18) - rho_ego) if middle_cond and ego_point[0] > 3.75 else tf.constant(0.)
-                after1 = 1 / tf.square(ego_point[0] - 0 - rho_ego) if ego_point[1] > 18 else tf.constant(0.)
-                after2 = 1 / tf.square(7.5 - ego_point[0] - rho_ego) if ego_point[1] > 18 else tf.constant(0.)
-
-                this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
-                veh2road -= this_point
-
-        else:
-            veh2road = tf.constant(0.)
-            assert self.training_task == 'right'
-            for ego_point in [ego_front_point, ego_rear_point]:
-                before1 = 1 / tf.square(ego_point[0] - 3.75 - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
-                before2 = 1 / tf.square(7.5 - ego_point[0] - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
-                middle_cond = True if -18 < ego_point[0] < 18 and -18 < ego_point[1] < 18 else False
-                middle1 = 1 / tf.square(ego_point[0] - (-18) - rho_ego) if middle_cond else tf.constant(0.)
-                middle2 = 1 / tf.square(18 - ego_point[1] - rho_ego) if middle_cond else tf.constant(0.)
-                middle3 = 1 / tf.square(18 - ego_point[0] - rho_ego) if middle_cond and ego_point[1] > 0 else tf.constant(0.)
-                middle4 = 1 / tf.square(18 - ego_point[0] - rho_ego) if middle_cond and ego_point[1] < -7.5 else tf.constant(0.)
-                middle5 = 1 / tf.square(ego_point[1] - (-18) - rho_ego) if middle_cond and ego_point[0] > 7.5 else tf.constant(0.)
-                middle6 = 1 / tf.square(ego_point[1] - (-18) - rho_ego) if middle_cond and ego_point[0] < 3.75 else tf.constant(0.)
-                after1 = 1 / tf.square(0 - ego_point[1] - rho_ego) if ego_point[0] > 18 else tf.constant(0.)
-                after2 = 1 / tf.square(ego_point[1] - (-7.5) - rho_ego) if ego_point[0] > 18 else tf.constant(0.)
-
-                this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
-                veh2road -= this_point
-        # rewards related to veh2veh collision
-        veh2veh = tf.constant(0.)
-        for veh_index in range(int(len(veh_infos) / 6)):
-            veh = veh_infos[veh_index*6:6 * (veh_index + 1)]
-            veh_lw = (veh[4] - veh[5]) / 2.
-            rho_veh = veh[5] / 2.
-            veh_front_point = tf.cast(veh[0] + veh_lw * tf.cos(veh[3] * np.pi / 180.), dtype=tf.float32), \
-                               tf.cast(veh[1] + veh_lw * tf.sin(veh[3] * np.pi / 180.), dtype=tf.float32)
-            veh_rear_point = tf.cast(veh[0] - veh_lw * tf.cos(veh[3] * np.pi / 180.), dtype=tf.float32), \
-                              tf.cast(veh[1] - veh_lw * tf.sin(veh[3] * np.pi / 180.), dtype=tf.float32)
-            for ego_point in [ego_front_point, ego_rear_point]:
-                for veh_point in [veh_front_point, veh_rear_point]:
-                    veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(
-                        ego_point[1] - veh_point[1])) - tf.convert_to_tensor(rho_ego + rho_veh, dtype=tf.float32)
-                    veh2veh -= 1. / tf.square(veh2veh_dist)
-
-        reward_dict = dict(punish_steer=punish_steer.numpy(),
-                           punish_a_x=punish_a_x.numpy(),
-                           punish_yaw_rate=punish_yaw_rate.numpy(),
-                           devi_v=devi_v.numpy(),
-                           devi_y=devi_y.numpy(),
-                           devi_phi=devi_phi.numpy(),
-                           veh2road=veh2road.numpy(),
-                           veh2veh=veh2veh.numpy(),
-                           rew_alpha_f=rew_alpha_f.numpy(),
-                           rew_alpha_r=rew_alpha_r.numpy(),
-                           rew_r=rew_r.numpy()
-                           )
-        # print(reward_dict)
-        # rew_alpha_f = -10000. if rew_alpha_f < -10000. else rew_alpha_f
-        # rew_alpha_r = -10000. if rew_alpha_r < -10000. else rew_alpha_r
-        # rew_r = -10000. if rew_r < -10000. else rew_r
-        veh2road = -10000. if veh2road < -10000. else veh2road
-        veh2veh = -10000. if veh2veh < -10000. else veh2veh
-
-        rewards = 0.01 * devi_v + 0.04 * devi_y + devi_phi + 0.02 * punish_yaw_rate + \
-                  0.05 * punish_steer + 0.0005 * punish_a_x + 0.1 * veh2road + 0.1 * veh2veh + \
-                  100 * rew_alpha_f + 100 * rew_alpha_r + 100 * rew_r
-        return rewards.numpy(), reward_dict
+    # def compute_reward(self, obs, action):
+    #     ego_infos, tracking_infos, veh_infos = obs[:12], obs[12:12 + 3 + 3 * self.num_future_data], \
+    #                                            obs[12 + 3 + 3 * self.num_future_data:]
+    #     steers, a_xs = action[0], action[1]
+    #
+    #     # rewards related to ego stability
+    #     alpha_f, alpha_r, miu_f, miu_r = ego_infos[8], ego_infos[9], ego_infos[10], ego_infos[11]
+    #     alpha_f_bound, alpha_r_bound = self.ego_dynamics['alpha_f_bound'], self.ego_dynamics['alpha_r_bound']
+    #     r_bound = self.ego_dynamics['r_bound']
+    #
+    #     rew_alpha_f = - tf.cast(tf.nn.relu(tf.abs(alpha_f) - alpha_f_bound), dtype=tf.float32)
+    #     rew_alpha_r = - tf.cast(tf.nn.relu(tf.abs(alpha_r) - alpha_r_bound), dtype=tf.float32)
+    #     rew_r = - tf.cast(tf.nn.relu(tf.abs(ego_infos[2]) - r_bound), dtype=tf.float32)
+    #
+    #     # rew_alpha_f = -1 / tf.cast(tf.square(alpha_f - alpha_f_bound), dtype=tf.float32)
+    #     # rew_alpha_r = -1 / tf.cast(tf.square(alpha_r - alpha_r_bound), dtype=tf.float32)
+    #     # rew_r = -1 / tf.cast(tf.square(ego_infos[2] - r_bound), dtype=tf.float32)
+    #
+    #     # rewards related to action
+    #     punish_steer = -tf.square(steers)
+    #     punish_a_x = -tf.square(a_xs)
+    #
+    #     # rewards related to ego stability
+    #     punish_yaw_rate = -tf.square(ego_infos[2])
+    #
+    #     # rewards related to tracking error
+    #     devi_v = -tf.cast(tf.square(ego_infos[0] - self.exp_v), dtype=tf.float32)
+    #     devi_y = -tf.square(tracking_infos[0]) - tf.square(tracking_infos[1])
+    #     devi_phi = -tf.cast(tf.square(tracking_infos[2] * np.pi / 180.), dtype=tf.float32)
+    #
+    #     # rewards related to veh2road collision
+    #     ego_lw = (ego_infos[6] - ego_infos[7]) / 2.
+    #     rho_ego = ego_infos[7] / 2.
+    #     ego_front_point = tf.cast(ego_infos[3] + ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32),\
+    #                       tf.cast(ego_infos[4] + ego_lw * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
+    #     ego_rear_point = tf.cast(ego_infos[3] - ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32), \
+    #                      tf.cast(ego_infos[4] - ego_lw * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
+    #     if self.training_task == 'left':
+    #         veh2road = tf.constant(0.)
+    #         for ego_point in [ego_front_point, ego_rear_point]:
+    #             before1 = 1 / tf.square(ego_point[0] - 0 - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
+    #             before2 = 1 / tf.square(3.75 - ego_point[0] - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
+    #             middle_cond = True if -18 < ego_point[0] < 18 and -18 < ego_point[1] < 18 else False
+    #             middle1 = 1 / tf.square(18 - ego_point[1] - rho_ego) if middle_cond else tf.constant(0.)
+    #             middle2 = 1 / tf.square(18 - ego_point[0] - rho_ego) if middle_cond else tf.constant(0.)
+    #             middle3 = 1 / tf.square(ego_point[0] - (-18) - rho_ego) if middle_cond and ego_point[1] > 7.5 else tf.constant(0.)
+    #             middle4 = 1 / tf.square(ego_point[0] - (-18) - rho_ego) if middle_cond and ego_point[1] < 0 else tf.constant(0.)
+    #             middle5 = 1 / tf.square(ego_point[1] - (-18) - rho_ego) if middle_cond and ego_point[0] < 0 else tf.constant(0.)
+    #             middle6 = 1 / tf.square(ego_point[1] - (-18) - rho_ego) if middle_cond and ego_point[0] > 3.75 else tf.constant(0.)
+    #             after1 = 1 / tf.square(ego_point[1] - 0 - rho_ego) if ego_point[0] < -18 else tf.constant(0.)
+    #             after2 = 1 / tf.square(7.5 - ego_point[1] - rho_ego) if ego_point[0] < -18 else tf.constant(0.)
+    #
+    #             this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
+    #             veh2road -= this_point
+    #
+    #     elif self.training_task == 'straight':
+    #         veh2road = tf.constant(0.)
+    #         for ego_point in [ego_front_point, ego_rear_point]:
+    #             before1 = 1 / tf.square(ego_point[0] - 0 - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
+    #             before2 = 1 / tf.square(3.75 - ego_point[0] - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
+    #             middle_cond = True if -18 < ego_point[0] < 18 and -18 < ego_point[1] < 18 else False
+    #             middle1 = 1 / tf.square(ego_point[0] - (-18) - rho_ego) if middle_cond else tf.constant(0.)
+    #             middle2 = 1 / tf.square(18 - ego_point[0] - rho_ego) if middle_cond else tf.constant(0.)
+    #             middle3 = 1 / tf.square(18 - ego_point[1] - rho_ego) if middle_cond and ego_point[0] < 0 else tf.constant(0.)
+    #             middle4 = 1 / tf.square(18 - ego_point[1] - rho_ego) if middle_cond and ego_point[0] > 7.5 else tf.constant(0.)
+    #             middle5 = 1 / tf.square(ego_point[1] - (-18) - rho_ego) if middle_cond and ego_point[0] < 0 else tf.constant(0.)
+    #             middle6 = 1 / tf.square(ego_point[1] - (-18) - rho_ego) if middle_cond and ego_point[0] > 3.75 else tf.constant(0.)
+    #             after1 = 1 / tf.square(ego_point[0] - 0 - rho_ego) if ego_point[1] > 18 else tf.constant(0.)
+    #             after2 = 1 / tf.square(7.5 - ego_point[0] - rho_ego) if ego_point[1] > 18 else tf.constant(0.)
+    #
+    #             this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
+    #             veh2road -= this_point
+    #
+    #     else:
+    #         veh2road = tf.constant(0.)
+    #         assert self.training_task == 'right'
+    #         for ego_point in [ego_front_point, ego_rear_point]:
+    #             before1 = 1 / tf.square(ego_point[0] - 3.75 - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
+    #             before2 = 1 / tf.square(7.5 - ego_point[0] - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
+    #             middle_cond = True if -18 < ego_point[0] < 18 and -18 < ego_point[1] < 18 else False
+    #             middle1 = 1 / tf.square(ego_point[0] - (-18) - rho_ego) if middle_cond else tf.constant(0.)
+    #             middle2 = 1 / tf.square(18 - ego_point[1] - rho_ego) if middle_cond else tf.constant(0.)
+    #             middle3 = 1 / tf.square(18 - ego_point[0] - rho_ego) if middle_cond and ego_point[1] > 0 else tf.constant(0.)
+    #             middle4 = 1 / tf.square(18 - ego_point[0] - rho_ego) if middle_cond and ego_point[1] < -7.5 else tf.constant(0.)
+    #             middle5 = 1 / tf.square(ego_point[1] - (-18) - rho_ego) if middle_cond and ego_point[0] > 7.5 else tf.constant(0.)
+    #             middle6 = 1 / tf.square(ego_point[1] - (-18) - rho_ego) if middle_cond and ego_point[0] < 3.75 else tf.constant(0.)
+    #             after1 = 1 / tf.square(0 - ego_point[1] - rho_ego) if ego_point[0] > 18 else tf.constant(0.)
+    #             after2 = 1 / tf.square(ego_point[1] - (-7.5) - rho_ego) if ego_point[0] > 18 else tf.constant(0.)
+    #
+    #             this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
+    #             veh2road -= this_point
+    #     # rewards related to veh2veh collision
+    #     veh2veh = tf.constant(0.)
+    #     for veh_index in range(int(len(veh_infos) / 6)):
+    #         veh = veh_infos[veh_index*6:6 * (veh_index + 1)]
+    #         veh_lw = (veh[4] - veh[5]) / 2.
+    #         rho_veh = veh[5] / 2.
+    #         veh_front_point = tf.cast(veh[0] + veh_lw * tf.cos(veh[3] * np.pi / 180.), dtype=tf.float32), \
+    #                            tf.cast(veh[1] + veh_lw * tf.sin(veh[3] * np.pi / 180.), dtype=tf.float32)
+    #         veh_rear_point = tf.cast(veh[0] - veh_lw * tf.cos(veh[3] * np.pi / 180.), dtype=tf.float32), \
+    #                           tf.cast(veh[1] - veh_lw * tf.sin(veh[3] * np.pi / 180.), dtype=tf.float32)
+    #         for ego_point in [ego_front_point, ego_rear_point]:
+    #             for veh_point in [veh_front_point, veh_rear_point]:
+    #                 veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(
+    #                     ego_point[1] - veh_point[1])) - tf.convert_to_tensor(rho_ego + rho_veh, dtype=tf.float32)
+    #                 veh2veh -= 1. / tf.square(veh2veh_dist)
+    #
+    #     reward_dict = dict(punish_steer=punish_steer.numpy(),
+    #                        punish_a_x=punish_a_x.numpy(),
+    #                        punish_yaw_rate=punish_yaw_rate.numpy(),
+    #                        devi_v=devi_v.numpy(),
+    #                        devi_y=devi_y.numpy(),
+    #                        devi_phi=devi_phi.numpy(),
+    #                        veh2road=veh2road.numpy(),
+    #                        veh2veh=veh2veh.numpy(),
+    #                        rew_alpha_f=rew_alpha_f.numpy(),
+    #                        rew_alpha_r=rew_alpha_r.numpy(),
+    #                        rew_r=rew_r.numpy()
+    #                        )
+    #     # print(reward_dict)
+    #     # rew_alpha_f = -10000. if rew_alpha_f < -10000. else rew_alpha_f
+    #     # rew_alpha_r = -10000. if rew_alpha_r < -10000. else rew_alpha_r
+    #     # rew_r = -10000. if rew_r < -10000. else rew_r
+    #     veh2road = -10000. if veh2road < -10000. else veh2road
+    #     veh2veh = -10000. if veh2veh < -10000. else veh2veh
+    #
+    #     rewards = 0.01 * devi_v + 0.04 * devi_y + devi_phi + 0.02 * punish_yaw_rate + \
+    #               0.05 * punish_steer + 0.0005 * punish_a_x + 0.1 * veh2road + 0.1 * veh2veh + \
+    #               100 * rew_alpha_f + 100 * rew_alpha_r + 100 * rew_r
+    #     return rewards.numpy(), reward_dict
 
     def compute_reward2(self, obs, action):
         ego_infos, tracking_infos, veh_infos = obs[:12], obs[12:12 + 3 + 3 * self.num_future_data], \
@@ -659,7 +662,8 @@ class CrossroadEnd2end(gym.Env):
 
         # rewards related to veh2road collision
         ego_lw = (ego_infos[6] - ego_infos[7]) / 2.
-        rho_ego = ego_infos[7] / 2.
+        coeff = 1.14
+        rho_ego = ego_infos[7] / 2. * coeff
         ego_front_point = tf.cast(ego_infos[3] + ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32),\
                           tf.cast(ego_infos[4] + ego_lw * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
         ego_rear_point = tf.cast(ego_infos[3] - ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32), \
@@ -676,10 +680,16 @@ class CrossroadEnd2end(gym.Env):
                 middle4 = tf.nn.relu(-(ego_point[0] - (-18) - rho_ego)) if middle_cond and ego_point[1] < 0 else tf.constant(0.)
                 middle5 = tf.nn.relu(-(ego_point[1] - (-18) - rho_ego)) if middle_cond and ego_point[0] < 0 else tf.constant(0.)
                 middle6 = tf.nn.relu(-(ego_point[1] - (-18) - rho_ego)) if middle_cond and ego_point[0] > 3.75 else tf.constant(0.)
+
+                middle7 = tf.nn.relu(-(tf.sqrt(tf.square(ego_point[0]-(-18)) + tf.square(ego_point[1]-0)) - rho_ego)) if middle_cond else tf.constant(0.)
+                middle8 = tf.nn.relu(-(tf.sqrt(tf.square(ego_point[0]-(-18)) + tf.square(ego_point[1]-7.5)) - rho_ego)) if middle_cond else tf.constant(0.)
+
                 after1 = tf.nn.relu(-(ego_point[1] - 0 - rho_ego)) if ego_point[0] < -18 else tf.constant(0.)
                 after2 = tf.nn.relu(-(7.5 - ego_point[1] - rho_ego)) if ego_point[0] < -18 else tf.constant(0.)
 
-                this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
+                this_point = before1 + before2 +\
+                             middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + middle7 + middle8 +\
+                             after1 + after2
                 veh2road -= this_point
 
         elif self.training_task == 'straight':
@@ -694,10 +704,17 @@ class CrossroadEnd2end(gym.Env):
                 middle4 = tf.nn.relu(-(18 - ego_point[1] - rho_ego)) if middle_cond and ego_point[0] > 7.5 else tf.constant(0.)
                 middle5 = tf.nn.relu(-(ego_point[1] - (-18) - rho_ego)) if middle_cond and ego_point[0] < 0 else tf.constant(0.)
                 middle6 = tf.nn.relu(-(ego_point[1] - (-18) - rho_ego)) if middle_cond and ego_point[0] > 3.75 else tf.constant(0.)
+                middle7 = tf.nn.relu(-(tf.sqrt(tf.square(ego_point[0] - 0) + tf.square(
+                    ego_point[1] - 18)) - rho_ego)) if middle_cond else tf.constant(0.)
+                middle8 = tf.nn.relu(-(tf.sqrt(tf.square(ego_point[0] - 7.5) + tf.square(
+                    ego_point[1] - 18)) - rho_ego)) if middle_cond else tf.constant(0.)
+
                 after1 = tf.nn.relu(-(ego_point[0] - 0 - rho_ego)) if ego_point[1] > 18 else tf.constant(0.)
                 after2 = tf.nn.relu(-(7.5 - ego_point[0] - rho_ego)) if ego_point[1] > 18 else tf.constant(0.)
 
-                this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
+                this_point = before1 + before2 +\
+                             middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + middle7 + middle8 + \
+                             after1 + after2
                 veh2road -= this_point
 
         else:
@@ -713,17 +730,24 @@ class CrossroadEnd2end(gym.Env):
                 middle4 = tf.nn.relu(-(18 - ego_point[0] - rho_ego)) if middle_cond and ego_point[1] < -7.5 else tf.constant(0.)
                 middle5 = tf.nn.relu(-(ego_point[1] - (-18) - rho_ego)) if middle_cond and ego_point[0] > 7.5 else tf.constant(0.)
                 middle6 = tf.nn.relu(-(ego_point[1] - (-18) - rho_ego)) if middle_cond and ego_point[0] < 3.75 else tf.constant(0.)
+                middle7 = tf.nn.relu(-(tf.sqrt(tf.square(ego_point[0] - 18) + tf.square(
+                    ego_point[1] - 0)) - rho_ego)) if middle_cond else tf.constant(0.)
+                middle8 = tf.nn.relu(-(tf.sqrt(tf.square(ego_point[0] - 18) + tf.square(
+                    ego_point[1] - (-7.5))) - rho_ego)) if middle_cond else tf.constant(0.)
+
                 after1 = tf.nn.relu(-(0 - ego_point[1] - rho_ego)) if ego_point[0] > 18 else tf.constant(0.)
                 after2 = tf.nn.relu(-(ego_point[1] - (-7.5) - rho_ego)) if ego_point[0] > 18 else tf.constant(0.)
 
-                this_point = before1 + before2 + middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + after1 + after2
+                this_point = before1 + before2 + \
+                             middle1 + middle2 + middle3 + middle4 + middle5 + middle6 + middle7 + middle8+\
+                             after1 + after2
                 veh2road -= this_point
         # rewards related to veh2veh collision
         veh2veh = tf.constant(0.)
         for veh_index in range(int(len(veh_infos) / 6)):
             veh = veh_infos[veh_index*6:6 * (veh_index + 1)]
             veh_lw = (veh[4] - veh[5]) / 2.
-            rho_veh = veh[5] / 2.
+            rho_veh = veh[5] / 2. * coeff
             veh_front_point = tf.cast(veh[0] + veh_lw * tf.cos(veh[3] * np.pi / 180.), dtype=tf.float32), \
                                tf.cast(veh[1] + veh_lw * tf.sin(veh[3] * np.pi / 180.), dtype=tf.float32)
             veh_rear_point = tf.cast(veh[0] - veh_lw * tf.cos(veh[3] * np.pi / 180.), dtype=tf.float32), \
@@ -754,7 +778,7 @@ class CrossroadEnd2end(gym.Env):
         veh2veh = -10000. if veh2veh < -10000. else veh2veh
 
         rewards = 0.01 * devi_v + 0.04 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
-                  0.05 * punish_steer + 0.0005 * punish_a_x + 1000 * veh2road + 0.1 * veh2veh + \
+                  0.05 * punish_steer + 0.0005 * punish_a_x + 1000 * veh2road + veh2veh + \
                   100 * rew_alpha_f + 100 * rew_alpha_r + 100 * rew_r
         return rewards.numpy(), reward_dict
 
