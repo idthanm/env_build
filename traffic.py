@@ -194,18 +194,22 @@ class Traffic(object):
             ego_x, ego_y, ego_v_x, ego_v_y, ego_phi, ego_l, ego_w = ego_dict['x'], ego_dict['y'], ego_dict['v_x'],\
                                                                     ego_dict['v_y'], ego_dict['phi'], ego_dict['l'], \
                                                                     ego_dict['w']
-            ego_v = math.sqrt(ego_v_x**2 + ego_v_y**2)
             veh_to_pop = []
             for veh in random_traffic:
                 x_in_sumo, y_in_sumo = random_traffic[veh][traci.constants.VAR_POSITION]
                 a_in_sumo = random_traffic[veh][traci.constants.VAR_ANGLE]
-                veh_length = random_traffic[veh][traci.constants.VAR_LENGTH]
-                veh_width = random_traffic[veh][traci.constants.VAR_WIDTH]
-                velocity = random_traffic[veh][traci.constants.VAR_SPEED]
-                x, y, a = _convert_sumo_coord_to_car_coord(x_in_sumo, y_in_sumo, a_in_sumo, veh_length)
+                veh_l = random_traffic[veh][traci.constants.VAR_LENGTH]
+                veh_w = random_traffic[veh][traci.constants.VAR_WIDTH]
+                veh_v = random_traffic[veh][traci.constants.VAR_SPEED]
+                x, y, a = _convert_sumo_coord_to_car_coord(x_in_sumo, y_in_sumo, a_in_sumo, veh_l)
                 x_in_ego_coord, y_in_ego_coord, a_in_ego_coord = shift_and_rotate_coordination(x, y, a, ego_x,
                                                                                                ego_y, ego_phi)
-                if abs(x_in_ego_coord) < 8 and abs(y_in_ego_coord) < 2:
+                ego_x_in_veh_coord, ego_y_in_veh_coord, ego_a_in_veh_coord = shift_and_rotate_coordination(0, 0, 0,
+                                                                                                           x_in_ego_coord,
+                                                                                                           y_in_ego_coord,
+                                                                                                           a_in_ego_coord)
+                if (x_in_ego_coord < 2 * ego_v_x + ego_l/2. + veh_l/2. and abs(y_in_ego_coord) < 2) or \
+                        ego_x_in_veh_coord < 2 * veh_v + ego_l/2. + veh_l/2. and abs(ego_y_in_veh_coord) < 2:
                     traci.vehicle.remove(vehID=veh)
                     veh_to_pop.append(veh)
             for veh in veh_to_pop:
