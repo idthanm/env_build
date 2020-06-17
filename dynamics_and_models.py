@@ -1270,10 +1270,10 @@ class ReferencePath(object):
                 s_vals = np.linspace(0, 1.0, 30 * meter_pointnum_ratio)
                 trj_data = curve.evaluate_multi(s_vals)
                 trj_data = trj_data.astype(np.float32)
-                start_straight_line_x = 1.875 * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)
-                start_straight_line_y = np.linspace(-18 - sl, -18, sl * meter_pointnum_ratio, dtype=np.float32)
-                end_straight_line_x = np.linspace(-18, -18 - sl, sl * meter_pointnum_ratio, dtype=np.float32)
-                end_straight_line_y = end_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)
+                start_straight_line_x = 1.875 * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[:-1]
+                start_straight_line_y = np.linspace(-18 - sl, -18, sl * meter_pointnum_ratio, dtype=np.float32)[:-1]
+                end_straight_line_x = np.linspace(-18, -18 - sl, sl * meter_pointnum_ratio, dtype=np.float32)[1:]
+                end_straight_line_y = end_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[1:]
                 planed_trj = np.append(np.append(start_straight_line_x, trj_data[0]), end_straight_line_x), \
                              np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
 
@@ -1303,10 +1303,10 @@ class ReferencePath(object):
                 s_vals = np.linspace(0, 1.0, 36 * meter_pointnum_ratio)
                 trj_data = curve.evaluate_multi(s_vals)
                 trj_data = trj_data.astype(np.float32)
-                start_straight_line_x = 1.875 * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)
-                start_straight_line_y = np.linspace(-18 - sl, -18, sl * meter_pointnum_ratio, dtype=np.float32)
-                end_straight_line_x = end_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)
-                end_straight_line_y = np.linspace(18, 18 + sl, sl * meter_pointnum_ratio, dtype=np.float32)
+                start_straight_line_x = 1.875 * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[:-1]
+                start_straight_line_y = np.linspace(-18 - sl, -18, sl * meter_pointnum_ratio, dtype=np.float32)[:-1]
+                end_straight_line_x = end_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[1:]
+                end_straight_line_y = np.linspace(18, 18 + sl, sl * meter_pointnum_ratio, dtype=np.float32)[1:]
                 planed_trj = np.append(np.append(start_straight_line_x, trj_data[0]), end_straight_line_x), \
                              np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
                 xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
@@ -1335,10 +1335,10 @@ class ReferencePath(object):
                 s_vals = np.linspace(0, 1.0, 13 * meter_pointnum_ratio)
                 trj_data = curve.evaluate_multi(s_vals)
                 trj_data = trj_data.astype(np.float32)
-                start_straight_line_x = 5.625 * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)
-                start_straight_line_y = np.linspace(-18 - sl, -18, sl * meter_pointnum_ratio, dtype=np.float32)
-                end_straight_line_x = np.linspace(18, 18 + sl, sl * meter_pointnum_ratio, dtype=np.float32)
-                end_straight_line_y = end_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)
+                start_straight_line_x = 5.625 * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[:-1]
+                start_straight_line_y = np.linspace(-18 - sl, -18, sl * meter_pointnum_ratio, dtype=np.float32)[:-1]
+                end_straight_line_x = np.linspace(18, 18 + sl, sl * meter_pointnum_ratio, dtype=np.float32)[1:]
+                end_straight_line_y = end_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[1:]
                 planed_trj = np.append(np.append(start_straight_line_x, trj_data[0]), end_straight_line_x), \
                              np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
                 xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
@@ -1447,4 +1447,4 @@ def test_model():
 
 
 if __name__ == '__main__':
-    test_model()
+    test_ref_path()
