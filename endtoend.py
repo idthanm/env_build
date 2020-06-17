@@ -59,6 +59,9 @@ def judge_feasible(orig_x, orig_y, task):  # map dependant
 
     def is_in_middle(orig_x, orig_y):
         return True if -18 < orig_y < 18 and -18 < orig_x < 18 else False
+
+    def is_in_middle_left(orig_x, orig_y):
+        return True if -18 < orig_y < 7.5 and -18 < orig_x < 7.5 else False
         # if -18 < orig_y < 18 and -18 < orig_x < 18:
         #     if -3.75 * 2 < orig_x < 3.75 * 2:
         #         return True if -18 < orig_y < 18 else False
@@ -72,7 +75,7 @@ def judge_feasible(orig_x, orig_y, task):  # map dependant
     # judge feasible for turn left
     if task == 'left':
         return True if is_in_straight_before1(orig_x, orig_y) or is_in_left(orig_x, orig_y) \
-                       or is_in_middle(orig_x, orig_y) else False
+                       or is_in_middle_left(orig_x, orig_y) else False
     elif task == 'straight':
         return True if is_in_straight_before1(orig_x, orig_y) or is_in_straight_after(orig_x, orig_y) \
                        or is_in_middle(orig_x, orig_y) else False
@@ -204,7 +207,7 @@ class CrossroadEnd2end(gym.Env):
         F_zf, F_zr = self.dynamics.vehicle_params['F_zf'], self.dynamics.vehicle_params['F_zr']
         C_f, C_r = self.dynamics.vehicle_params['C_f'], self.dynamics.vehicle_params['C_r']
         alpha_f_bound, alpha_r_bound = 3 * miu_f * F_zf / C_f, 3 * miu_r * F_zr / C_r
-        r_bound = miu_r * self.dynamics.vehicle_params['g'] / self.ego_dynamics['v_x']
+        r_bound = miu_r * self.dynamics.vehicle_params['g'] / abs(self.ego_dynamics['v_x'])
         self.ego_dynamics.update(dict(alpha_f_bound=alpha_f_bound,
                                       alpha_r_bound=alpha_r_bound,
                                       r_bound=r_bound))
@@ -247,6 +250,8 @@ class CrossroadEnd2end(gym.Env):
             return 'collision', 1
         elif self._break_road_constrain():
             return 'break_road_constrain', 1
+        elif self._deviate_too_much():
+            return 'deviate_too_much', 1
         elif self._break_stability():
             return 'break_stability', 1
         elif self._break_red_light():
@@ -255,6 +260,11 @@ class CrossroadEnd2end(gym.Env):
             return 'good_done', 1
         else:
             return 'not_done_yet', 0
+
+    def _deviate_too_much(self):
+        delta_x, delta_y, delta_phi = self.obs[self.ego_info_dim:self.ego_info_dim+3]
+        dist = np.sqrt(np.square(delta_x) + np.square(delta_y))
+        return True if dist > 10 or abs(delta_phi) > 30 else False
 
     def _break_road_constrain(self):
         results = list(map(lambda x: judge_feasible(*x, self.training_task), self.ego_dynamics['Corner_point']))
@@ -295,10 +305,11 @@ class CrossroadEnd2end(gym.Env):
         #                np.array([-3., acc_lower_bound], dtype=np.float32),
         #                np.array([3., 5], dtype=np.float32))
         steer_norm, a_x_norm = action[0], action[1]
-        scaled_steer = 0.2 * steer_norm
+        scaled_steer = 0. if self.obs[4]< -18. else 0.2 * steer_norm
         ego_v = self.ego_dynamics['v_x']
         acc_lower_bound = max(-3., -ego_v/3.)
-        scaled_a_x = (a_x_norm + 1.) / 2. * (3. - acc_lower_bound) + acc_lower_bound
+        acc_upper_bound = max(1., min(3, -2*ego_v+21.))
+        scaled_a_x = (a_x_norm + 1.) / 2. * (acc_upper_bound - acc_lower_bound) + acc_lower_bound
         return np.array([scaled_steer, scaled_a_x], dtype=np.float32)
 
     def _get_next_ego_state(self, trans_action):
@@ -514,7 +525,7 @@ class CrossroadEnd2end(gym.Env):
 
             ur_straight = list(filter(lambda v: v['x'] < ego_x + 7 and ego_y < v['y'] < 28, ur))  # interest of straight
             ur_right = list(filter(lambda v: v['x'] < 28 and v['y'] < 18, ur))  # interest of right
-            ud = list(filter(lambda v: ego_y < v['y'] < 28, ud))  # interest of left
+            ud = list(filter(lambda v: ego_y < v['y'] < 28 and ego_x > v['x'], ud))  # interest of left
             ul = list(filter(lambda v: v['x'] > -28 and v['y'] < 28, ul))  # interest of left
 
             lu = lu  # not interest in case of traffic light
@@ -1128,7 +1139,7 @@ class CrossroadEnd2end(gym.Env):
         veh2veh = tf.constant(-10., dtype=tf.float32) if veh2veh < -10. else veh2veh
 
         reward = 0.01 * devi_v + 0.04 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
-                  0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh
+                  0.05 * punish_steer + 0.0005 * punish_a_x + 0.5*veh2veh
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
@@ -1147,7 +1158,7 @@ class CrossroadEnd2end(gym.Env):
                            scaled_devi_y=0.04 * devi_y.numpy(),
                            scaled_devi_phi=5 * devi_phi.numpy(),
                            scaled_veh2road=0.,
-                           scaled_veh2veh=veh2veh.numpy(),
+                           scaled_veh2veh=0.5*veh2veh.numpy(),
                            scaled_rew_alpha_f=0.,
                            scaled_rew_alpha_r=0.,
                            scaled_rew_r=0.,
@@ -1468,7 +1479,7 @@ class CrossroadEnd2end(gym.Env):
 
 def test_end2end():
     import time
-    env = CrossroadEnd2end('straight')
+    env = CrossroadEnd2end('left')
     obs = env.reset()
     i = 0
     done = 0
@@ -1477,7 +1488,7 @@ def test_end2end():
         while not done:
             # print(i)
             i += 1
-            action = np.array([0, -1], dtype=np.float32)
+            action = np.array([0, 0], dtype=np.float32)
             obs, reward, done, info = env.step(action)
             env.render()
         done = 0

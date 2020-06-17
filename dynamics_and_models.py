@@ -184,6 +184,7 @@ class EnvironmentModel(object):  # all tensors
         dones_reward = tf.zeros_like(dones, dtype=tf.float32)
         dones_reward = tf.where(dones_type=='collision', -20., dones_reward)
         dones_reward = tf.where(dones_type=='break_road_constrain', -20., dones_reward)
+        dones_reward = tf.where(dones_type=='deviation_too_much', -20., dones_reward)
         dones_reward = tf.where(dones_type=='break_stability', -20., dones_reward)
         dones_reward = tf.where(dones_type=='good_done', 20., dones_reward)
         this_step_dones = tf.cast(dones, tf.float32) - tf.cast(prev_dones, tf.float32)
@@ -198,10 +199,13 @@ class EnvironmentModel(object):  # all tensors
         # a_xs_scale = tf.clip_by_value(a_xs_scale, acc_lower_bound, 5.*tf.ones_like(a_xs_scale))
         # return tf.stack([steer_scale, a_xs_scale], 1)
         steers_norm, a_xs_norm = actions[:, 0], actions[:, 1]
+        # steer_scale = tf.where(self.obses[:, 4]<-18., 0., 0.2 * steers_norm)
         steer_scale = 0.2 * steers_norm
         ego_v_xs = self.obses[:, 0]
-        acc_lower_bounds = tf.maximum(-3.*tf.ones_like(a_xs_norm), -ego_v_xs/3.)
-        a_xs_scale = (a_xs_norm + 1.) / 2. * (3. - acc_lower_bounds) + acc_lower_bounds
+        acc_lower_bounds = tf.maximum(-3., -ego_v_xs/3.)
+        acc_upper_bounds = tf.maximum(1., tf.minimum(3., -2*ego_v_xs + 21.))
+
+        a_xs_scale = (a_xs_norm + 1.) / 2. * (acc_upper_bounds - acc_lower_bounds) + acc_lower_bounds
         return tf.stack([steer_scale, a_xs_scale], 1)
 
     def _compute_bounds(self, obses):
@@ -209,7 +213,7 @@ class EnvironmentModel(object):  # all tensors
         C_f, C_r = self.vehicle_dynamics.vehicle_params['C_f'], self.vehicle_dynamics.vehicle_params['C_r']
         miu_fs, miu_rs = obses[:, 10], obses[:, 11]
         self.alpha_f_bounds, self.alpha_r_bounds = 3 * miu_fs * F_zf / C_f, 3 * miu_rs * F_zr / C_r
-        self.r_bounds = miu_rs * self.vehicle_dynamics.vehicle_params['g'] / obses[:, 0]
+        self.r_bounds = miu_rs * self.vehicle_dynamics.vehicle_params['g'] / tf.abs(obses[:, 0])
 
     def judge_dones(self, obses):
         ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], obses[:, self.ego_info_dim:self.ego_info_dim + 4 * (self.num_future_data+1)], \
@@ -223,6 +227,13 @@ class EnvironmentModel(object):  # all tensors
         stability_dones = logical_or(logical_or(dones_alpha_f, dones_alpha_r), dones_r)
         self.dones_type = tf.where(stability_dones, 'break_stability', self.dones_type)
         self.dones = tf.math.logical_or(self.dones, stability_dones)
+
+        # dones related to deviation
+        delta_xs, delta_ys, delta_phis = tracking_infos[:, 0], tracking_infos[:, 1], tracking_infos[:, 2]
+        dists = tf.sqrt(tf.square(delta_xs)+tf.square(delta_ys))
+        deviation_dones = logical_or(dists>10., tf.abs(delta_phis)>30.)
+        self.dones_type = tf.where(deviation_dones, 'deviation_too_much', self.dones_type)
+        self.dones = tf.math.logical_or(self.dones, deviation_dones)
 
         # dones related to veh2road collision
         ego_lws = (ego_infos[:, 6] - ego_infos[:, 7]) / 2.
@@ -272,8 +283,8 @@ class EnvironmentModel(object):  # all tensors
 
                 middle_cond = logical_and(logical_and(ego_point[0] > -18, ego_point[0] < 18),
                                           logical_and(ego_point[1] > -18, ego_point[1] < 18))
-                dones_middle1 = logical_and(middle_cond, 18 - ego_point[1] < rho_ego)
-                dones_middle2 = logical_and(middle_cond, 18 - ego_point[0] < rho_ego)
+                dones_middle1 = logical_and(middle_cond, 7.5 - ego_point[1] < rho_ego)
+                dones_middle2 = logical_and(middle_cond, 7.5 - ego_point[0] < rho_ego)
                 dones_middle3 = logical_and(logical_and(middle_cond, ego_point[1] > 7.5),
                                             ego_point[0] - (-18) < rho_ego)
                 dones_middle4 = logical_and(logical_and(middle_cond, ego_point[1] < 0),
@@ -371,7 +382,7 @@ class EnvironmentModel(object):  # all tensors
         self.dones_type = tf.where(veh2road_dones, 'break_road_constrain', self.dones_type)
         self.dones = logical_or(self.dones, veh2road_dones)
 
-        # rewards related to veh2veh collision
+        # dones related to veh2veh collision
         veh2veh_dones = tf.cast(tf.zeros_like(obses[:, 0]), tf.bool)
         for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
             vehs = veh_infos[:, veh_index * self.per_veh_info_dim: (veh_index + 1)*self.per_veh_info_dim]
@@ -773,32 +784,32 @@ class EnvironmentModel(object):  # all tensors
             veh2veh = tf.where(veh2veh < -10., -10. * tf.ones_like(veh2veh), veh2veh)
 
             rewards = 0.01 * devi_v + 0.04 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
-                      0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh
+                      0.05 * punish_steer + 0.0005 * punish_a_x + 0.5*veh2veh
             rewards = tf.cast(tf.math.logical_not(prev_dones), tf.float32) * rewards
-            self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
-                                    punish_a_x=punish_a_x.numpy()[0],
-                                    punish_yaw_rate=punish_yaw_rate.numpy()[0],
-                                    devi_v=devi_v.numpy()[0],
-                                    devi_y=devi_y.numpy()[0],
-                                    devi_phi=devi_phi.numpy()[0],
-                                    veh2road=0.,
-                                    veh2veh=veh2veh.numpy()[0],
-                                    rew_alpha_f=0.,
-                                    rew_alpha_r=0.,
-                                    rew_r=0.,
-                                    scaled_punish_steer=0.05 * punish_steer.numpy()[0],
-                                    scaled_punish_a_x=0.0005 * punish_a_x.numpy()[0],
-                                    scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy()[0],
-                                    scaled_devi_v=0.01 * devi_v.numpy()[0],
-                                    scaled_devi_y=0.04 * devi_y.numpy()[0],
-                                    scaled_devi_phi=5 * devi_phi.numpy()[0],
-                                    scaled_veh2road=0.,
-                                    scaled_veh2veh=veh2veh.numpy()[0],
-                                    scaled_rew_alpha_f=0.,
-                                    scaled_rew_alpha_r=0.,
-                                    scaled_rew_r=0.,
-                                    reward=rewards.numpy()[0]
-                                    )
+            # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
+            #                         punish_a_x=punish_a_x.numpy()[0],
+            #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],
+            #                         devi_v=devi_v.numpy()[0],
+            #                         devi_y=devi_y.numpy()[0],
+            #                         devi_phi=devi_phi.numpy()[0],
+            #                         veh2road=0.,
+            #                         veh2veh=veh2veh.numpy()[0],
+            #                         rew_alpha_f=0.,
+            #                         rew_alpha_r=0.,
+            #                         rew_r=0.,
+            #                         scaled_punish_steer=0.05 * punish_steer.numpy()[0],
+            #                         scaled_punish_a_x=0.0005 * punish_a_x.numpy()[0],
+            #                         scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy()[0],
+            #                         scaled_devi_v=0.01 * devi_v.numpy()[0],
+            #                         scaled_devi_y=0.04 * devi_y.numpy()[0],
+            #                         scaled_devi_phi=5 * devi_phi.numpy()[0],
+            #                         scaled_veh2road=0.,
+            #                         scaled_veh2veh=0.5*veh2veh.numpy()[0],
+            #                         scaled_rew_alpha_f=0.,
+            #                         scaled_rew_alpha_r=0.,
+            #                         scaled_rew_r=0.,
+            #                         reward=rewards.numpy()[0]
+            #                         )
             return rewards
 
 
@@ -1429,7 +1440,7 @@ def test_model():
     model.reset(obses, 'left')
     print(obses.shape)
     for rollout_step in range(100):
-        actions = tf.tile(tf.constant([[0, -1]], dtype=tf.float32), tf.constant([len(obses), 1]))
+        actions = tf.tile(tf.constant([[0, 0]], dtype=tf.float32), tf.constant([len(obses), 1]))
         obses, rewards, dones = model.rollout_out(actions)
         print(rewards.numpy()[0], dones.numpy()[0])
         model.render()
