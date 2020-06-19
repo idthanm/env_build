@@ -764,6 +764,31 @@ class EnvironmentModel(object):  # all tensors
                                       dtype=tf.float32)
             coeff = 1.14
             rho_ego = ego_infos[0, 7] / 2. * coeff
+            # rewards related to veh2road collision
+
+            zeros = tf.zeros_like(ego_front_points[0])
+            if self.task == 'left':
+                veh2road = tf.zeros_like(ego_front_points[0])
+                for ego_point in [ego_front_points, ego_rear_points]:
+                    before1 = tf.where(ego_point[1] < -18, tf.nn.relu(-(ego_point[0] - 0 - 1.875)), zeros)
+                    before2 = tf.where(ego_point[1] < -18, tf.nn.relu(-(3.75 - ego_point[0] - 1.875)), zeros)
+                    middle_cond = logical_and(logical_and(ego_point[0] > -18, ego_point[0] < 18),
+                                              logical_and(ego_point[1] > -18, ego_point[1] < 18))
+                    middle1 = tf.where(middle_cond, tf.nn.relu(-(7.5 - ego_point[1] - 10)), zeros)
+                    middle2 = tf.where(middle_cond, tf.nn.relu(-(7.5 - ego_point[0] - 10)), zeros)
+                    middle3 = tf.where(logical_and(middle_cond, ego_point[1] < 0),
+                                       tf.nn.relu(-(ego_point[0] - (-18) - 10)), zeros)
+                    middle4 = tf.where(logical_and(middle_cond, ego_point[0] < 0),
+                                       tf.nn.relu(-(ego_point[1] - (-18) - 10)), zeros)
+
+                    after1 = tf.where(ego_point[0] < -18, tf.nn.relu(-(ego_point[1] - 0 - 3.75)), zeros)
+                    after2 = tf.where(ego_point[0] < -18, tf.nn.relu(-(7.5 - ego_point[1] - 3.75)), zeros)
+
+                    this_point = before1 + before2 +\
+                                 middle1 + middle2 + middle3 + middle4 +\
+                                 after1 + after2
+                    veh2road -= this_point
+
             veh2veh = tf.zeros_like(veh_infos[:, 0])
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
@@ -785,7 +810,7 @@ class EnvironmentModel(object):  # all tensors
             veh2veh = tf.where(veh2veh < -10., -10. * tf.ones_like(veh2veh), veh2veh)
 
             rewards = 0.01 * devi_v + 0.04 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
-                      0.05 * punish_steer + 0.0005 * punish_a_x + 0.5*veh2veh
+                      0.05 * punish_steer + 0.0005 * punish_a_x + 0.5*veh2veh + 0.1*veh2road
             rewards = tf.cast(tf.math.logical_not(prev_dones), tf.float32) * rewards
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
@@ -793,7 +818,7 @@ class EnvironmentModel(object):  # all tensors
             #                         devi_v=devi_v.numpy()[0],
             #                         devi_y=devi_y.numpy()[0],
             #                         devi_phi=devi_phi.numpy()[0],
-            #                         veh2road=0.,
+            #                         veh2road=veh2road.numpy()[0],
             #                         veh2veh=veh2veh.numpy()[0],
             #                         rew_alpha_f=0.,
             #                         rew_alpha_r=0.,
@@ -804,7 +829,7 @@ class EnvironmentModel(object):  # all tensors
             #                         scaled_devi_v=0.01 * devi_v.numpy()[0],
             #                         scaled_devi_y=0.04 * devi_y.numpy()[0],
             #                         scaled_devi_phi=5 * devi_phi.numpy()[0],
-            #                         scaled_veh2road=0.,
+            #                         scaled_veh2road=0.1*veh2road.numpy()[0],
             #                         scaled_veh2veh=0.5*veh2veh.numpy()[0],
             #                         scaled_rew_alpha_f=0.,
             #                         scaled_rew_alpha_r=0.,

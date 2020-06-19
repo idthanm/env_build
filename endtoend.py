@@ -1143,6 +1143,25 @@ class CrossroadEnd2end(gym.Env):
         ego_rear_point = tf.cast(ego_infos[3] - ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32), \
                          tf.cast(ego_infos[4] - ego_lw * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
 
+        if self.training_task == 'left':
+            veh2road = tf.constant(0.)
+            for ego_point in [ego_front_point, ego_rear_point]:
+                before1 = tf.nn.relu(-(ego_point[0] - 0 - 1.875)) if ego_point[1] < -18 else tf.constant(0.)
+                before2 = tf.nn.relu(-(3.75 - ego_point[0] - 1.875)) if ego_point[1] < -18 else tf.constant(0.)
+                middle_cond = True if -18 < ego_point[0] < 18 and -18 < ego_point[1] < 18 else False
+                middle1 = tf.nn.relu(-(7.5 - ego_point[1] - 10)) if middle_cond else tf.constant(0.)
+                middle2 = tf.nn.relu(-(7.5 - ego_point[0] - 10)) if middle_cond else tf.constant(0.)
+                middle3 = tf.nn.relu(-(ego_point[0] - (-18) - 10)) if middle_cond and ego_point[1] < 0 else tf.constant(0.)
+                middle4 = tf.nn.relu(-(ego_point[1] - (-18) - 10)) if middle_cond and ego_point[0] < 0 else tf.constant(0.)
+
+                after1 = tf.nn.relu(-(ego_point[1] - 0 - 3.75)) if ego_point[0] < -18 else tf.constant(0.)
+                after2 = tf.nn.relu(-(7.5 - ego_point[1] - 3.75)) if ego_point[0] < -18 else tf.constant(0.)
+
+                this_point = before1 + before2 +\
+                             middle1 + middle2 + middle3 + middle4 + \
+                             after1 + after2
+                veh2road -= this_point
+
         # rewards related to veh2veh collision
         # veh2veh = tf.constant(0.)
         # for veh_index in range(int(len(veh_infos) / self.per_veh_info_dim)):
@@ -1167,14 +1186,14 @@ class CrossroadEnd2end(gym.Env):
         veh2veh = tf.constant(-10., dtype=tf.float32) if veh2veh < -10. else veh2veh
 
         reward = 0.01 * devi_v + 0.04 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
-                  0.05 * punish_steer + 0.0005 * punish_a_x + 0.5*veh2veh
+                  0.05 * punish_steer + 0.0005 * punish_a_x + 0.5*veh2veh + 0.1*veh2road
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
                            devi_v=devi_v.numpy(),
                            devi_y=devi_y.numpy(),
                            devi_phi=devi_phi.numpy(),
-                           veh2road=0.,
+                           veh2road=veh2road.numpy(),
                            veh2veh=veh2veh.numpy(),
                            rew_alpha_f=0.,
                            rew_alpha_r=0.,
@@ -1185,7 +1204,7 @@ class CrossroadEnd2end(gym.Env):
                            scaled_devi_v=0.01 * devi_v.numpy(),
                            scaled_devi_y=0.04 * devi_y.numpy(),
                            scaled_devi_phi=5 * devi_phi.numpy(),
-                           scaled_veh2road=0.,
+                           scaled_veh2road=0.1*veh2road.numpy(),
                            scaled_veh2veh=0.5*veh2veh.numpy(),
                            scaled_rew_alpha_f=0.,
                            scaled_rew_alpha_r=0.,
