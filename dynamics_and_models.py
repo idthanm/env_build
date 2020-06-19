@@ -750,7 +750,7 @@ class EnvironmentModel(object):  # all tensors
             # rewards related to tracking error
             devi_v = -tf.cast(tf.square(ego_infos[:, 0] - self.exp_v), dtype=tf.float32)
             devi_y = -tf.square(tracking_infos[:, 0]) - tf.square(tracking_infos[:, 1])
-            devi_phi = -tf.cast(tf.square(tracking_infos[:, 2] * np.pi / 180.), dtype=tf.float32)
+            devi_phi = -tf.cast(tf.square(tracking_infos[:, -2] * np.pi / 180.), dtype=tf.float32)
 
             # rewards related to veh2veh collision
             ego_lws = (ego_infos[:, 6] - ego_infos[:, 7]) / 2.
@@ -1390,7 +1390,7 @@ class ReferencePath(object):
         future_data_list = []
         current_indexs = tf.cast(current_indexs, tf.int32)
         for _ in range(n):
-            current_indexs += 50
+            current_indexs += 80
             current_indexs = tf.where(current_indexs >= len(self.path[0]) - 2, len(self.path[0]) - 2, current_indexs)
             future_data_list.append(self.indexs2points(current_indexs))
         return future_data_list

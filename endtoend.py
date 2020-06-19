@@ -1133,7 +1133,7 @@ class CrossroadEnd2end(gym.Env):
         # rewards related to tracking error
         devi_v = -tf.cast(tf.square(ego_infos[0] - self.exp_v), dtype=tf.float32)
         devi_y = -tf.square(tracking_infos[0]) - tf.square(tracking_infos[1])
-        devi_phi = -tf.cast(tf.square(tracking_infos[2] * np.pi / 180.), dtype=tf.float32)
+        devi_phi = -tf.cast(tf.square(tracking_infos[-2] * np.pi / 180.), dtype=tf.float32)
 
         ego_lw = (ego_infos[6] - ego_infos[7]) / 2.
         coeff = 1.14
@@ -1186,7 +1186,6 @@ class CrossroadEnd2end(gym.Env):
 
         veh2road = tf.constant(-10., dtype=tf.float32) if veh2road < -10. else veh2road
         veh2veh = tf.constant(-10., dtype=tf.float32) if veh2veh < -10. else veh2veh
-        print(veh2road)
 
         reward = 0.01 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
                   0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh + veh2road
@@ -1469,12 +1468,19 @@ class CrossroadEnd2end(gym.Env):
             draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'red')
 
             # plot planed trj
+            ego_info, tracking_info, vehs_info = self.obs[:self.ego_info_dim], self.obs[self.ego_info_dim:self.ego_info_dim + 4 * (self.num_future_data+1)], \
+                                                self.obs[self.ego_info_dim + 4 * (self.num_future_data+1):]
+            for i in range(self.num_future_data + 1):
+                delta_x, delta_y, delta_phi, delta_v = tracking_info[i*4:(i+1)*4]
+                path_x, path_y, path_phi = ego_x-delta_x, ego_y-delta_y, ego_phi-delta_phi
+                plt.plot(path_x, path_y, 'g.')
+                plot_phi_line(path_x, path_y, path_phi, 'g')
+
+
             ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
             indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
             path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
             delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
-            plt.plot(path_x, path_y, 'go')
-            plot_phi_line(path_x, path_y, path_phi, 'g')
 
             # plot ego dynamics
             text_x, text_y_start = -110, 60
