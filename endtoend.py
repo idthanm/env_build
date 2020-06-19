@@ -157,7 +157,7 @@ class CrossroadEnd2end(gym.Env):
         return self.obs
 
     def step(self, action):
-        self.action = self._action_transformation_for_end2end(action)
+        self.action = self._action_transformation_for_end2end2(action)
         reward, self.reward_info = self.compute_reward3(self.obs, self.action)
         next_ego_state, next_ego_params = self._get_next_ego_state(self.action)
         self.traffic.set_own_car(dict(ego=dict(v_x=next_ego_state[0],
@@ -306,11 +306,37 @@ class CrossroadEnd2end(gym.Env):
         #                np.array([3., 5], dtype=np.float32))
         steer_norm, a_x_norm = action[0], action[1]
         scaled_steer = 0. if self.obs[4]< -18. else 0.2 * steer_norm
+        if self.obs[3] < -18+10:
+            ego_x, ego_y = self.obs[3], self.obs[4]
+            index, _ = self.ref_path.find_closest_point(np.array([ego_x], dtype=np.float32),
+                                             np.array([ego_y], dtype=np.float32),)
+            n_future_data = self.ref_path.future_n_data(index, 5)
+            ego_phi = self.obs[5]
+            ref_phi = n_future_data[-1][2]
+            delta_phi = ego_phi - ref_phi
+            scaled_steer = - 0.2/30. * delta_phi
+            print(ego_phi, ref_phi.numpy(), delta_phi.numpy(), scaled_steer.numpy())
         ego_v = self.ego_dynamics['v_x']
         acc_lower_bound = max(-3., -ego_v/3.)
         acc_upper_bound = max(1., min(3, -2*ego_v+21.))
         scaled_a_x = (a_x_norm + 1.) / 2. * (acc_upper_bound - acc_lower_bound) + acc_lower_bound
         return np.array([scaled_steer, scaled_a_x], dtype=np.float32)
+
+    def _action_transformation_for_end2end2(self, action):  # [-1, 1]
+        # scaled_action = action * np.array([0.2, 3.], dtype=np.float32)
+        # ego_v = self.ego_dynamics['v_x']
+        # acc_lower_bound = max(-3., -ego_v/3.)
+        # return np.clip(scaled_action,
+        #                np.array([-3., acc_lower_bound], dtype=np.float32),
+        #                np.array([3., 5], dtype=np.float32))
+        steer_norm, a_x_norm = action[0], action[1]
+        scaled_steer = 0. if self.obs[4]< -18. else 0.2 * steer_norm
+        ego_v = self.ego_dynamics['v_x']
+        acc_lower_bound = max(-3., -ego_v/3.)
+        acc_upper_bound = max(1., min(3, -2*ego_v+21.))
+        scaled_a_x = (a_x_norm + 1.) / 2. * (acc_upper_bound - acc_lower_bound) + acc_lower_bound
+        return np.array([scaled_steer, scaled_a_x], dtype=np.float32)
+
 
     def _get_next_ego_state(self, trans_action):
         current_v_x = self.ego_dynamics['v_x']
@@ -525,7 +551,7 @@ class CrossroadEnd2end(gym.Env):
 
             ur_straight = list(filter(lambda v: v['x'] < ego_x + 7 and ego_y < v['y'] < 28, ur))  # interest of straight
             ur_right = list(filter(lambda v: v['x'] < 28 and v['y'] < 18, ur))  # interest of right
-            ud = list(filter(lambda v: ego_y < v['y'] < 28 and ego_x > v['x'], ud))  # interest of left
+            ud = list(filter(lambda v: ego_y < v['y'] < 18 and ego_x > v['x'], ud))  # interest of left
             ul = list(filter(lambda v: v['x'] > -28 and v['y'] < 28, ul))  # interest of left
 
             lu = lu  # not interest in case of traffic light
@@ -783,6 +809,7 @@ class CrossroadEnd2end(gym.Env):
 
     def _reset_init_state(self):
         random_index = int(np.random.random()*(len(self.ref_path.path[0])-600)) + 100
+        # random_index = 1200
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 13 * np.random.random()
