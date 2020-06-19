@@ -170,7 +170,7 @@ class EnvironmentModel(object):  # all tensors
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
             prev_dones = self.dones
-            self.actions = self._action_transformation_for_end2end(actions)
+            self.actions = self._action_transformation_for_end2end2(actions)
             rewards = self.compute_rewards3(self.obses, self.actions, prev_dones)
             self.obses = self.compute_next_obses(self.obses, self.actions)
             self.dones, self.dones_type = self.judge_dones(self.obses)
@@ -192,22 +192,28 @@ class EnvironmentModel(object):  # all tensors
         dones_reward = dones_reward * this_step_dones
         return dones_reward
 
-    def _action_transformation_for_end2end(self, actions):  # [-1, 1]
-        # steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
-        # steer_scale, a_xs_scale = 0.2 * steer_norm, 3. * a_xs_norm
-        # ego_v_xs = self.obses[:, 0]
-        # acc_lower_bound = tf.maximum(-3.*tf.ones_like(a_xs_scale), -ego_v_xs/3.)
-        # a_xs_scale = tf.clip_by_value(a_xs_scale, acc_lower_bound, 5.*tf.ones_like(a_xs_scale))
-        # return tf.stack([steer_scale, a_xs_scale], 1)
-        steers_norm, a_xs_norm = actions[:, 0], actions[:, 1]
-        # steer_scale = tf.where(self.obses[:, 4]<-18., 0., 0.2 * steers_norm)
-        steer_scale = 0.2 * steers_norm
-        ego_v_xs = self.obses[:, 0]
-        acc_lower_bounds = tf.maximum(-3., -ego_v_xs/3.)
-        acc_upper_bounds = tf.maximum(1., tf.minimum(3., -2*ego_v_xs + 21.))
+    # def _action_transformation_for_end2end(self, actions):  # [-1, 1]
+    #     # steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
+    #     # steer_scale, a_xs_scale = 0.2 * steer_norm, 3. * a_xs_norm
+    #     # ego_v_xs = self.obses[:, 0]
+    #     # acc_lower_bound = tf.maximum(-3.*tf.ones_like(a_xs_scale), -ego_v_xs/3.)
+    #     # a_xs_scale = tf.clip_by_value(a_xs_scale, acc_lower_bound, 5.*tf.ones_like(a_xs_scale))
+    #     # return tf.stack([steer_scale, a_xs_scale], 1)
+    #     steers_norm, a_xs_norm = actions[:, 0], actions[:, 1]
+    #     # steer_scale = tf.where(self.obses[:, 4]<-18., 0., 0.2 * steers_norm)
+    #     steer_scale = 0.2 * steers_norm
+    #     ego_v_xs = self.obses[:, 0]
+    #     acc_lower_bounds = tf.maximum(-3., -ego_v_xs/3.)
+    #     acc_upper_bounds = tf.maximum(1., tf.minimum(3., -2*ego_v_xs + 21.))
+    #
+    #     a_xs_scale = (a_xs_norm + 1.) / 2. * (acc_upper_bounds - acc_lower_bounds) + acc_lower_bounds
+    #     return tf.stack([steer_scale, a_xs_scale], 1)
 
-        a_xs_scale = (a_xs_norm + 1.) / 2. * (acc_upper_bounds - acc_lower_bounds) + acc_lower_bounds
+    def _action_transformation_for_end2end2(self, actions):  # [-1, 1]
+        steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
+        steer_scale, a_xs_scale = 0.2 * steer_norm, 3. * a_xs_norm
         return tf.stack([steer_scale, a_xs_scale], 1)
+
 
     def _compute_bounds(self, obses):
         F_zf, F_zr = self.vehicle_dynamics.vehicle_params['F_zf'], self.vehicle_dynamics.vehicle_params['F_zr']
@@ -750,7 +756,7 @@ class EnvironmentModel(object):  # all tensors
             # rewards related to tracking error
             devi_v = -tf.cast(tf.square(ego_infos[:, 0] - self.exp_v), dtype=tf.float32)
             devi_y = -tf.square(tracking_infos[:, 0]) - tf.square(tracking_infos[:, 1])
-            devi_phi = -tf.cast(tf.square(tracking_infos[:, -2] * np.pi / 180.), dtype=tf.float32)
+            devi_phi = -tf.cast(tf.square(tracking_infos[:, 2] * np.pi / 180.), dtype=tf.float32)
 
             # rewards related to veh2veh collision
             ego_lws = (ego_infos[:, 6] - ego_infos[:, 7]) / 2.
