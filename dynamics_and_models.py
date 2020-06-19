@@ -805,12 +805,13 @@ class EnvironmentModel(object):  # all tensors
                         veh2veh_dist = tf.sqrt(
                             tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - \
                                        tf.convert_to_tensor(rho_ego + rho_vehs, dtype=tf.float32)
-                        veh2veh -= 1 / tf.square(veh2veh_dist)
+                        # veh2veh -= 1 / tf.square(veh2veh_dist)
+                        veh2veh -= tf.nn.relu(-(veh2veh_dist - 10.))
 
-            veh2veh = tf.where(veh2veh < -10., -10. * tf.ones_like(veh2veh), veh2veh)
+            # veh2veh = tf.where(veh2veh < -10., -10. * tf.ones_like(veh2veh), veh2veh)
 
             rewards = 0.01 * devi_v + 0.04 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
-                      0.05 * punish_steer + 0.0005 * punish_a_x + 0.5*veh2veh + 0.1*veh2road
+                      0.05 * punish_steer + 0.0005 * punish_a_x + 0.05*veh2veh + 0.05*veh2road
             rewards = tf.cast(tf.math.logical_not(prev_dones), tf.float32) * rewards
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
@@ -829,8 +830,8 @@ class EnvironmentModel(object):  # all tensors
             #                         scaled_devi_v=0.01 * devi_v.numpy()[0],
             #                         scaled_devi_y=0.04 * devi_y.numpy()[0],
             #                         scaled_devi_phi=5 * devi_phi.numpy()[0],
-            #                         scaled_veh2road=0.1*veh2road.numpy()[0],
-            #                         scaled_veh2veh=0.5*veh2veh.numpy()[0],
+            #                         scaled_veh2road=0.05*veh2road.numpy()[0],
+            #                         scaled_veh2veh=0.05*veh2veh.numpy()[0],
             #                         scaled_rew_alpha_f=0.,
             #                         scaled_rew_alpha_r=0.,
             #                         scaled_rew_r=0.,

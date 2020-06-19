@@ -1181,12 +1181,13 @@ class CrossroadEnd2end(gym.Env):
                 for veh_point in [veh_front_point, veh_rear_point]:
                     veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(
                         ego_point[1] - veh_point[1])) - tf.convert_to_tensor(rho_ego + rho_veh, dtype=tf.float32)
-                    veh2veh -= 1. / tf.square(veh2veh_dist)
+                    # veh2veh -= 1. / tf.square(veh2veh_dist)
+                    veh2veh -= tf.nn.relu(-(veh2veh_dist-10.))
 
-        veh2veh = tf.constant(-10., dtype=tf.float32) if veh2veh < -10. else veh2veh
+        # veh2veh = tf.constant(-10., dtype=tf.float32) if veh2veh < -10. else veh2veh
 
         reward = 0.01 * devi_v + 0.04 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
-                  0.05 * punish_steer + 0.0005 * punish_a_x + 0.5*veh2veh + 0.1*veh2road
+                  0.05 * punish_steer + 0.0005 * punish_a_x + 0.05*veh2veh + 0.05*veh2road
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
@@ -1204,8 +1205,8 @@ class CrossroadEnd2end(gym.Env):
                            scaled_devi_v=0.01 * devi_v.numpy(),
                            scaled_devi_y=0.04 * devi_y.numpy(),
                            scaled_devi_phi=5 * devi_phi.numpy(),
-                           scaled_veh2road=0.1*veh2road.numpy(),
-                           scaled_veh2veh=0.5*veh2veh.numpy(),
+                           scaled_veh2road=0.05*veh2road.numpy(),
+                           scaled_veh2veh=0.05*veh2veh.numpy(),
                            scaled_rew_alpha_f=0.,
                            scaled_rew_alpha_r=0.,
                            scaled_rew_r=0.,
