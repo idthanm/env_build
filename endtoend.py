@@ -112,7 +112,7 @@ class CrossroadEnd2end(gym.Env):
         self.num_future_data = num_future_data
         self.init_state = {}
         self.action_number = 2
-        self.exp_v = 10.
+        self.exp_v = 8.
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(self.action_number,), dtype=np.float32)
 
         self.seed()
@@ -349,7 +349,6 @@ class CrossroadEnd2end(gym.Env):
         return np.clip(scaled_action,
                        np.array([-3., acc_lower_bound], dtype=np.float32),
                        np.array([3., acc_upper_bound], dtype=np.float32))
-
 
     def _get_next_ego_state(self, trans_action):
         current_v_x = self.ego_dynamics['v_x']
@@ -825,7 +824,7 @@ class CrossroadEnd2end(gym.Env):
         # random_index = 1200
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
-        v = 13 * np.random.random()
+        v = 8 * np.random.random()
         if self.training_task == 'left':
             routeID = 'dl'
         elif self.training_task == 'straight':
@@ -1145,7 +1144,7 @@ class CrossroadEnd2end(gym.Env):
         # rewards related to tracking error
         devi_v = -tf.cast(tf.square(ego_infos[0] - self.exp_v), dtype=tf.float32)
         devi_y = -tf.square(tracking_infos[0]) - tf.square(tracking_infos[1])
-        devi_phi = -tf.cast(tf.square(tracking_infos[2] * np.pi / 180.), dtype=tf.float32)
+        devi_phi = -tf.cast(tf.square(tracking_infos[4+2] * np.pi / 180.), dtype=tf.float32)
 
         ego_lw = (ego_infos[6] - ego_infos[7]) / 2.
         coeff = 1.14

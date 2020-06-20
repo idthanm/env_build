@@ -148,7 +148,7 @@ class EnvironmentModel(object):  # all tensors
         self.task = None
         self.ref_path = None
         self.num_future_data = num_future_data
-        self.exp_v = 10.
+        self.exp_v = 8.
         self.alpha_f_bounds = None
         self.alpha_r_bounds = None
         self.r_bounds = None
@@ -754,7 +754,7 @@ class EnvironmentModel(object):  # all tensors
             # rewards related to tracking error
             devi_v = -tf.cast(tf.square(ego_infos[:, 0] - self.exp_v), dtype=tf.float32)
             devi_y = -tf.square(tracking_infos[:, 0]) - tf.square(tracking_infos[:, 1])
-            devi_phi = -tf.cast(tf.square(tracking_infos[:, 2] * np.pi / 180.), dtype=tf.float32)
+            devi_phi = -tf.cast(tf.square(tracking_infos[:, 4+2] * np.pi / 180.), dtype=tf.float32)
 
             # rewards related to veh2veh collision
             ego_lws = (ego_infos[:, 6] - ego_infos[:, 7]) / 2.
@@ -842,7 +842,6 @@ class EnvironmentModel(object):  # all tensors
             #                         reward=rewards.numpy()[0]
             #                         )
             return rewards
-
 
     def compute_next_obses(self, obses, actions):
         ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], obses[:, self.ego_info_dim:self.ego_info_dim + 4 * (self.num_future_data+1)], \
@@ -1290,8 +1289,8 @@ class ReferencePath(object):
                 end_offsets = [1.875, 5.625]
             for end_offset in end_offsets:
                 control_point1 = 1.875, -18
-                control_point2 = 1.875, -18 + 10
-                control_point3 = -18 + 10, end_offset
+                control_point2 = 1.875, -18 + 20
+                control_point3 = -18 + 20, end_offset
                 control_point4 = -18, end_offset
 
                 node = np.asfortranarray([[control_point1[0], control_point2[0], control_point3[0], control_point4[0]],
@@ -1478,4 +1477,4 @@ def test_model():
 
 
 if __name__ == '__main__':
-    test_model()
+    test_ref_path()
