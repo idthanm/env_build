@@ -776,19 +776,19 @@ class EnvironmentModel(object):  # all tensors
             if self.task == 'left':
                 veh2road = tf.zeros_like(ego_front_points[0])
                 for ego_point in [ego_front_points, ego_rear_points]:
-                    before1 = 0.1*tf.where(ego_point[1] < -18, tf.square(ego_point[0] - 0 - rho_ego), zeros)
-                    before2 = 0.1*tf.where(ego_point[1] < -18, tf.square(3.75 - ego_point[0] - rho_ego), zeros)
+                    before1 = tf.where(ego_point[1] < -18, 0./tf.square(ego_point[0] - 0 - rho_ego), zeros)
+                    before2 = tf.where(ego_point[1] < -18, 0./tf.square(3.75 - ego_point[0] - rho_ego), zeros)
                     middle_cond = logical_and(logical_and(ego_point[0] > -18, ego_point[0] < 18),
                                               logical_and(ego_point[1] > -18, ego_point[1] < 18))
-                    middle1 = tf.where(middle_cond, tf.square(7.5 - ego_point[1] - rho_ego), zeros)
-                    middle2 = tf.where(middle_cond, tf.square(7.5 - ego_point[0] - rho_ego), zeros)
+                    middle1 = tf.where(middle_cond, 1./tf.square(7.5 - ego_point[1] - rho_ego), zeros)
+                    middle2 = tf.where(middle_cond, 1./tf.square(7.5 - ego_point[0] - rho_ego), zeros)
                     middle3 = tf.where(logical_and(middle_cond, ego_point[1] < 0),
-                                       tf.square(ego_point[0] - (-18) - rho_ego), zeros)
+                                       1./tf.square(ego_point[0] - (-18) - rho_ego), zeros)
                     middle4 = tf.where(logical_and(middle_cond, ego_point[0] < 0),
-                                       tf.square(ego_point[1] - (-18) - rho_ego), zeros)
+                                       1./tf.square(ego_point[1] - (-18) - rho_ego), zeros)
 
-                    after1 = tf.where(ego_point[0] < -18, tf.square(ego_point[1] - 0 - rho_ego), zeros)
-                    after2 = tf.where(ego_point[0] < -18, tf.square(7.5 - ego_point[1] - rho_ego), zeros)
+                    after1 = tf.where(ego_point[0] < -18, 0./tf.square(ego_point[1] - 0 - rho_ego), zeros)
+                    after2 = tf.where(ego_point[0] < -18, 0./tf.square(7.5 - ego_point[1] - rho_ego), zeros)
 
                     this_point = before1 + before2 +\
                                  middle1 + middle2 + middle3 + middle4 +\
@@ -816,7 +816,7 @@ class EnvironmentModel(object):  # all tensors
 
             veh2road = tf.where(veh2road < -3., -3. * tf.ones_like(veh2road), veh2road)
             veh2veh = tf.where(veh2veh < -3., -3. * tf.ones_like(veh2veh), veh2veh)
-            rewards = 0.01 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
+            rewards = 0.02 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
                       0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh + veh2road
             rewards = tf.cast(tf.math.logical_not(prev_dones), tf.float32) * rewards
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
@@ -1480,4 +1480,4 @@ def test_model():
 
 
 if __name__ == '__main__':
-    test_ref_path()
+    test_model()
