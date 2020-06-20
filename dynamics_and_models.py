@@ -814,8 +814,8 @@ class EnvironmentModel(object):  # all tensors
                         veh2veh -= 1 / veh2veh_dist
                         # veh2veh -= tf.nn.relu(-(veh2veh_dist - 10.))
 
-            veh2road = tf.where(veh2road < -10., -10. * tf.ones_like(veh2road), veh2road)
-            veh2veh = tf.where(veh2veh < -10., -10. * tf.ones_like(veh2veh), veh2veh)
+            veh2road = tf.where(veh2road < -3., -3. * tf.ones_like(veh2road), veh2road)
+            veh2veh = tf.where(veh2veh < -3., -3. * tf.ones_like(veh2veh), veh2veh)
             rewards = 0.01 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
                       0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh + veh2road
             rewards = tf.cast(tf.math.logical_not(prev_dones), tf.float32) * rewards

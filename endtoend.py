@@ -339,7 +339,10 @@ class CrossroadEnd2end(gym.Env):
     #     return np.array([scaled_steer, scaled_a_x], dtype=np.float32)
 
     def _action_transformation_for_end2end3(self, action):  # [-1, 1]
-        scaled_action = action * np.array([0.2, 3.], dtype=np.float32)
+        steer_norm, a_x_norm = action[0], action[1]
+        scaled_steer = 0. if self.obs[4]< -18. else 0.2 * steer_norm
+        scaled_a_x = 3.*a_x_norm
+        scaled_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
         ego_v = self.ego_dynamics['v_x']
         acc_lower_bound = max(-3., -ego_v/3.)
         acc_upper_bound = max(1., min(3, -2 * ego_v + 21.))
@@ -1193,8 +1196,8 @@ class CrossroadEnd2end(gym.Env):
                     veh2veh -= 1. / tf.square(veh2veh_dist)
                     # veh2veh -= tf.nn.relu(-(veh2veh_dist-10.))
 
-        veh2road = tf.constant(-10., dtype=tf.float32) if veh2road < -10. else veh2road
-        veh2veh = tf.constant(-10., dtype=tf.float32) if veh2veh < -10. else veh2veh
+        veh2road = tf.constant(-3., dtype=tf.float32) if veh2road < -3. else veh2road
+        veh2veh = tf.constant(-3., dtype=tf.float32) if veh2veh < -3. else veh2veh
 
         reward = 0.01 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
                   0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh + veh2road
