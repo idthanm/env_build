@@ -148,7 +148,7 @@ class EnvironmentModel(object):  # all tensors
         self.task = None
         self.ref_path = None
         self.num_future_data = num_future_data
-        self.exp_v = 10.
+        self.exp_v = 8.
         self.alpha_f_bounds = None
         self.alpha_r_bounds = None
         self.r_bounds = None
