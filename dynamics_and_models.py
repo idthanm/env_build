@@ -156,7 +156,6 @@ class EnvironmentModel(object):  # all tensors
         self.ego_info_dim = 12
         self.per_veh_info_dim = 6
 
-
     def reset(self, obses, task):
         self.obses = obses
         self.actions = None
@@ -213,7 +212,6 @@ class EnvironmentModel(object):  # all tensors
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
         steer_scale, a_xs_scale = 0.2 * steer_norm, 3. * a_xs_norm
         return tf.stack([steer_scale, a_xs_scale], 1)
-
 
     def _compute_bounds(self, obses):
         F_zf, F_zr = self.vehicle_dynamics.vehicle_params['F_zf'], self.vehicle_dynamics.vehicle_params['F_zr']
@@ -280,7 +278,7 @@ class EnvironmentModel(object):  # all tensors
 
         if self.task == 'left':
             dones_good_done = logical_and(logical_and(ego_infos[:, 4] > 0, ego_infos[:, 4] < 7.5),
-                                          ego_infos[:, 3] < -18 - 5)
+                                          ego_infos[:, 3] < -18 - 2)
             self.dones_type = tf.where(dones_good_done, 'good_done', self.dones_type)
             self.dones = tf.math.logical_or(self.dones, dones_good_done)
 
@@ -316,7 +314,7 @@ class EnvironmentModel(object):  # all tensors
 
         elif self.task == 'straight':
             dones_good_done = logical_and(logical_and(ego_infos[:, 3] > 0, ego_infos[:, 3] < 7.5),
-                                          ego_infos[:, 4] > 18 + 5)
+                                          ego_infos[:, 4] > 18 + 2)
             self.dones_type = tf.where(dones_good_done, 'good_done', self.dones_type)
             self.dones = tf.math.logical_or(self.dones, dones_good_done)
 
@@ -353,7 +351,7 @@ class EnvironmentModel(object):  # all tensors
         else:
             assert self.task == 'right'
             dones_good_done = logical_and(logical_and(ego_infos[:, 4] < 0, ego_infos[:, 4] < -7.5),
-                                          ego_infos[:, 3] > 18 + 5)
+                                          ego_infos[:, 3] > 18 + 2)
             self.dones_type = tf.where(dones_good_done, 'good_done', self.dones_type)
             self.dones = tf.math.logical_or(self.dones, dones_good_done)
 
@@ -816,7 +814,7 @@ class EnvironmentModel(object):  # all tensors
 
             veh2road = tf.where(veh2road < -3., -3. * tf.ones_like(veh2road), veh2road)
             veh2veh = tf.where(veh2veh < -3., -3. * tf.ones_like(veh2veh), veh2veh)
-            rewards = 0.02 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
+            rewards = 0.01 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
                       0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh + veh2road
             rewards = tf.cast(tf.math.logical_not(prev_dones), tf.float32) * rewards
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],

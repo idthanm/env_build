@@ -291,12 +291,12 @@ class CrossroadEnd2end(gym.Env):
         x = self.ego_dynamics['x']
         y = self.ego_dynamics['y']
         if self.training_task == 'left':
-            return True if x < -18 - 5 and 0 < y < 7.5 else False
+            return True if x < -18 - 2 and 0 < y < 7.5 else False
         elif self.training_task == 'right':
-            return True if x > 18 + 5 and -7.5 < y < 0 else False
+            return True if x > 18 + 2 and -7.5 < y < 0 else False
         else:
             assert self.training_task == 'straight'
-            return True if y > 18 + 5 and 0 < x < 7.5 else False
+            return True if y > 18 + 2 and 0 < x < 7.5 else False
 
     # def _action_transformation_for_end2end(self, action):  # [-1, 1]
     #     # scaled_action = action * np.array([0.2, 3.], dtype=np.float32)
@@ -1199,7 +1199,7 @@ class CrossroadEnd2end(gym.Env):
         veh2road = tf.constant(-3., dtype=tf.float32) if veh2road < -3. else veh2road
         veh2veh = tf.constant(-3., dtype=tf.float32) if veh2veh < -3. else veh2veh
 
-        reward = 0.02 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
+        reward = 0.01 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
                   0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh + veh2road
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
@@ -1215,7 +1215,7 @@ class CrossroadEnd2end(gym.Env):
                            scaled_punish_steer=0.05 * punish_steer.numpy(),
                            scaled_punish_a_x=0.0005 * punish_a_x.numpy(),
                            scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
-                           scaled_devi_v=0.02 * devi_v.numpy(),
+                           scaled_devi_v=0.01 * devi_v.numpy(),
                            scaled_devi_y=0.1 * devi_y.numpy(),
                            scaled_devi_phi=5 * devi_phi.numpy(),
                            scaled_veh2road=veh2road.numpy(),
