@@ -834,7 +834,7 @@ class CrossroadEnd2end(gym.Env):
         # random_index = 1200
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
-        v = 8 * np.random.random()
+        v = 13 * np.random.random()
         if self.training_task == 'left':
             routeID = 'dl'
         elif self.training_task == 'straight':
@@ -1154,7 +1154,7 @@ class CrossroadEnd2end(gym.Env):
         # rewards related to tracking error
         devi_v = -tf.cast(tf.square(ego_infos[0] - self.exp_v), dtype=tf.float32)
         devi_y = -tf.square(tracking_infos[0]) - tf.square(tracking_infos[1])
-        devi_phi = -tf.cast(tf.square(tracking_infos[4+2] * np.pi / 180.), dtype=tf.float32)
+        devi_phi = -tf.cast(tf.square(tracking_infos[2] * np.pi / 180.), dtype=tf.float32)
 
         ego_lw = (ego_infos[6] - ego_infos[7]) / 2.
         coeff = 1.14
