@@ -112,7 +112,7 @@ class CrossroadEnd2end(gym.Env):
         self.num_future_data = num_future_data
         self.init_state = {}
         self.action_number = 2
-        self.exp_v = 8.
+        self.exp_v = 10.
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(self.action_number,), dtype=np.float32)
 
         self.seed()
