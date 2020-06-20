@@ -346,14 +346,14 @@ class CrossroadEnd2end(gym.Env):
         acc_lower_bound = max(-3., -ego_v/3.)
         acc_upper_bound = max(1., min(3, -2 * ego_v + 21.))
 
-        ego_infos, tracking_infos, veh_infos = self.obs[:self.ego_info_dim], self.obs[self.ego_info_dim:self.ego_info_dim + 4 * (
-                    self.num_future_data + 1)], self.obs[self.ego_info_dim + 4 * (self.num_future_data + 1):]
-        if self.training_task == 'left':
-            # veh_mode_list = [('dl', 2), ('du', 2), ('ud', 3), ('ul', 3)]
-            first_ud = veh_infos[self.per_veh_info_dim*4:self.per_veh_info_dim*5]
-            veh_x, veh_y, veh_v, veh_phi, veh_l, veh_w = first_ud
-            if ego_infos[3] > 1. and ego_infos[4] > -18. and veh_y < 18.-5.:
-                scaled_steer, scaled_a_x = 0., -3.
+        # ego_infos, tracking_infos, veh_infos = self.obs[:self.ego_info_dim], self.obs[self.ego_info_dim:self.ego_info_dim + 4 * (
+        #             self.num_future_data + 1)], self.obs[self.ego_info_dim + 4 * (self.num_future_data + 1):]
+        # if self.training_task == 'left':
+        #     # veh_mode_list = [('dl', 2), ('du', 2), ('ud', 3), ('ul', 3)]
+        #     first_ud = veh_infos[self.per_veh_info_dim*4:self.per_veh_info_dim*5]
+        #     veh_x, veh_y, veh_v, veh_phi, veh_l, veh_w = first_ud
+        #     if ego_infos[3] > 1. and ego_infos[4] > -18. and veh_y < 18.-5.:
+        #         scaled_steer, scaled_a_x = 0., -3.
 
         scaled_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
         return np.clip(scaled_action,
