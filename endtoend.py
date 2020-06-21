@@ -346,11 +346,11 @@ class CrossroadEnd2end(gym.Env):
         acc_lower_bound = max(-3., -ego_v/3.)
         acc_upper_bound = max(0., min(3, -4/3 * ego_v + 40/3))
 
-        if self.ego_dynamics['x'] < -18:
+        if self.ego_dynamics['x'] < -18+4:
             ego_infos, tracking_infos, veh_infos = self.obs[:self.ego_info_dim], self.obs[self.ego_info_dim:self.ego_info_dim + 4 * (
                         self.num_future_data + 1)], self.obs[self.ego_info_dim + 4 * (self.num_future_data + 1):]
 
-            scaled_steer = -0.2/30 * tracking_infos[2]
+            scaled_steer = np.clip(-0.2/10 * tracking_infos[2], -0.2, 0.2)
 
         # ego_infos, tracking_infos, veh_infos = self.obs[:self.ego_info_dim], self.obs[self.ego_info_dim:self.ego_info_dim + 4 * (
         #             self.num_future_data + 1)], self.obs[self.ego_info_dim + 4 * (self.num_future_data + 1):]
@@ -836,8 +836,8 @@ class CrossroadEnd2end(gym.Env):
         return orig_x, orig_y
 
     def _reset_init_state(self):
-        random_index = int(np.random.random()*(len(self.ref_path.path[0])-600)) + 100
-        # random_index = 1200
+        # random_index = int(np.random.random()*(len(self.ref_path.path[0])-600)) + 100
+        random_index = 1300
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 13 * np.random.random()
