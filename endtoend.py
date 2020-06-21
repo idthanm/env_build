@@ -836,8 +836,8 @@ class CrossroadEnd2end(gym.Env):
         return orig_x, orig_y
 
     def _reset_init_state(self):
-        # random_index = int(np.random.random()*(len(self.ref_path.path[0])-600)) + 100
-        random_index = 1300
+        random_index = int(np.random.random()*(len(self.ref_path.path[0])-600)) + 100
+        # random_index = 1300
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 13 * np.random.random()
