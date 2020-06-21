@@ -1160,7 +1160,7 @@ class CrossroadEnd2end(gym.Env):
         # rewards related to tracking error
         devi_v = -tf.cast(tf.square(ego_infos[0] - self.exp_v), dtype=tf.float32)
         devi_y = -tf.square(tracking_infos[0]) - tf.square(tracking_infos[1])
-        devi_phi = -tf.cast(tf.square(tracking_infos[8+2] * np.pi / 180.), dtype=tf.float32)
+        devi_phi = -tf.cast(tf.square(tracking_infos[2] * np.pi / 180.), dtype=tf.float32)
 
         ego_lw = (ego_infos[6] - ego_infos[7]) / 2.
         coeff = 1.14
@@ -1211,12 +1211,12 @@ class CrossroadEnd2end(gym.Env):
                     veh2veh -= 1. / tf.abs(veh2veh_dist)
                     # veh2veh -= tf.nn.relu(-(veh2veh_dist-10.))
 
-        veh2veh -= 0.8
+        veh2veh += 0.8
         veh2road = tf.constant(-3., dtype=tf.float32) if veh2road < -3. else veh2road
         veh2veh = tf.constant(-3., dtype=tf.float32) if veh2veh < -3. else veh2veh
 
         reward = 0.01 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
-                  0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh + 2*veh2road
+                  0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh + veh2road
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
@@ -1234,7 +1234,7 @@ class CrossroadEnd2end(gym.Env):
                            scaled_devi_v=0.01 * devi_v.numpy(),
                            scaled_devi_y=0.1 * devi_y.numpy(),
                            scaled_devi_phi=5 * devi_phi.numpy(),
-                           scaled_veh2road=2*veh2road.numpy(),
+                           scaled_veh2road=veh2road.numpy(),
                            scaled_veh2veh=veh2veh.numpy(),
                            scaled_rew_alpha_f=0.,
                            scaled_rew_alpha_r=0.,
@@ -1402,7 +1402,7 @@ class CrossroadEnd2end(gym.Env):
                 ax.plot([LD_x + x, LU_x + x], [LD_y + y, LU_y + y], color=color, linestyle=linestyle)
 
             def plot_phi_line(x, y, phi, color):
-                line_length = 3
+                line_length = 4
                 x_forw, y_forw = x + line_length * cos(phi*pi/180.),\
                                  y + line_length * sin(phi*pi/180.)
                 plt.plot([x, x_forw], [y, y_forw], color=color, linewidth=0.5)
@@ -1502,7 +1502,6 @@ class CrossroadEnd2end(gym.Env):
                 path_x, path_y, path_phi = ego_x-delta_x, ego_y-delta_y, ego_phi-delta_phi
                 plt.plot(path_x, path_y, 'g.')
                 plot_phi_line(path_x, path_y, path_phi, 'g')
-
 
             ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
             indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
