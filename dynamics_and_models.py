@@ -754,7 +754,7 @@ class EnvironmentModel(object):  # all tensors
             # rewards related to tracking error
             devi_v = -tf.cast(tf.square(ego_infos[:, 0] - self.exp_v), dtype=tf.float32)
             devi_y = -tf.square(tracking_infos[:, 0]) - tf.square(tracking_infos[:, 1])
-            devi_phi = -tf.cast(tf.square(tracking_infos[:, 2] * np.pi / 180.), dtype=tf.float32)
+            devi_phi = -tf.cast(tf.square(tracking_infos[:, 8+2] * np.pi / 180.), dtype=tf.float32)
 
             # rewards related to veh2veh collision
             ego_lws = (ego_infos[:, 6] - ego_infos[:, 7]) / 2.
@@ -815,7 +815,7 @@ class EnvironmentModel(object):  # all tensors
             veh2road = tf.where(veh2road < -3., -3. * tf.ones_like(veh2road), veh2road)
             veh2veh = tf.where(veh2veh < -3., -3. * tf.ones_like(veh2veh), veh2veh)
             rewards = 0.01 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
-                      0.05 * punish_steer + 0.0005 * punish_a_x + 0.25*veh2veh + 0.5*veh2road
+                      0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh + veh2road
             rewards = tf.cast(tf.math.logical_not(prev_dones), tf.float32) * rewards
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
@@ -834,8 +834,8 @@ class EnvironmentModel(object):  # all tensors
             #                         scaled_devi_v=0.01 * devi_v.numpy()[0],
             #                         scaled_devi_y=0.1 * devi_y.numpy()[0],
             #                         scaled_devi_phi=5 * devi_phi.numpy()[0],
-            #                         scaled_veh2road=0.5*veh2road.numpy()[0],
-            #                         scaled_veh2veh=0.25*veh2veh.numpy()[0],
+            #                         scaled_veh2road=veh2road.numpy()[0],
+            #                         scaled_veh2veh=veh2veh.numpy()[0],
             #                         scaled_rew_alpha_f=0.,
             #                         scaled_rew_alpha_r=0.,
             #                         scaled_rew_r=0.,

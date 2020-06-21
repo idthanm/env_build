@@ -1154,7 +1154,7 @@ class CrossroadEnd2end(gym.Env):
         # rewards related to tracking error
         devi_v = -tf.cast(tf.square(ego_infos[0] - self.exp_v), dtype=tf.float32)
         devi_y = -tf.square(tracking_infos[0]) - tf.square(tracking_infos[1])
-        devi_phi = -tf.cast(tf.square(tracking_infos[2] * np.pi / 180.), dtype=tf.float32)
+        devi_phi = -tf.cast(tf.square(tracking_infos[8+2] * np.pi / 180.), dtype=tf.float32)
 
         ego_lw = (ego_infos[6] - ego_infos[7]) / 2.
         coeff = 1.14
@@ -1209,7 +1209,7 @@ class CrossroadEnd2end(gym.Env):
         veh2veh = tf.constant(-3., dtype=tf.float32) if veh2veh < -3. else veh2veh
 
         reward = 0.01 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
-                  0.05 * punish_steer + 0.0005 * punish_a_x + 0.25*veh2veh + 0.5*veh2road
+                  0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh + veh2road
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
@@ -1227,8 +1227,8 @@ class CrossroadEnd2end(gym.Env):
                            scaled_devi_v=0.01 * devi_v.numpy(),
                            scaled_devi_y=0.1 * devi_y.numpy(),
                            scaled_devi_phi=5 * devi_phi.numpy(),
-                           scaled_veh2road=0.5*veh2road.numpy(),
-                           scaled_veh2veh=0.25*veh2veh.numpy(),
+                           scaled_veh2road=veh2road.numpy(),
+                           scaled_veh2veh=veh2veh.numpy(),
                            scaled_rew_alpha_f=0.,
                            scaled_rew_alpha_r=0.,
                            scaled_rew_r=0.,
