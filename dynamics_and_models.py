@@ -780,7 +780,7 @@ class EnvironmentModel(object):  # all tensors
                                               logical_and(ego_point[1] > -18, ego_point[1] < 18))
                     middle1 = tf.where(middle_cond, 1./tf.abs(7.5 - ego_point[1] - rho_ego), zeros)
                     middle2 = tf.where(middle_cond, 1./tf.abs(7.5 - ego_point[0] - rho_ego), zeros)
-                    middle3 = tf.where(logical_and(middle_cond, ego_point[1] < 0),
+                    middle3 = tf.where(logical_and(middle_cond, ego_point[1] < rho_ego),
                                        1./tf.abs(ego_point[0] - (-18) - rho_ego), zeros)
                     middle4 = tf.where(logical_and(middle_cond, ego_point[0] < 0),
                                        1./tf.abs(ego_point[1] - (-18) - rho_ego), zeros)
@@ -812,10 +812,11 @@ class EnvironmentModel(object):  # all tensors
                         veh2veh -= 1 / tf.abs(veh2veh_dist)
                         # veh2veh -= tf.nn.relu(-(veh2veh_dist - 10.))
 
+            veh2veh -= 0.8
             veh2road = tf.where(veh2road < -3., -3. * tf.ones_like(veh2road), veh2road)
             veh2veh = tf.where(veh2veh < -3., -3. * tf.ones_like(veh2veh), veh2veh)
             rewards = 0.01 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
-                      0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh + veh2road
+                      0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh + 2*veh2road
             rewards = tf.cast(tf.math.logical_not(prev_dones), tf.float32) * rewards
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
@@ -834,7 +835,7 @@ class EnvironmentModel(object):  # all tensors
             #                         scaled_devi_v=0.01 * devi_v.numpy()[0],
             #                         scaled_devi_y=0.1 * devi_y.numpy()[0],
             #                         scaled_devi_phi=5 * devi_phi.numpy()[0],
-            #                         scaled_veh2road=veh2road.numpy()[0],
+            #                         scaled_veh2road=2*veh2road.numpy()[0],
             #                         scaled_veh2veh=veh2veh.numpy()[0],
             #                         scaled_rew_alpha_f=0.,
             #                         scaled_rew_alpha_r=0.,
