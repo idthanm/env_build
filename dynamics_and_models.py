@@ -155,7 +155,6 @@ class EnvironmentModel(object):  # all tensors
         self.reward_info = None
         self.ego_info_dim = 12
         self.per_veh_info_dim = 6
-        self.per_tracking_dim = 3
 
     def reset(self, obses, task):
         self.obses = obses
@@ -222,9 +221,8 @@ class EnvironmentModel(object):  # all tensors
         self.r_bounds = miu_rs * self.vehicle_dynamics.vehicle_params['g'] / tf.abs(obses[:, 0])
 
     def judge_dones(self, obses):
-        ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
-                                               obses[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_dim * (self.num_future_data+1)], \
-                                               obses[:, self.ego_info_dim + self.per_tracking_dim * (self.num_future_data+1):]
+        ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], obses[:, self.ego_info_dim:self.ego_info_dim + 4 * (self.num_future_data+1)], \
+                                               obses[:, self.ego_info_dim + 4 * (self.num_future_data+1):]
         # dones related to ego stability
         self._compute_bounds(obses)
         alpha_fs, alpha_rs = ego_infos[:, 8], ego_infos[:, 9]
@@ -236,9 +234,8 @@ class EnvironmentModel(object):  # all tensors
         self.dones = tf.math.logical_or(self.dones, stability_dones)
 
         # dones related to deviation
-        # delta_xs, delta_ys, delta_phis = tracking_infos[:, 0], tracking_infos[:, 1], tracking_infos[:, 2]
-        # dists = tf.sqrt(tf.square(delta_xs)+tf.square(delta_ys))
-        dists, delta_phis = tf.abs(tracking_infos[:, 0]), tracking_infos[:, 1]
+        delta_xs, delta_ys, delta_phis = tracking_infos[:, 0], tracking_infos[:, 1], tracking_infos[:, 2]
+        dists = tf.sqrt(tf.square(delta_xs)+tf.square(delta_ys))
         deviation_dones = logical_or(dists>10., tf.abs(delta_phis)>30.)
         self.dones_type = tf.where(deviation_dones, 'deviation_too_much', self.dones_type)
         self.dones = tf.math.logical_or(self.dones, deviation_dones)
@@ -744,9 +741,8 @@ class EnvironmentModel(object):  # all tensors
 
     def compute_rewards3(self, obses, actions, prev_dones):
         with tf.name_scope('compute_reward') as scope:
-            ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
-                                                   obses[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_dim * (self.num_future_data+1)], \
-                                                   obses[:, self.ego_info_dim + self.per_tracking_dim * (self.num_future_data+1):]
+            ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], obses[:, self.ego_info_dim:self.ego_info_dim + 4 * (self.num_future_data+1)], \
+                                                   obses[:, self.ego_info_dim + 4 * (self.num_future_data+1):]
             steers, a_xs = actions[:, 0], actions[:, 1]
             # rewards related to action
             punish_steer = -tf.square(steers)
@@ -757,8 +753,8 @@ class EnvironmentModel(object):  # all tensors
 
             # rewards related to tracking error
             devi_v = -tf.cast(tf.square(ego_infos[:, 0] - self.exp_v), dtype=tf.float32)
-            devi_y = -tf.square(tracking_infos[:, 0])
-            devi_phi = -tf.cast(tf.square(tracking_infos[:, 1] * np.pi / 180.), dtype=tf.float32)
+            devi_y = -tf.square(tracking_infos[:, 0]) - tf.square(tracking_infos[:, 1])
+            devi_phi = -tf.cast(tf.square(tracking_infos[:, 2] * np.pi / 180.), dtype=tf.float32)
 
             # rewards related to veh2veh collision
             ego_lws = (ego_infos[:, 6] - ego_infos[:, 7]) / 2.
@@ -849,9 +845,8 @@ class EnvironmentModel(object):  # all tensors
             return rewards
 
     def compute_next_obses(self, obses, actions):
-        ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
-                                               obses[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_dim * (self.num_future_data+1)], \
-                                               obses[:, self.ego_info_dim + self.per_tracking_dim * (self.num_future_data+1):]
+        ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], obses[:, self.ego_info_dim:self.ego_info_dim + 4 * (self.num_future_data+1)], \
+                                               obses[:, self.ego_info_dim + 4 * (self.num_future_data+1):]
 
         next_ego_infos = self.ego_predict(ego_infos, actions)
 
@@ -1422,17 +1417,8 @@ class ReferencePath(object):
         indexs, current_points = self.find_closest_point(ego_xs, ego_ys)
         n_future_data = self.future_n_data(indexs, n)
         all_ref = [current_points] + n_future_data
-
-        def decide_delta_y(task, egox, egoy, pathx, pathy):
-            dist = tf.sqrt(tf.square(egox - pathx) + tf.square(egoy - pathy))
-            if task == 'left':
-                delta_y = tf.where(logical_or(egox>pathx, egoy>pathy), -dist, dist)
-            elif task == 'straight':
-                delta_y = tf.where(egox > pathx, -dist, dist)
-            else:
-                delta_y = tf.where(logical_or(egox>pathx, egoy<pathy), -dist, dist)
-            return delta_y
-        tracking_error = tf.concat([tf.stack([decide_delta_y(self.task, ego_xs, ego_ys, ref_point[0], ref_point[1]),
+        tracking_error = tf.concat([tf.stack([ego_xs - ref_point[0],
+                                              ego_ys - ref_point[1],
                                               deal_with_phi_diff(ego_phis - ref_point[2]),
                                               ego_vs - 10.], 1)
                                     for ref_point in all_ref], 1)

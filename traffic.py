@@ -208,8 +208,8 @@ class Traffic(object):
                                                                                                            x_in_ego_coord,
                                                                                                            y_in_ego_coord,
                                                                                                            a_in_ego_coord)
-                if (0 < x_in_ego_coord < 2 * (ego_v_x-veh_v) + ego_l/2. + veh_l/2. and abs(y_in_ego_coord) < 2) or \
-                        (0 < ego_x_in_veh_coord < 2 * (veh_v-ego_v_x) + ego_l/2. + veh_l/2. and abs(ego_y_in_veh_coord) < 2):
+                if (-5 < x_in_ego_coord < 2 * (ego_v_x-veh_v) + ego_l/2. + veh_l/2. and abs(y_in_ego_coord) < 3) or \
+                        (-5 < ego_x_in_veh_coord < 2 * (veh_v-ego_v_x) + ego_l/2. + veh_l/2. and abs(ego_y_in_veh_coord) <3):
                     traci.vehicle.remove(vehID=veh)
                     veh_to_pop.append(veh)
             for veh in veh_to_pop:
