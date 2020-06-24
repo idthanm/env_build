@@ -770,9 +770,8 @@ class EnvironmentModel(object):  # all tensors
             rho_ego = ego_infos[0, 7] / 2. * coeff
             # rewards related to veh2road collision
 
-            zeros = tf.zeros_like(ego_front_points[0])
+            veh2road = zeros = tf.zeros_like(ego_front_points[0])
             if self.task == 'left':
-                veh2road = tf.zeros_like(ego_front_points[0])
                 for ego_point in [ego_front_points, ego_rear_points]:
                     before1 = tf.where(ego_point[1] < -18, 0./tf.abs(ego_point[0] - 0 - rho_ego), zeros)
                     before2 = tf.where(ego_point[1] < -18, 0./tf.abs(3.75 - ego_point[0] - rho_ego), zeros)

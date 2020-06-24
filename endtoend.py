@@ -1170,8 +1170,8 @@ class CrossroadEnd2end(gym.Env):
         ego_rear_point = tf.cast(ego_infos[3] - ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32), \
                          tf.cast(ego_infos[4] - ego_lw * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
 
+        veh2road = tf.constant(0.)
         if self.training_task == 'left':
-            veh2road = tf.constant(0.)
             for ego_point in [ego_front_point, ego_rear_point]:
                 before1 = 0./tf.abs(ego_point[0] - 0 - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
                 before2 = 0./tf.abs(3.75 - ego_point[0] - rho_ego) if ego_point[1] < -18 else tf.constant(0.)
