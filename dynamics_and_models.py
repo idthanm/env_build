@@ -155,7 +155,7 @@ class EnvironmentModel(object):  # all tensors
             self.actions = self._action_transformation_for_end2end(actions)
             rewards = self.compute_rewards3(self.obses, self.actions)
             self.obses = self.compute_next_obses(self.obses, self.actions)
-            self.reward_info.update({'final_rew': rewards.numpy()[0]})
+            # self.reward_info.update({'final_rew': rewards.numpy()[0]})
 
         return self.obses, rewards
 
@@ -215,22 +215,22 @@ class EnvironmentModel(object):  # all tensors
 
             rewards = 0.01 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
                       0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh
-            self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
-                                    punish_a_x=punish_a_x.numpy()[0],
-                                    punish_yaw_rate=punish_yaw_rate.numpy()[0],
-                                    devi_v=devi_v.numpy()[0],
-                                    devi_y=devi_y.numpy()[0],
-                                    devi_phi=devi_phi.numpy()[0],
-                                    veh2veh=veh2veh.numpy()[0],
-                                    scaled_punish_steer=0.05 * punish_steer.numpy()[0],
-                                    scaled_punish_a_x=0.0005 * punish_a_x.numpy()[0],
-                                    scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy()[0],
-                                    scaled_devi_v=0.01 * devi_v.numpy()[0],
-                                    scaled_devi_y=0.1 * devi_y.numpy()[0],
-                                    scaled_devi_phi=5 * devi_phi.numpy()[0],
-                                    scaled_veh2veh=veh2veh.numpy()[0],
-                                    reward=rewards.numpy()[0]
-                                    )
+            # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
+            #                         punish_a_x=punish_a_x.numpy()[0],
+            #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],
+            #                         devi_v=devi_v.numpy()[0],
+            #                         devi_y=devi_y.numpy()[0],
+            #                         devi_phi=devi_phi.numpy()[0],
+            #                         veh2veh=veh2veh.numpy()[0],
+            #                         scaled_punish_steer=0.05 * punish_steer.numpy()[0],
+            #                         scaled_punish_a_x=0.0005 * punish_a_x.numpy()[0],
+            #                         scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy()[0],
+            #                         scaled_devi_v=0.01 * devi_v.numpy()[0],
+            #                         scaled_devi_y=0.1 * devi_y.numpy()[0],
+            #                         scaled_devi_phi=5 * devi_phi.numpy()[0],
+            #                         scaled_veh2veh=veh2veh.numpy()[0],
+            #                         reward=rewards.numpy()[0]
+            #                         )
             return rewards
 
     def compute_next_obses(self, obses, actions):
