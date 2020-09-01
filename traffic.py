@@ -14,7 +14,7 @@ import sys
 from collections import defaultdict
 from math import fabs, cos, sin, pi
 
-from endtoend_env_utils import shift_and_rotate_coordination, rotate_and_shift_coordination
+from endtoend_env_utils import shift_and_rotate_coordination
 
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
@@ -60,7 +60,6 @@ class Traffic(object):
         self.random_traffic = None
         self.sim_time = 0
         self.n_ego_vehicles = defaultdict(list)
-        self.n_ego_info = {}
         self.step_length = step_length
         self.step_time_str = str(float(step_length) / 1000)
         self.collision_flag = False
@@ -178,7 +177,6 @@ class Traffic(object):
     def init_traffic(self, init_n_ego_dict):
         self.sim_time = 0
         self.n_ego_vehicles = defaultdict(list)
-        self.n_ego_info = {}
         self.collision_flag = False
         self.n_ego_collision_flag = {}
         self.collision_ego_id = None
@@ -247,7 +245,6 @@ class Traffic(object):
             traci.trafficlight.setPhase('0', self.training_light_phase)
         traci.simulationStep()
         self._get_vehicles()
-        self._get_own_car()
         self._get_traffic_light()
         self.collision_check()
         for egoID, collision_flag in self.n_ego_collision_flag.items():
@@ -274,44 +271,11 @@ class Traffic(object):
             self.n_ego_dict[egoID]['x'] = ego_x = n_ego_dict_[egoID]['x']
             self.n_ego_dict[egoID]['y'] = ego_y = n_ego_dict_[egoID]['y']
             self.n_ego_dict[egoID]['phi'] = ego_phi = n_ego_dict_[egoID]['phi']
-            self.n_ego_dict[egoID]['alpha_f'] = alpha_f = n_ego_dict_[egoID]['alpha_f']
-            self.n_ego_dict[egoID]['alpha_r'] = alpha_r = n_ego_dict_[egoID]['alpha_r']
-            self.n_ego_dict[egoID]['miu_f'] = miu_f = n_ego_dict_[egoID]['miu_f']
-            self.n_ego_dict[egoID]['miu_r'] = miu_r = n_ego_dict_[egoID]['miu_r']
 
             ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi,
                                                                                            self.n_ego_dict[egoID]['l'])
             traci.vehicle.moveToXY(egoID, '0', 1, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
             traci.vehicle.setSpeed(egoID, math.sqrt(ego_v_x**2+ego_v_y**2))
-
-    def _get_own_car(self):
-        self.n_ego_info = {}
-        for egoID, ego_dict in self.n_ego_dict.items():
-            self.n_ego_info[egoID] = dict(v_x=ego_dict['v_x'],
-                                          v_y=ego_dict['v_y'],
-                                          r=ego_dict['r'],
-                                          x=ego_dict['x'],
-                                          y=ego_dict['y'],
-                                          phi=ego_dict['phi'],
-                                          l=ego_dict['l'],
-                                          w=ego_dict['w'],
-                                          alpha_f=ego_dict['alpha_f'],
-                                          alpha_r=ego_dict['alpha_r'],
-                                          miu_f=ego_dict['miu_f'],
-                                          miu_r=ego_dict['miu_r'],
-                                          Corner_point=self.cal_corner_point_of_ego_car(ego_dict))
-
-    def cal_corner_point_of_ego_car(self, ego_dict):
-        l = ego_dict['l']
-        w = ego_dict['w']
-        x = ego_dict['x']
-        y = ego_dict['y']
-        phi = ego_dict['phi']
-        x0, y0, a0 = rotate_and_shift_coordination(l / 2, w / 2, 0, -x, -y, -phi)
-        x1, y1, a1 = rotate_and_shift_coordination(l / 2, -w / 2, 0, -x, -y, -phi)
-        x2, y2, a2 = rotate_and_shift_coordination(-l / 2, w / 2, 0, -x, -y, -phi)
-        x3, y3, a3 = rotate_and_shift_coordination(-l / 2, -w / 2, 0, -x, -y, -phi)
-        return (x0, y0), (x1, y1), (x2, y2), (x3, y3)
 
     def collision_check(self):  # True: collision
         flag_dict = dict()
