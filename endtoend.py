@@ -366,6 +366,9 @@ class CrossroadEnd2end(gym.Env):
                        np.array([-3., acc_lower_bound], dtype=np.float32),
                        np.array([3., acc_upper_bound], dtype=np.float32))
 
+    def _action_transformation_for_mpc(self, action):
+        return np.array(action, dtype=np.float32)
+
     def _get_next_ego_state(self, trans_action):
         current_v_x = self.ego_dynamics['v_x']
         current_v_y = self.ego_dynamics['v_y']
