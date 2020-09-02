@@ -141,7 +141,7 @@ class CrossroadEnd2end(gym.Env):
         self.done_type = 'not_done_yet'
         self.reward_info = None
         self.ego_info_dim = None
-        self.tracking_info_dim = None
+        self.per_tracking_info_dim = None
         self.per_veh_info_dim = None
 
     def seed(self, seed=None):
@@ -303,7 +303,7 @@ class CrossroadEnd2end(gym.Env):
 
     def _action_transformation_for_end2end(self, action):  # [-1, 1]
         steer_norm, a_x_norm = action[0], action[1]
-        scaled_steer = 0.2 * steer_norm
+        scaled_steer = 0.4 * steer_norm
         scaled_a_x = 3.*a_x_norm
 
         scaled_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
@@ -339,6 +339,7 @@ class CrossroadEnd2end(gym.Env):
                                                              np.array([ego_phi], dtype=np.float32),
                                                              np.array([ego_v_x], dtype=np.float32),
                                                              self.num_future_data).numpy()[0]
+        self.per_tracking_info_dim = 3
 
         vector = np.concatenate((ego_vector, tracking_error, vehs_vector), axis=0)
 
@@ -464,10 +465,10 @@ class CrossroadEnd2end(gym.Env):
             veh_mode_list = []
             if task == 'left':
                 tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, 1)
-                tmp['du'] = slice_or_fill(du, fill_value_for_du, 1)
-                tmp['ud'] = slice_or_fill(ud, fill_value_for_ud, 2)
-                tmp['ul'] = slice_or_fill(ul, fill_value_for_ul, 2)
-                veh_mode_list = [('dl', 1), ('du', 1), ('ud', 2), ('ul', 2)]
+                tmp['du'] = slice_or_fill(du, fill_value_for_du, 0)
+                tmp['ud'] = slice_or_fill(ud, fill_value_for_ud, 0)
+                tmp['ul'] = slice_or_fill(ul, fill_value_for_ul, 0)
+                veh_mode_list = [('dl', 1), ('du', 0), ('ud', 0), ('ul', 0)]
             elif task == 'straight':
                 tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, 2)
                 tmp['du'] = slice_or_fill(du, fill_value_for_du, 2)
@@ -501,7 +502,7 @@ class CrossroadEnd2end(gym.Env):
         return orig_x, orig_y
 
     def _reset_init_state(self):
-        random_index = int(np.random.random()*(len(self.ref_path.path[0])-600)) + 100
+        random_index = int(np.random.random()*(len(self.ref_path.path[0])-1200)) + 600
         # random_index = 1300
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
@@ -525,8 +526,8 @@ class CrossroadEnd2end(gym.Env):
                              ))
 
     def compute_reward3(self, obs, action):
-        ego_infos, tracking_infos, veh_infos = obs[:self.ego_info_dim], obs[self.ego_info_dim:self.ego_info_dim + 4 * (self.num_future_data+1)], \
-                                               obs[self.ego_info_dim + 4 * (self.num_future_data+1):]
+        ego_infos, tracking_infos, veh_infos = obs[:self.ego_info_dim], obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
+                                               obs[self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1):]
         steers, a_xs = action[0], action[1]
 
         # rewards related to action
@@ -537,35 +538,37 @@ class CrossroadEnd2end(gym.Env):
         punish_yaw_rate = -tf.square(ego_infos[2])
 
         # rewards related to tracking error
-        devi_v = -tf.cast(tf.square(ego_infos[0] - self.exp_v), dtype=tf.float32)
-        devi_y = -tf.square(tracking_infos[0]) - tf.square(tracking_infos[1])
-        devi_phi = -tf.cast(tf.square(tracking_infos[2] * np.pi / 180.), dtype=tf.float32)
-
-        ego_lw = (L - W) / 2.
-        coeff = 1.14
-        rho_ego = W / 2. * coeff
-        ego_front_point = tf.cast(ego_infos[3] + ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32), \
-                          tf.cast(ego_infos[4] + ego_lw * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
-        ego_rear_point = tf.cast(ego_infos[3] - ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32), \
-                         tf.cast(ego_infos[4] - ego_lw * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
+        # devi_v = -tf.cast(tf.square(ego_infos[0] - self.exp_v), dtype=tf.float32)
+        devi_y = -tf.square(tracking_infos[0])
+        devi_phi = -tf.cast(tf.square(tracking_infos[1] * np.pi / 180.), dtype=tf.float32)
+        devi_v = -tf.square(tracking_infos[2])
 
         veh2veh = tf.constant(0.)
-        for veh_index in range(int(len(veh_infos) / self.per_veh_info_dim)):
-            veh = veh_infos[veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
-            veh_lw = (L - W) / 2.
-            rho_veh = W / 2. * coeff
-            veh_front_point = tf.cast(veh[0] + veh_lw * tf.cos(veh[3] * np.pi / 180.), dtype=tf.float32), \
-                              tf.cast(veh[1] + veh_lw * tf.sin(veh[3] * np.pi / 180.), dtype=tf.float32)
-            veh_rear_point = tf.cast(veh[0] - veh_lw * tf.cos(veh[3] * np.pi / 180.), dtype=tf.float32), \
-                             tf.cast(veh[1] - veh_lw * tf.sin(veh[3] * np.pi / 180.), dtype=tf.float32)
-            for ego_point in [ego_front_point, ego_rear_point]:
-                for veh_point in [veh_front_point, veh_rear_point]:
-                    veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(
-                        ego_point[1] - veh_point[1])) - tf.convert_to_tensor(rho_ego + rho_veh, dtype=tf.float32)
-                    veh2veh -= 1. / tf.abs(veh2veh_dist)
+        # ego_lw = (L - W) / 2.
+        # coeff = 1.14
+        # rho_ego = W / 2. * coeff
+        # ego_front_point = tf.cast(ego_infos[3] + ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32), \
+        #                   tf.cast(ego_infos[4] + ego_lw * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
+        # ego_rear_point = tf.cast(ego_infos[3] - ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32), \
+        #                  tf.cast(ego_infos[4] - ego_lw * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
+        #
+        # veh2veh = tf.constant(0.)
+        # for veh_index in range(int(len(veh_infos) / self.per_veh_info_dim)):
+        #     veh = veh_infos[veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
+        #     veh_lw = (L - W) / 2.
+        #     rho_veh = W / 2. * coeff
+        #     veh_front_point = tf.cast(veh[0] + veh_lw * tf.cos(veh[3] * np.pi / 180.), dtype=tf.float32), \
+        #                       tf.cast(veh[1] + veh_lw * tf.sin(veh[3] * np.pi / 180.), dtype=tf.float32)
+        #     veh_rear_point = tf.cast(veh[0] - veh_lw * tf.cos(veh[3] * np.pi / 180.), dtype=tf.float32), \
+        #                      tf.cast(veh[1] - veh_lw * tf.sin(veh[3] * np.pi / 180.), dtype=tf.float32)
+        #     for ego_point in [ego_front_point, ego_rear_point]:
+        #         for veh_point in [veh_front_point, veh_rear_point]:
+        #             veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(
+        #                 ego_point[1] - veh_point[1])) - tf.convert_to_tensor(rho_ego + rho_veh, dtype=tf.float32)
+        #             veh2veh -= 1. / tf.abs(veh2veh_dist)
                     # veh2veh -= tf.nn.relu(-(veh2veh_dist-10.))
 
-        reward = 0.01 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
+        reward = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
                   0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
@@ -578,8 +581,8 @@ class CrossroadEnd2end(gym.Env):
                            scaled_punish_a_x=0.0005 * punish_a_x.numpy(),
                            scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
                            scaled_devi_v=0.01 * devi_v.numpy(),
-                           scaled_devi_y=0.1 * devi_y.numpy(),
-                           scaled_devi_phi=5 * devi_phi.numpy(),
+                           scaled_devi_y=0.04 * devi_y.numpy(),
+                           scaled_devi_phi=0.1 * devi_phi.numpy(),
                            scaled_veh2veh=veh2veh.numpy(),)
         return reward.numpy(), reward_dict
 
@@ -836,17 +839,19 @@ class CrossroadEnd2end(gym.Env):
             draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'red')
 
             # plot planed trj
-            ego_info, tracking_info, vehs_info = self.obs[:self.ego_info_dim], self.obs[self.ego_info_dim:self.ego_info_dim + 4 * (self.num_future_data+1)], \
-                                                self.obs[self.ego_info_dim + 4 * (self.num_future_data+1):]
-            for i in range(self.num_future_data + 1):
-                delta_x, delta_y, delta_phi, delta_v = tracking_info[i*4:(i+1)*4]
-                path_x, path_y, path_phi = ego_x-delta_x, ego_y-delta_y, ego_phi-delta_phi
-                plt.plot(path_x, path_y, 'g.')
-                plot_phi_line(path_x, path_y, path_phi, 'g')
+            ego_info, tracking_info, vehs_info = self.obs[:self.ego_info_dim], self.obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
+                                                self.obs[self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1):]
+            # for i in range(self.num_future_data + 1):
+            #     delta_x, delta_y, delta_phi, delta_v = tracking_info[i*4:(i+1)*4]
+            #     path_x, path_y, path_phi = ego_x-delta_x, ego_y-delta_y, ego_phi-delta_phi
+            #     plt.plot(path_x, path_y, 'g.')
+            #     plot_phi_line(path_x, path_y, path_phi, 'g')
 
+            delta_, _, _ = tracking_info[:3]
             ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
             indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
             path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+            plt.plot(path_x, path_y, 'g.')
             delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
 
             # plot ego dynamics
@@ -862,6 +867,7 @@ class CrossroadEnd2end(gym.Env):
             # plt.text(text_x, text_y_start - next(ge), '2deltas {:.2f} {:.2f}'.format(point12x, point12y))
             plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
             plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
+            plt.text(text_x, text_y_start - next(ge), 'delta_: {:.2f}m'.format(delta_))
             plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
             plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
             plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
