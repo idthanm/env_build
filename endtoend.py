@@ -447,9 +447,9 @@ class CrossroadEnd2end(gym.Env):
                         sorted_list.append(fill_value)
                     return sorted_list
 
-            fill_value_for_dl = dict(x=-40, y=1.875, v=0, phi=180, w=2.5, l=5, route=('1o', '4i'))
-            fill_value_for_du = dict(x=1.875, y=40, v=0, phi=90, w=2.5, l=5, route=('1o', '3i'))
-            fill_value_for_dr = dict(x=40, y=-5.625, v=0, phi=0, w=2.5, l=5, route=('1o', '2i'))
+            fill_value_for_dl = dict(x=1.875, y=-50, v=0, phi=90, w=2.5, l=5, route=('1o', '4i'))
+            fill_value_for_du = dict(x=1.875, y=-50, v=0, phi=90, w=2.5, l=5, route=('1o', '3i'))
+            fill_value_for_dr = dict(x=5.625, y=-50, v=0, phi=0, w=2.5, l=5, route=('1o', '2i'))
 
             fill_value_for_ru = dict(x=35, y=5.625, v=0, phi=180, w=2.5, l=5, route=('2o', '3i'))
 
@@ -465,10 +465,10 @@ class CrossroadEnd2end(gym.Env):
             veh_mode_list = []
             if task == 'left':
                 tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, 1)
-                tmp['du'] = slice_or_fill(du, fill_value_for_du, 0)
-                tmp['ud'] = slice_or_fill(ud, fill_value_for_ud, 0)
-                tmp['ul'] = slice_or_fill(ul, fill_value_for_ul, 0)
-                veh_mode_list = [('dl', 1), ('du', 0), ('ud', 0), ('ul', 0)]
+                tmp['du'] = slice_or_fill(du, fill_value_for_du, 1)
+                tmp['ud'] = slice_or_fill(ud, fill_value_for_ud, 2)
+                tmp['ul'] = slice_or_fill(ul, fill_value_for_ul, 2)
+                veh_mode_list = [('dl', 1), ('du', 1), ('ud', 2), ('ul', 2)]
             elif task == 'straight':
                 tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, 2)
                 tmp['du'] = slice_or_fill(du, fill_value_for_du, 2)

@@ -145,24 +145,6 @@ class EnvironmentModel(object):  # all tensors
         steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm
         return tf.stack([steer_scale, a_xs_scale], 1)
 
-    def compute_rewards_test(self, obses, actions):
-        with tf.name_scope('compute_reward') as scope:
-            ego_infos = obses[:, :self.ego_info_dim]
-            steers, a_xs = actions[:, 0], actions[:, 1]
-            devi_v = -tf.cast(tf.square(ego_infos[:, 0] - self.exp_v), dtype=tf.float32)
-
-            rewards = 0.01 * devi_v
-            return rewards
-
-    def compute_next_obses_test(self, obses, actions):
-        ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
-                                               obses[:,self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
-                                                                                         self.num_future_data + 1)], \
-                                               obses[:, self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data + 1):]
-        next_ego_infos = self.ego_predict(ego_infos, actions)
-        next_obses = tf.concat([next_ego_infos, tracking_infos, veh_infos], 1)
-        return next_obses
-
     def compute_rewards3(self, obses, actions):
         with tf.name_scope('compute_reward') as scope:
             ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], obses[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
@@ -256,7 +238,7 @@ class EnvironmentModel(object):  # all tensors
 
     def veh_predict(self, veh_infos):
         if self.task == 'left':
-            veh_mode_list = ['dl'] * 1 + ['du'] * 0 + ['ud'] * 0 + ['ul'] * 0
+            veh_mode_list = ['dl'] * 1 + ['du'] * 1 + ['ud'] * 2 + ['ul'] * 2
         elif self.task == 'straight':
             veh_mode_list = ['dl'] * 2 + ['du'] * 2 + ['ud'] * 2 + ['ru'] * 3 + ['ur'] * 3
         else:
