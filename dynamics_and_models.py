@@ -19,6 +19,8 @@ from tensorflow.math import logical_and, logical_or
 # gym.envs.user_defined.toyota_env.
 from endtoend_env_utils import rotate_coordination
 
+L, W = 4.8, 2.
+
 
 class VehicleDynamics(object):
     def __init__(self, ):
@@ -99,31 +101,9 @@ class VehicleDynamics(object):
         return state_deriv_stack, ego_params
 
     def prediction(self, x_1, u_1, frequency, RK):
-        if RK == 1:
-            f_xu_1, params = self.f_xu(x_1, u_1)
-            x_next = f_xu_1 / frequency + x_1
+        f_xu_1, params = self.f_xu(x_1, u_1)
+        x_next = f_xu_1 / frequency + x_1
 
-        elif RK == 2:
-            f_xu_1, params = self.f_xu(x_1, u_1)
-            K1 = (1 / frequency) * f_xu_1
-            x_2 = x_1 + K1
-            f_xu_2, _ = self.f_xu(x_2, u_1)
-            K2 = (1 / frequency) * f_xu_2
-            x_next = x_1 + (K1 + K2) / 2
-        else:
-            assert RK == 4
-            f_xu_1, params = self.f_xu(x_1, u_1)
-            K1 = (1 / frequency) * f_xu_1
-            x_2 = x_1 + K1 / 2
-            f_xu_2, _ = self.f_xu(x_2, u_1)
-            K2 = (1 / frequency) * f_xu_2
-            x_3 = x_1 + K2 / 2
-            f_xu_3, _ = self.f_xu(x_3, u_1)
-            K3 = (1 / frequency) * f_xu_3
-            x_4 = x_1 + K3
-            f_xu_4, _ = self.f_xu(x_4, u_1)
-            K4 = (1 / frequency) * f_xu_4
-            x_next = x_1 + (K1 + 2 * K2 + 2 * K3 + K4) / 6
         return x_next, params
 
 
@@ -140,8 +120,8 @@ class EnvironmentModel(object):  # all tensors
         self.num_future_data = num_future_data
         self.exp_v = 10.
         self.reward_info = None
-        self.ego_info_dim = 8
-        self.per_veh_info_dim = 6
+        self.ego_info_dim = 6
+        self.per_veh_info_dim = 4
 
     def reset(self, obses, task):
         self.obses = obses
@@ -164,6 +144,24 @@ class EnvironmentModel(object):  # all tensors
         steer_scale, a_xs_scale = 0.2 * steer_norm, 3. * a_xs_norm
         return tf.stack([steer_scale, a_xs_scale], 1)
 
+    def compute_rewards_test(self, obses, actions):
+        with tf.name_scope('compute_reward') as scope:
+            ego_infos = obses[:, :self.ego_info_dim]
+            steers, a_xs = actions[:, 0], actions[:, 1]
+            devi_v = -tf.cast(tf.square(ego_infos[:, 0] - self.exp_v), dtype=tf.float32)
+
+            rewards = 0.01 * devi_v
+            return rewards
+
+    def compute_next_obses_test(self, obses, actions):
+        ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
+                                               obses[:,self.ego_info_dim:self.ego_info_dim + 4 * (
+                                                                                         self.num_future_data + 1)], \
+                                               obses[:, self.ego_info_dim + 4 * (self.num_future_data + 1):]
+        next_ego_infos = self.ego_predict(ego_infos, actions)
+        next_obses = tf.concat([next_ego_infos, tracking_infos, veh_infos], 1)
+        return next_obses
+
     def compute_rewards3(self, obses, actions):
         with tf.name_scope('compute_reward') as scope:
             ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], obses[:, self.ego_info_dim:self.ego_info_dim + 4 * (self.num_future_data+1)], \
@@ -182,7 +180,7 @@ class EnvironmentModel(object):  # all tensors
             devi_phi = -tf.cast(tf.square(tracking_infos[:, 2] * np.pi / 180.), dtype=tf.float32)
 
             # rewards related to veh2veh collision
-            ego_lws = (ego_infos[:, 6] - ego_infos[:, 7]) / 2.
+            ego_lws = (L - W) / 2.
             ego_front_points = tf.cast(ego_infos[:, 3] + ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.),
                                        dtype=tf.float32), \
                                tf.cast(ego_infos[:, 4] + ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.),
@@ -192,15 +190,15 @@ class EnvironmentModel(object):  # all tensors
                               tf.cast(ego_infos[:, 4] - ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.),
                                       dtype=tf.float32)
             coeff = 1.14
-            rho_ego = ego_infos[0, 7] / 2. * coeff
+            rho_ego = W / 2. * coeff
 
             veh2veh = tf.zeros_like(veh_infos[:, 0])
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
                 # for i in [6, 7, 8, 9]:
                 #     veh2veh -= 1. / tf.square(vehs[:, i])
-                veh_lws = (vehs[:, 4] - vehs[:, 5]) / 2.
-                rho_vehs = vehs[:, 5] / 2. * coeff
+                veh_lws = (L - W) / 2.
+                rho_vehs = W / 2. * coeff
                 veh_front_points = tf.cast(vehs[:, 0] + veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
                                    tf.cast(vehs[:, 1] + veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
                 veh_rear_points = tf.cast(vehs[:, 0] - veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
@@ -249,15 +247,13 @@ class EnvironmentModel(object):  # all tensors
         return next_obses
 
     def ego_predict(self, ego_infos, actions):
-        ego_next_infos_except_lw, ego_next_params = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions,
+        ego_next_infos, ego_next_params = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions,
                                                                                      self.base_frequency, 1)
-        ego_next_lw = ego_infos[:, 6:8]
-
-        return tf.concat([ego_next_infos_except_lw, ego_next_lw], 1)
+        return ego_next_infos
 
     def veh_predict(self, veh_infos):
         if self.task == 'left':
-            veh_mode_list = ['dl'] * 2 + ['du'] * 2 + ['ud'] * 3 + ['ul'] * 3
+            veh_mode_list = ['dl'] * 1 + ['du'] * 1 + ['ud'] * 2 + ['ul'] * 2
         elif self.task == 'straight':
             veh_mode_list = ['dl'] * 2 + ['du'] * 2 + ['ud'] * 2 + ['ru'] * 3 + ['ur'] * 3
         else:
@@ -272,8 +268,7 @@ class EnvironmentModel(object):  # all tensors
         return tf.concat(predictions_to_be_concat, 1)
 
     def predict_for_a_mode(self, vehs, mode):
-        veh_xs, veh_ys, veh_vs, veh_phis, veh_ls, veh_ws = \
-            vehs[:, 0], vehs[:, 1], vehs[:, 2], vehs[:, 3], vehs[:, 4], vehs[:, 5]
+        veh_xs, veh_ys, veh_vs, veh_phis = vehs[:, 0], vehs[:, 1], vehs[:, 2], vehs[:, 3]
         veh_phis_rad = veh_phis * np.pi / 180.
 
         middle_cond = logical_and(logical_and(veh_xs > -18, veh_xs < 18),
@@ -289,12 +284,12 @@ class EnvironmentModel(object):  # all tensors
             veh_phis_rad_delta = tf.where(middle_cond, -(veh_vs / 12.375) / self.base_frequency, zeros)
         else:
             veh_phis_rad_delta = zeros
-        next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis_rad, next_veh_ls, next_veh_ws =\
-            veh_xs + veh_xs_delta, veh_ys + veh_ys_delta, veh_vs, veh_phis_rad + veh_phis_rad_delta, veh_ls, veh_ws
+        next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis_rad =\
+            veh_xs + veh_xs_delta, veh_ys + veh_ys_delta, veh_vs, veh_phis_rad + veh_phis_rad_delta
         next_veh_phis_rad = tf.where(next_veh_phis_rad > np.pi, next_veh_phis_rad - 2 * np.pi, next_veh_phis_rad)
         next_veh_phis_rad = tf.where(next_veh_phis_rad <= -np.pi, next_veh_phis_rad + 2 * np.pi, next_veh_phis_rad)
         next_veh_phis = next_veh_phis_rad * 180 / np.pi
-        return tf.stack([next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis, next_veh_ls, next_veh_ws], 1)
+        return tf.stack([next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis], 1)
 
     def render(self, mode='human'):
         if mode == 'human':
@@ -437,22 +432,22 @@ class EnvironmentModel(object):  # all tensors
             # plot cars
             for veh_index in range(int(len(vehs_info) / self.per_veh_info_dim)):
                 veh = vehs_info[self.per_veh_info_dim * veh_index:self.per_veh_info_dim * (veh_index + 1)]
-                veh_x, veh_y, veh_v, veh_phi, veh_l, veh_w = veh
+                veh_x, veh_y, veh_v, veh_phi = veh
 
                 if is_in_plot_area(veh_x, veh_y):
                     # plt.text(veh_x, veh_y, '{:.1f}'.format(min([dist1, dist2, dist3, dist4])))
                     plot_phi_line(veh_x, veh_y, veh_phi, 'black')
-                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, 'black')
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, L, W, 'black')
 
             # plot own car
             # ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi, ego_l, ego_w, \
             # ego_alpha_f, ego_alpha_r, ego_miu_f, ego_miu_r,\
             # up1, down1, left1, right1, point11x, point11y, point12x, point12y, \
             # up2, down2, left2, right2, point21x, point21y, point22x, point22y= ego_info
-            ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi, ego_l, ego_w = ego_info
+            ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi = ego_info
 
             plot_phi_line(ego_x, ego_y, ego_phi, 'red')
-            draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'red')
+            draw_rotate_rec(ego_x, ego_y, ego_phi, L, W, 'red')
 
             # plot planed trj
             ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
