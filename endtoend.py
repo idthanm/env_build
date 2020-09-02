@@ -405,8 +405,8 @@ class CrossroadEnd2end(gym.Env):
             # fetch veh in range
             dl = list(filter(lambda v: v['x'] > -28 and v['y'] > ego_y, dl))  # interest of left straight
             du = list(filter(lambda v: ego_y < v['y'] < 28, du))  # interest of left straight
-            if v_light != 0 and ego_y < -18:
-                du.append(dict(x=1.875, y=-18, v=0, phi=90, l=5, w=2.5, route=None))
+            if self.training_task == 'left':
+                du = list(filter(lambda v: ego_y < v['y'] < 28 and v['x'] < ego_x + 5, du))
 
             dr = list(filter(lambda v: v['x'] < 28 and v['y'] > ego_y, dr))  # interest of right
 
@@ -417,7 +417,7 @@ class CrossroadEnd2end(gym.Env):
             ur_straight = list(filter(lambda v: v['x'] < ego_x + 7 and ego_y < v['y'] < 28, ur))  # interest of straight
             ur_right = list(filter(lambda v: v['x'] < 28 and v['y'] < 18, ur))  # interest of right
             ud = list(filter(lambda v: ego_y < v['y'] < 18 and ego_x > v['x'], ud))  # interest of left
-            ul = list(filter(lambda v: v['x'] > -28 and v['y'] < 28, ul))  # interest of left
+            ul = list(filter(lambda v: -28 < v['x'] < ego_x+5 and v['y'] < 28, ul))  # interest of left
 
             lu = lu  # not interest in case of traffic light
             lr = list(filter(lambda v: -28 < v['x'] < 28, lr))  # interest of right
