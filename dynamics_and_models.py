@@ -167,8 +167,11 @@ class EnvironmentModel(object):  # all tensors
             veh2veh = tf.zeros_like(veh_infos[:, 0])
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
-                dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
-                veh2veh += tf.where(dists<10, dists-10, tf.zeros_like(veh_infos[:, 0]))
+                rela_phis_rad = tf.atan2(vehs[:, 1] - ego_infos[:, 4], vehs[:, 0] - ego_infos[:, 3])
+                ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
+                cos_values = tf.cos(rela_phis_rad-ego_phis_rad)
+                dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))/(tf.abs(cos_values)+2e-7*tf.ones_like(cos_values))
+                veh2veh -= tf.where(logical_and(dists<15, cos_values>0), 15-dists, tf.zeros_like(veh_infos[:, 0]))
 
             # ego_lws = (L - W) / 2.
             # ego_front_points = tf.cast(ego_infos[:, 3] + ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.),
@@ -202,7 +205,7 @@ class EnvironmentModel(object):  # all tensors
             #             # veh2veh -= tf.nn.relu(-(veh2veh_dist - 10.))
             #
             rewards = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                      0.5 * punish_steer + 0.0005 * punish_a_x + 0.1 * veh2veh
+                      2. * punish_steer + 0.0005 * punish_a_x + 0.1 * veh2veh
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
             #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],
@@ -210,7 +213,7 @@ class EnvironmentModel(object):  # all tensors
             #                         devi_y=devi_y.numpy()[0],
             #                         devi_phi=devi_phi.numpy()[0],
             #                         veh2veh=veh2veh.numpy()[0],
-            #                         scaled_punish_steer=0.5 * punish_steer.numpy()[0],
+            #                         scaled_punish_steer=2. * punish_steer.numpy()[0],
             #                         scaled_punish_a_x=0.0005 * punish_a_x.numpy()[0],
             #                         scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy()[0],
             #                         scaled_devi_v=0.01 * devi_v.numpy()[0],
@@ -712,7 +715,7 @@ def test_model():
     obses = np.stack(obs_list, 0)
     model.reset(obses, 'left')
     print(obses.shape)
-    for rollout_step in range(20):
+    for rollout_step in range(50):
         actions = tf.tile(tf.constant([[0, 0]], dtype=tf.float32), tf.constant([len(obses), 1]))
         obses, rewards = model.rollout_out(actions)
         print(rewards.numpy()[0])
@@ -720,4 +723,4 @@ def test_model():
 
 
 if __name__ == '__main__':
-    test_tracking_error_vector()
+    test_model()
