@@ -147,7 +147,8 @@ class EnvironmentModel(object):  # all tensors
 
     def compute_rewards3(self, obses, actions):
         with tf.name_scope('compute_reward') as scope:
-            ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], obses[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
+            ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim],\
+                                                   obses[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
                                                    obses[:, self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1):]
             steers, a_xs = actions[:, 0], actions[:, 1]
             # rewards related to action
@@ -171,7 +172,7 @@ class EnvironmentModel(object):  # all tensors
                 ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
                 cos_values = tf.cos(rela_phis_rad-ego_phis_rad)
                 dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))/(tf.abs(cos_values)+2e-7*tf.ones_like(cos_values))
-                veh2veh -= tf.where(logical_and(dists<15, cos_values>0), 15-dists, tf.zeros_like(veh_infos[:, 0]))
+                veh2veh -= tf.where(logical_and(dists<10, cos_values>0), 10-dists, tf.zeros_like(veh_infos[:, 0]))
 
             # ego_lws = (L - W) / 2.
             # ego_front_points = tf.cast(ego_infos[:, 3] + ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.),
@@ -204,7 +205,7 @@ class EnvironmentModel(object):  # all tensors
             #             veh2veh -= 1 / tf.abs(veh2veh_dist)
             #             # veh2veh -= tf.nn.relu(-(veh2veh_dist - 10.))
             #
-            rewards = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
+            rewards = 0.04 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
                       2. * punish_steer + 0.0005 * punish_a_x + 0.5 * veh2veh
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
@@ -216,7 +217,7 @@ class EnvironmentModel(object):  # all tensors
             #                         scaled_punish_steer=2. * punish_steer.numpy()[0],
             #                         scaled_punish_a_x=0.0005 * punish_a_x.numpy()[0],
             #                         scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy()[0],
-            #                         scaled_devi_v=0.01 * devi_v.numpy()[0],
+            #                         scaled_devi_v=0.04 * devi_v.numpy()[0],
             #                         scaled_devi_y=0.04 * devi_y.numpy()[0],
             #                         scaled_devi_phi=0.1 * devi_phi.numpy()[0],
             #                         scaled_veh2veh=0.5 * veh2veh.numpy()[0],
