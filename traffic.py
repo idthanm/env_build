@@ -153,7 +153,6 @@ class Traffic(object):
         """
         generate initial random traffic
         """
-        traci.simulationStep()
         self.add_self_car(dict(ego_init=dict(v_x=0, v_y=0, r=0, x=1.875, y=400, phi=90, l=4.8, w=2.2, routeID='du')))
         traci.simulationStep()
 

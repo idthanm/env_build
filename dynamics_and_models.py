@@ -165,6 +165,11 @@ class EnvironmentModel(object):  # all tensors
 
             # rewards related to veh2veh collision
             veh2veh = tf.zeros_like(veh_infos[:, 0])
+            for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
+                vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
+                dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
+                veh2veh += tf.where(dists<10, dists-10, tf.zeros_like(veh_infos[:, 0]))
+
             # ego_lws = (L - W) / 2.
             # ego_front_points = tf.cast(ego_infos[:, 3] + ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.),
             #                            dtype=tf.float32), \
@@ -197,7 +202,7 @@ class EnvironmentModel(object):  # all tensors
             #             # veh2veh -= tf.nn.relu(-(veh2veh_dist - 10.))
             #
             rewards = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                      0.05 * punish_steer + 0.0005 * punish_a_x + veh2veh
+                      0.5 * punish_steer + 0.0005 * punish_a_x + 0.1 * veh2veh
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
             #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],
@@ -205,13 +210,13 @@ class EnvironmentModel(object):  # all tensors
             #                         devi_y=devi_y.numpy()[0],
             #                         devi_phi=devi_phi.numpy()[0],
             #                         veh2veh=veh2veh.numpy()[0],
-            #                         scaled_punish_steer=0.05 * punish_steer.numpy()[0],
+            #                         scaled_punish_steer=0.5 * punish_steer.numpy()[0],
             #                         scaled_punish_a_x=0.0005 * punish_a_x.numpy()[0],
             #                         scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy()[0],
             #                         scaled_devi_v=0.01 * devi_v.numpy()[0],
             #                         scaled_devi_y=0.04 * devi_y.numpy()[0],
             #                         scaled_devi_phi=0.1 * devi_phi.numpy()[0],
-            #                         scaled_veh2veh=veh2veh.numpy()[0],
+            #                         scaled_veh2veh=0.1 * veh2veh.numpy()[0],
             #                         reward=rewards.numpy()[0]
             #                         )
             return rewards
