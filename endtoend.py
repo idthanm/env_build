@@ -114,7 +114,7 @@ class CrossroadEnd2end(gym.Env):
         self.num_future_data = num_future_data
         self.init_state = {}
         self.action_number = 2
-        self.exp_v = 10.
+        self.exp_v = 8.
         self.ego_l, self.ego_w = 4.8, 1.8
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(self.action_number,), dtype=np.float32)
 
@@ -506,7 +506,7 @@ class CrossroadEnd2end(gym.Env):
         # random_index = 1300
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
-        v = 13 * np.random.random()
+        v = 10 * np.random.random()
         if self.training_task == 'left':
             routeID = 'dl'
         elif self.training_task == 'straight':
@@ -578,7 +578,7 @@ class CrossroadEnd2end(gym.Env):
                     # veh2veh -= tf.nn.relu(-(veh2veh_dist-10.))
 
         reward = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                  2. * punish_steer + 0.0005 * punish_a_x + 0.1 * veh2veh
+                  2. * punish_steer + 0.0005 * punish_a_x + 0.5 * veh2veh
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
@@ -592,7 +592,7 @@ class CrossroadEnd2end(gym.Env):
                            scaled_devi_v=0.01 * devi_v.numpy(),
                            scaled_devi_y=0.04 * devi_y.numpy(),
                            scaled_devi_phi=0.1 * devi_phi.numpy(),
-                           scaled_veh2veh=0.1 * veh2veh.numpy(),)
+                           scaled_veh2veh=0.5 * veh2veh.numpy(),)
         return reward.numpy(), reward_dict
 
     def render(self, mode='human'):

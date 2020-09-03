@@ -118,7 +118,7 @@ class EnvironmentModel(object):  # all tensors
         self.task = None
         self.ref_path = None
         self.num_future_data = num_future_data
-        self.exp_v = 10.
+        self.exp_v = 8.
         self.reward_info = None
         self.ego_info_dim = 6
         self.per_veh_info_dim = 4
@@ -205,7 +205,7 @@ class EnvironmentModel(object):  # all tensors
             #             # veh2veh -= tf.nn.relu(-(veh2veh_dist - 10.))
             #
             rewards = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                      2. * punish_steer + 0.0005 * punish_a_x + 0.1 * veh2veh
+                      2. * punish_steer + 0.0005 * punish_a_x + 0.5 * veh2veh
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
             #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],
@@ -219,7 +219,7 @@ class EnvironmentModel(object):  # all tensors
             #                         scaled_devi_v=0.01 * devi_v.numpy()[0],
             #                         scaled_devi_y=0.04 * devi_y.numpy()[0],
             #                         scaled_devi_phi=0.1 * devi_phi.numpy()[0],
-            #                         scaled_veh2veh=0.1 * veh2veh.numpy()[0],
+            #                         scaled_veh2veh=0.5 * veh2veh.numpy()[0],
             #                         reward=rewards.numpy()[0]
             #                         )
             return rewards
@@ -503,6 +503,7 @@ def deal_with_phi_diff(phi_diff):
 class ReferencePath(object):
     def __init__(self, task, mode=None):
         self.mode = mode
+        self.exp_v = 8.
         self.task = task
         self.path_list = []
         self._construct_ref_path(self.task)
@@ -657,7 +658,7 @@ class ReferencePath(object):
                 return delta_
         tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
                                               deal_with_phi_diff(ego_phis - ref_point[2]),
-                                              ego_vs - 10.], 1)
+                                              ego_vs - self.exp_v], 1)
                                     for ref_point in all_ref], 1)
         return tracking_error
 
