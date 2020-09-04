@@ -551,7 +551,7 @@ class CrossroadEnd2end(gym.Env):
             cos_value, sin_value = tf.cos(rela_phi_rad - ego_phi_rad), tf.sin(rela_phi_rad - ego_phi_rad)
             dist = tf.sqrt(tf.square(veh[0] - ego_infos[3]) + tf.square(veh[1]-ego_infos[4]))
 
-            if cos_value > 0 and dist*sin_value < (L+W)/2 and dist*cos_value < 10.:
+            if cos_value > 0 and dist*tf.abs(sin_value) < (L+W)/2 and dist*tf.abs(cos_value) < 10.:
                 veh2veh -= (10.-dist*cos_value)
 
         # ego_lw = (L - W) / 2.
@@ -924,7 +924,7 @@ def test_end2end():
     done = 0
     start = time.time()
     while i < 100000:
-        while not done:
+        for j in range(50):
             # print(i)
             i += 1
             action = np.array([0, 0], dtype=np.float32)
