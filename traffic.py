@@ -107,6 +107,21 @@ class Traffic(object):
                  # '--seed', str(int(seed))
                  ], port=port, numRetries=5)  # '--seed', str(int(seed))
 
+        traci.vehicle.subscribeContext('collector',
+                                       traci.constants.CMD_GET_VEHICLE_VARIABLE,
+                                       999999, [traci.constants.VAR_POSITION,
+                                                traci.constants.VAR_LENGTH,
+                                                traci.constants.VAR_WIDTH,
+                                                traci.constants.VAR_ANGLE,
+                                                traci.constants.VAR_SIGNALS,
+                                                traci.constants.VAR_SPEED,
+                                                traci.constants.VAR_TYPE,
+                                                traci.constants.VAR_EMERGENCY_DECEL,
+                                                traci.constants.VAR_LANE_INDEX,
+                                                traci.constants.VAR_LANEPOSITION,
+                                                traci.constants.VAR_EDGES,
+                                                traci.constants.VAR_ROUTE_INDEX],
+                                       0, 2147483647)
         while traci.simulation.getTime() < 200:
             if self.mode == "training":
                 traci.trafficlight.setPhase('0', self.training_light_phase)
@@ -153,23 +168,18 @@ class Traffic(object):
         """
         generate initial random traffic
         """
-        self.add_self_car(dict(ego_init=dict(v_x=0, v_y=0, r=0, x=1.875, y=400, phi=90, l=4.8, w=2.2, routeID='du')))
-        traci.simulationStep()
-
         # to delete ego car of the last episode
-        random_traffic = traci.vehicle.getContextSubscriptionResults('ego_init')
+        random_traffic = traci.vehicle.getContextSubscriptionResults('collector')
         for ego_id in self.n_ego_dict.keys():
             if ego_id in random_traffic:
                 traci.vehicle.remove(ego_id)
         traci.simulationStep()
 
-        random_traffic = traci.vehicle.getContextSubscriptionResults('ego_init')
+        random_traffic = traci.vehicle.getContextSubscriptionResults('collector')
 
-        del random_traffic['ego_init']
         for ego_id in self.n_ego_dict.keys():
             if ego_id in random_traffic:
                 del random_traffic[ego_id]
-        traci.vehicle.remove(vehID='ego_init')
 
         return random_traffic
 

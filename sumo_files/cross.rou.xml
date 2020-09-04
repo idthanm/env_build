@@ -57,4 +57,7 @@
     <route id="ud" edges="3o 1i"/>
     <route id="ul" edges="3o 4i"/>
     <route id="ur" edges="3o 2i"/>
+    <route id="circle" edges="a1toa2 a2toa3 a3toa4 a4toa1"/>
+
+    <vehicle id="collector" type="car_1" route="circle" depart="0"/>
 </routes>
