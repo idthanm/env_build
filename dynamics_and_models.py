@@ -134,7 +134,7 @@ class EnvironmentModel(object):  # all tensors
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
             self.actions = self._action_transformation_for_end2end(actions)
-            rewards = self.compute_rewards3(self.obses, self.actions)
+            rewards = self.compute_rewards_test(self.obses, self.actions)
             self.obses = self.compute_next_obses(self.obses, self.actions)
             # self.reward_info.update({'final_rew': rewards.numpy()[0]})
 
@@ -144,6 +144,16 @@ class EnvironmentModel(object):  # all tensors
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
         steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm
         return tf.stack([steer_scale, a_xs_scale], 1)
+
+    def compute_rewards_test(self, obses, actions):
+        with tf.name_scope('compute_reward') as scope:
+            ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim],\
+                                                   obses[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
+                                                   obses[:, self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1):]
+            steers, a_xs = actions[:, 0], actions[:, 1]
+            devi_v = -tf.square(tracking_infos[:, 2])
+            rewards = 0.04 * devi_v
+            return rewards
 
     def compute_rewards3(self, obses, actions):
         with tf.name_scope('compute_reward') as scope:
