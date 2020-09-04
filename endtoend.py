@@ -173,7 +173,7 @@ class CrossroadEnd2end(gym.Env):
 
     def step(self, action):
         self.action = self._action_transformation_for_end2end(action)
-        reward, self.reward_info = self.compute_reward_test(self.obs, self.action)
+        reward, self.reward_info = self.compute_reward3(self.obs, self.action)
         next_ego_state, next_ego_params = self._get_next_ego_state(self.action)
         ego_dynamics = self._get_ego_dynamics(next_ego_state, next_ego_params)
         self.traffic.set_own_car(dict(ego=ego_dynamics))
@@ -524,20 +524,6 @@ class CrossroadEnd2end(gym.Env):
                              w=self.ego_w,
                              routeID=routeID,
                              ))
-
-    def compute_reward_test(self, obs, action):
-        ego_infos, tracking_infos, veh_infos = obs[:self.ego_info_dim],\
-                                               obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
-                                                                                    self.num_future_data + 1)], \
-                                               obs[self.ego_info_dim + self.per_tracking_info_dim * (
-                                                           self.num_future_data + 1):]
-        steers, a_xs = action[0], action[1]
-        devi_v = -tf.square(tracking_infos[2])
-        reward = 0.04 * devi_v
-        reward_dict = dict(devi_v=devi_v.numpy(),
-                           scaled_devi_v=0.04 * devi_v.numpy(),
-                           )
-        return reward.numpy(), reward_dict
 
     def compute_reward3(self, obs, action):
         ego_infos, tracking_infos, veh_infos = obs[:self.ego_info_dim], obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
