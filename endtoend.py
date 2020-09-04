@@ -548,10 +548,11 @@ class CrossroadEnd2end(gym.Env):
             veh = veh_infos[veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
             rela_phi_rad = tf.atan2(veh[1]-ego_infos[4], veh[0]-ego_infos[3])
             ego_phi_rad = ego_infos[5] * np.pi / 180.
-            cos_value = tf.cos(rela_phi_rad - ego_phi_rad)
-            dist = tf.sqrt(tf.square(veh[0] - ego_infos[3]) + tf.square(veh[1]-ego_infos[4]))/(tf.abs(cos_value)+2e-7)
-            if cos_value > 0 and dist < 10.:
-                veh2veh -= (10.-dist)
+            cos_value, sin_value = tf.cos(rela_phi_rad - ego_phi_rad), tf.sin(rela_phi_rad - ego_phi_rad)
+            dist = tf.sqrt(tf.square(veh[0] - ego_infos[3]) + tf.square(veh[1]-ego_infos[4]))
+
+            if cos_value > 0 and dist*sin_value < (L+W)/2 and dist*cos_value < 10.:
+                veh2veh -= (10.-dist*cos_value)
 
         # ego_lw = (L - W) / 2.
         # coeff = 1.14

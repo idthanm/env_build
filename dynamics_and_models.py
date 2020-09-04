@@ -170,9 +170,10 @@ class EnvironmentModel(object):  # all tensors
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
                 rela_phis_rad = tf.atan2(vehs[:, 1] - ego_infos[:, 4], vehs[:, 0] - ego_infos[:, 3])
                 ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
-                cos_values = tf.cos(rela_phis_rad-ego_phis_rad)
-                dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))/(tf.abs(cos_values)+2e-7*tf.ones_like(cos_values))
-                veh2veh -= tf.where(logical_and(dists<10, cos_values>0), 10-dists, tf.zeros_like(veh_infos[:, 0]))
+                cos_values, sin_values = tf.cos(rela_phis_rad-ego_phis_rad), tf.sin(rela_phis_rad-ego_phis_rad)
+                dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
+                punish_cond = logical_and(logical_and(cos_values>0, dists*sin_values<(L+W)/2), dists*cos_values<10)
+                veh2veh -= tf.where(punish_cond, 10-dists*cos_values, tf.zeros_like(veh_infos[:, 0]))
 
             # ego_lws = (L - W) / 2.
             # ego_front_points = tf.cast(ego_infos[:, 3] + ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.),
