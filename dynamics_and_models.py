@@ -207,7 +207,7 @@ class EnvironmentModel(object):  # all tensors
             #             veh2veh -= 1 / tf.abs(veh2veh_dist)
             #             # veh2veh -= tf.nn.relu(-(veh2veh_dist - 10.))
             #
-            rewards = 0.04 * devi_v + 0.01 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
+            rewards = 0.04 * devi_v +  0.01 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
                       2. * punish_steer + 0.0005 * punish_a_x + 0.5 * veh2veh
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
