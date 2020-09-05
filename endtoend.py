@@ -554,16 +554,23 @@ class CrossroadEnd2end(gym.Env):
             if dist * cos_value > -5. and dist*tf.abs(sin_value) < (L+W)/2 and dist < 10.:
                 veh2veh -= (10.-dist)
 
-        reward = 0.04 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.5 * veh2veh
-        reward_dict = dict(
+        reward = 0.04 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
+                 0.5 * punish_steer + 0.0005 * punish_a_x + 0.5 * veh2veh
+        reward_dict = dict(punish_steer=punish_steer.numpy(),
+                           punish_a_x=punish_a_x.numpy(),
+                           punish_yaw_rate=punish_yaw_rate.numpy(),
                            devi_v=devi_v.numpy(),
                            devi_y=devi_y.numpy(),
                            devi_phi=devi_phi.numpy(),
                            veh2veh=veh2veh.numpy(),
+                           scaled_punish_steer=0.5 * punish_steer.numpy(),
+                           scaled_punish_a_x=0.0005 * punish_a_x.numpy(),
+                           scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
                            scaled_devi_v=0.04 * devi_v.numpy(),
                            scaled_devi_y=0.04 * devi_y.numpy(),
                            scaled_devi_phi=0.1 * devi_phi.numpy(),
-                           scaled_veh2veh=0.5 * veh2veh.numpy(),)
+                           scaled_veh2veh=0.5 * veh2veh.numpy(), )
+
         return reward.numpy(), reward_dict
 
     def render(self, mode='human'):

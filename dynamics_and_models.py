@@ -40,9 +40,9 @@ class VehicleDynamics(object):
                                         F_zr=F_zr))
 
     def f_xu(self, states, actions, tau):  # states and actions are tensors, [[], [], ...]
-        v_x, v_y, r, x, y, phi = states[:,0],states[:,1],states[:,2],states[:,3], states[:,4],states[:,5]
+        v_x, v_y, r, x, y, phi = states[:, 0], states[:, 1], states[:, 2], states[:, 3], states[:, 4], states[:, 5]
         phi = phi * np.pi / 180.
-        steer, a_x = actions[:,0],actions[:,1]
+        steer, a_x = actions[:, 0], actions[:, 1]
         C_f = tf.convert_to_tensor(self.vehicle_params['C_f'], dtype=tf.float32)
         C_r = tf.convert_to_tensor(self.vehicle_params['C_r'], dtype=tf.float32)
         a = tf.convert_to_tensor(self.vehicle_params['a'], dtype=tf.float32)
@@ -60,17 +60,20 @@ class VehicleDynamics(object):
         alpha_f = tf.atan((v_y + a * r) / v_x) - steer
         alpha_r = tf.atan((v_y - b * r) / v_x)
 
-        next_state = [v_x + tau*(a_x + v_y * r),
-                      (mass*v_y*v_x+tau*(a*C_f-b*C_r)*r-tau*C_f*steer*v_x-tau*mass*tf.square(v_x)*r)/(mass*v_x-tau*(C_f+C_r)),
-                      (-I_z*r*v_x-tau*(a*C_f-b*C_r)*v_y+tau*a*C_f*steer*v_x)/(tau*(tf.square(a)*C_f+tf.square(b)*C_r)-I_z*v_x),
-                      x+tau*(v_x * tf.cos(phi) - v_y * tf.sin(phi)),
-                      y+tau*(v_x * tf.sin(phi) + v_y * tf.cos(phi)),
-                      (phi+tau*r) * 180 / np.pi]
+        next_state = [v_x + tau * (a_x + v_y * r),
+                      (mass * v_y * v_x + tau * (
+                                  a * C_f - b * C_r) * r - tau * C_f * steer * v_x - tau * mass * tf.square(
+                          v_x) * r) / (mass * v_x - tau * (C_f + C_r)),
+                      (-I_z * r * v_x - tau * (a * C_f - b * C_r) * v_y + tau * a * C_f * steer * v_x) / (
+                                  tau * (tf.square(a) * C_f + tf.square(b) * C_r) - I_z * v_x),
+                      x + tau * (v_x * tf.cos(phi) - v_y * tf.sin(phi)),
+                      y + tau * (v_x * tf.sin(phi) + v_y * tf.cos(phi)),
+                      (phi + tau * r) * 180 / np.pi]
 
         return tf.stack(next_state, 1), tf.stack([alpha_f, alpha_r, miu_f, miu_r], 1)
 
     def prediction(self, x_1, u_1, frequency, RK):
-        x_next, next_params = self.f_xu(x_1, u_1, 1/frequency)
+        x_next, next_params = self.f_xu(x_1, u_1, 1 / frequency)
         return x_next, next_params
 
 
@@ -199,9 +202,12 @@ class EnvironmentModel(object):  # all tensors
 
     def compute_rewards3(self, obses, actions):
         with tf.name_scope('compute_reward') as scope:
-            ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim],\
-                                                   obses[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
-                                                   obses[:, self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1):]
+            ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
+                                                   obses[:,
+                                                   self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
+                                                               self.num_future_data + 1)], \
+                                                   obses[:, self.ego_info_dim + self.per_tracking_info_dim * (
+                                                               self.num_future_data + 1):]
             steers, a_xs = actions[:, 0], actions[:, 1]
             # rewards related to action
             punish_steer = -tf.square(steers)
@@ -219,31 +225,41 @@ class EnvironmentModel(object):  # all tensors
             # rewards related to veh2veh collision
             veh2veh = tf.zeros_like(veh_infos[:, 0])
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
-                vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
+                vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
                 rela_phis_rad = tf.atan2(vehs[:, 1] - ego_infos[:, 4], vehs[:, 0] - ego_infos[:, 3])
                 ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
-                cos_values, sin_values = tf.cos(rela_phis_rad-ego_phis_rad), tf.sin(rela_phis_rad-ego_phis_rad)
+                cos_values, sin_values = tf.cos(rela_phis_rad - ego_phis_rad), tf.sin(rela_phis_rad - ego_phis_rad)
                 dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
-                punish_cond = logical_and(logical_and(dists*cos_values>-5., dists*tf.abs(sin_values)<(L+W)/2),
-                                          dists<10)
-                veh2veh -= tf.where(punish_cond, 10-dists, tf.zeros_like(veh_infos[:, 0]))
+                punish_cond = logical_and(
+                    logical_and(dists * cos_values > -5., dists * tf.abs(sin_values) < (L + W) / 2),
+                    dists < 10)
+                veh2veh -= tf.where(punish_cond, 10 - dists, tf.zeros_like(veh_infos[:, 0]))
 
-            rewards = 0.04 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.5 * veh2veh
-            # self.reward_info = dict(devi_v=devi_v.numpy()[0],
+            rewards = 0.04 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
+                      0.5 * punish_steer + 0.0005 * punish_a_x + 0.5 * veh2veh
+            # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
+            #                         punish_a_x=punish_a_x.numpy()[0],
+            #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],
+            #                         devi_v=devi_v.numpy()[0],
             #                         devi_y=devi_y.numpy()[0],
             #                         devi_phi=devi_phi.numpy()[0],
             #                         veh2veh=veh2veh.numpy()[0],
+            #                         scaled_punish_steer=0.5 * punish_steer.numpy()[0],
+            #                         scaled_punish_a_x=0.0005 * punish_a_x.numpy()[0],
+            #                         scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy()[0],
             #                         scaled_devi_v=0.04 * devi_v.numpy()[0],
-            #                         scaled_devi_y=0.01 * devi_y.numpy()[0],
+            #                         scaled_devi_y=0.04 * devi_y.numpy()[0],
             #                         scaled_devi_phi=0.1 * devi_phi.numpy()[0],
             #                         scaled_veh2veh=0.5 * veh2veh.numpy()[0],
-            #                         reward=rewards.numpy()[0]
-            #                         )
+            #                         reward=rewards.numpy()[0])
             return rewards
 
     def compute_next_obses(self, obses, actions):
-        ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], obses[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
-                                               obses[:, self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1):]
+        ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], obses[:,
+                                                                             self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
+                                                                                         self.num_future_data + 1)], \
+                                               obses[:, self.ego_info_dim + self.per_tracking_info_dim * (
+                                                           self.num_future_data + 1):]
 
         next_ego_infos = self.ego_predict(ego_infos, actions)
 
@@ -273,8 +289,9 @@ class EnvironmentModel(object):  # all tensors
         predictions_to_be_concat = []
 
         for vehs_index in range(len(veh_mode_list)):
-            predictions_to_be_concat.append(self.predict_for_a_mode(veh_infos[:, vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim],
-                                                                    veh_mode_list[vehs_index]))
+            predictions_to_be_concat.append(self.predict_for_a_mode(
+                veh_infos[:, vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim],
+                veh_mode_list[vehs_index]))
         return tf.concat(predictions_to_be_concat, 1)
 
     def predict_for_a_mode(self, vehs, mode):
@@ -294,7 +311,7 @@ class EnvironmentModel(object):  # all tensors
             veh_phis_rad_delta = tf.where(middle_cond, -(veh_vs / 12.375) / self.base_frequency, zeros)
         else:
             veh_phis_rad_delta = zeros
-        next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis_rad =\
+        next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis_rad = \
             veh_xs + veh_xs_delta, veh_ys + veh_ys_delta, veh_vs, veh_phis_rad + veh_phis_rad_delta
         next_veh_phis_rad = tf.where(next_veh_phis_rad > np.pi, next_veh_phis_rad - 2 * np.pi, next_veh_phis_rad)
         next_veh_phis_rad = tf.where(next_veh_phis_rad <= -np.pi, next_veh_phis_rad + 2 * np.pi, next_veh_phis_rad)
@@ -437,8 +454,11 @@ class EnvironmentModel(object):  # all tensors
                 plt.plot([x, x_forw], [y, y_forw], color=color, linewidth=0.5)
 
             obses = self.obses.numpy()
-            ego_info, tracing_info, vehs_info = obses[0, :self.ego_info_dim], obses[0, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
-                                                obses[0, self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1):]
+            ego_info, tracing_info, vehs_info = obses[0, :self.ego_info_dim], obses[0,
+                                                                              self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
+                                                                                          self.num_future_data + 1)], \
+                                                obses[0, self.ego_info_dim + self.per_tracking_info_dim * (
+                                                            self.num_future_data + 1):]
             # plot cars
             for veh_index in range(int(len(vehs_info) / self.per_veh_info_dim)):
                 veh = vehs_info[self.per_veh_info_dim * veh_index:self.per_veh_info_dim * (veh_index + 1)]
@@ -628,8 +648,8 @@ class ReferencePath(object):
                 phis_1 = np.arctan2(ys_2 - ys_1,
                                     xs_2 - xs_1) * 180 / pi
                 if i == 0:
-                    phis_1[len(start_straight_line_x):len(start_straight_line_x)+len(s_vals)] = \
-                        phis_1[len(start_straight_line_x)+100:len(start_straight_line_x)+len(s_vals)+100]
+                    phis_1[len(start_straight_line_x):len(start_straight_line_x) + len(s_vals)] = \
+                        phis_1[len(start_straight_line_x) + 100:len(start_straight_line_x) + len(s_vals) + 100]
                 planed_trj = xs_1, ys_1, phis_1
                 self.path_list.append(planed_trj)
 
@@ -668,11 +688,12 @@ class ReferencePath(object):
 
         def two2one(ref_xs, ref_ys):
             if self.task == 'left':
-                delta_ = tf.sqrt(tf.square(ego_xs-(-18)) + tf.square(ego_ys-(-18)))-\
-                         tf.sqrt(tf.square(ref_xs-(-18)) + tf.square(ref_ys-(-18)))
+                delta_ = tf.sqrt(tf.square(ego_xs - (-18)) + tf.square(ego_ys - (-18))) - \
+                         tf.sqrt(tf.square(ref_xs - (-18)) + tf.square(ref_ys - (-18)))
                 delta_ = tf.where(ego_ys < -18, ego_xs - ref_xs, delta_)
                 delta_ = tf.where(ego_xs < -18, ego_ys - ref_ys, delta_)
                 return delta_
+
         tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
                                               deal_with_phi_diff(ego_phis - ref_point[2]),
                                               ego_vs - self.exp_v], 1)
