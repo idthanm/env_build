@@ -90,6 +90,15 @@ def deal_with_phi_diff(phi_diff):
 
 class VehicleDynamics(object):
     def __init__(self, ):
+        # self.vehicle_params = dict(C_f=88000.,  # front wheel cornering stiffness [N/rad]
+        #                            C_r=94000.,  # rear wheel cornering stiffness [N/rad]
+        #                            a=1.14,  # distance from CG to front axle [m]
+        #                            b=1.40,  # distance from CG to rear axle [m]
+        #                            mass=1500.,  # mass [kg]
+        #                            I_z=2420.,  # Polar moment of inertia at CG [kg*m^2]
+        #                            miu=1.0,  # tire-road friction coefficient
+        #                            g=9.81,  # acceleration of gravity [m/s^2]
+        #                            )
         self.vehicle_params = dict(C_f=128915.5,  # front wheel cornering stiffness [N/rad]
                                    C_r=85943.6,  # rear wheel cornering stiffness [N/rad]
                                    a=1.06,  # distance from CG to front axle [m]
@@ -150,7 +159,7 @@ class ReferencePath(object):
         self.exp_v = 8
 
     def _construct_ref_path(self, task):
-        sl = 20
+        sl = 40
         planed_trj = None
         meter_pointnum_ratio = 30
         if task == 'left':
@@ -182,9 +191,9 @@ class ReferencePath(object):
                 xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
                 phis_1 = np.arctan2(ys_2 - ys_1,
                                     xs_2 - xs_1) * 180 / pi
-                if i == 1:
-                    phis_1[len(start_straight_line_x):len(start_straight_line_x)+len(s_vals)] = \
-                        phis_1[len(start_straight_line_x)+150:len(start_straight_line_x)+len(s_vals)+150]
+                # if i == 1:
+                #     phis_1[len(start_straight_line_x):len(start_straight_line_x)+len(s_vals)] = \
+                #         phis_1[len(start_straight_line_x)+150:len(start_straight_line_x)+len(s_vals)+150]
                 planed_trj = xs_1, ys_1, phis_1
                 self.path_list.append(planed_trj)
 
@@ -286,11 +295,18 @@ class ReferencePath(object):
         indexs, current_points = self.find_closest_point(ego_xs, ego_ys)
         n_future_data = self.future_n_data(indexs, n)
         all_ref = [current_points] + n_future_data
-        tracking_error = np.concatenate([np.stack([ego_xs - ref_point[0],
-                                                   ego_ys - ref_point[1],
-                                                   deal_with_phi_diff(ego_phis - ref_point[2]),
-                                                   ego_vs - self.exp_v], 1)
-                                         for ref_point in all_ref], 1)
+
+        def two2one(ref_xs, ref_ys):
+            if self.task == 'left':
+                delta_ = np.sqrt(np.square(ego_xs-(-18)) + np.square(ego_ys-(-18)))-\
+                         np.sqrt(np.square(ref_xs-(-18)) + np.square(ref_ys-(-18)))
+                delta_ = np.where(ego_ys < -18, ego_xs - ref_xs, delta_)
+                delta_ = np.where(ego_xs < -18, ego_ys - ref_ys, delta_)
+                return delta_
+        tracking_error = np.concatenate([np.stack([two2one(ref_point[0], ref_point[1]),
+                                              deal_with_phi_diff(ego_phis - ref_point[2]),
+                                              ego_vs - self.exp_v], 1)
+                                    for ref_point in all_ref], 1)
         return tracking_error
 
 
@@ -303,8 +319,8 @@ class ModelPredictiveControl:
         self.task = 'left'
         self.exp_v = 8
         self.ref_path = None
-        self.ego_info_dim = 12
-        self.per_veh_info_dim = 6
+        self.ego_info_dim = 6
+        self.per_veh_info_dim = 4
 
     def reset_init_x(self, init_x, ref_index):
         self.init_x = init_x
@@ -312,8 +328,8 @@ class ModelPredictiveControl:
 
     def compute_next_obses(self, obses, actions):
         ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
-                                               obses[:, self.ego_info_dim:self.ego_info_dim + 4], \
-                                               obses[:, self.ego_info_dim + 4:]
+                                               obses[:, self.ego_info_dim:self.ego_info_dim + 3], \
+                                               obses[:, self.ego_info_dim + 3:]
 
         next_ego_infos = self.ego_predict(ego_infos, actions)
 
@@ -322,21 +338,19 @@ class ModelPredictiveControl:
                                                                   next_ego_infos[:, 5],
                                                                   next_ego_infos[:, 0],
                                                                   0)
-        next_veh_infos = self.veh_predict(next_ego_infos, veh_infos)
+        next_veh_infos = self.veh_predict(veh_infos)
         next_obses = np.concatenate([next_ego_infos, next_tracking_infos, next_veh_infos], 1)
         return next_obses
 
     def ego_predict(self, ego_infos, actions):
-        ego_next_infos_except_lw, next_mius = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions,
+        ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions,
                                                                                self.fre, 1)
-        ego_next_lw = ego_infos[:, 6:8]
-        ego_next_alphas = ego_infos[:, 8:10]
 
-        return np.concatenate([ego_next_infos_except_lw, ego_next_lw, ego_next_alphas, next_mius], 1)
+        return ego_next_infos
 
-    def veh_predict(self, next_ego_infos, veh_infos):
+    def veh_predict(self, veh_infos):
         if self.task == 'left':
-            veh_mode_list = ['dl'] * 2 + ['du'] * 2 + ['ud'] * 3 + ['ul'] * 3
+            veh_mode_list = ['dl'] * 1 + ['du'] * 1 + ['ud'] * 2 + ['ul'] * 2
         elif self.task == 'straight':
             veh_mode_list = ['dl'] * 2 + ['du'] * 2 + ['ud'] * 2 + ['ru'] * 3 + ['ur'] * 3
         else:
@@ -351,8 +365,7 @@ class ModelPredictiveControl:
         return np.concatenate(predictions_to_be_concat, 1)
 
     def predict_for_a_mode(self, vehs, mode):
-        veh_xs, veh_ys, veh_vs, veh_phis, veh_ls, veh_ws = \
-            vehs[:, 0], vehs[:, 1], vehs[:, 2], vehs[:, 3], vehs[:, 4], vehs[:, 5]
+        veh_xs, veh_ys, veh_vs, veh_phis = vehs[:, 0], vehs[:, 1], vehs[:, 2], vehs[:, 3]
         veh_phis_rad = veh_phis * np.pi / 180.
 
         zeros = np.zeros_like(veh_xs)
@@ -366,22 +379,22 @@ class ModelPredictiveControl:
             veh_phis_rad_delta = np.where(-18<veh_ys<18, -(veh_vs / 12.375) / self.fre, zeros)
         else:
             veh_phis_rad_delta = zeros
-        next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis_rad, next_veh_ls, next_veh_ws =\
-            veh_xs + veh_xs_delta, veh_ys + veh_ys_delta, veh_vs, veh_phis_rad + veh_phis_rad_delta, veh_ls, veh_ws
+        next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis_rad =\
+            veh_xs + veh_xs_delta, veh_ys + veh_ys_delta, veh_vs, veh_phis_rad + veh_phis_rad_delta
         next_veh_phis_rad = np.where(next_veh_phis_rad > np.pi, next_veh_phis_rad - 2 * np.pi, next_veh_phis_rad)
         next_veh_phis_rad = np.where(next_veh_phis_rad <= -np.pi, next_veh_phis_rad + 2 * np.pi, next_veh_phis_rad)
         next_veh_phis = next_veh_phis_rad * 180 / np.pi
-        return np.stack([next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis, next_veh_ls, next_veh_ws], 1)
+        return np.stack([next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis], 1)
 
     def plant_model(self, u, x):
         x_copy = x.copy()
         x_copy = self.compute_next_obses(x_copy[np.newaxis, :], u[np.newaxis, :])[0]
         return x_copy
 
-    def compute_rew(self, obses, actions, prev_done):
+    def compute_rew(self, obses, actions):
         ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
-                                               obses[:, self.ego_info_dim:self.ego_info_dim + 4], \
-                                               obses[:, self.ego_info_dim + 4:]
+                                               obses[:, self.ego_info_dim:self.ego_info_dim + 3], \
+                                               obses[:, self.ego_info_dim + 3:]
         steers, a_xs = actions[:, 0], actions[:, 1]
         # rewards related to action
         punish_steer = -np.square(steers)
@@ -391,202 +404,76 @@ class ModelPredictiveControl:
         punish_yaw_rate = -np.square(ego_infos[:, 2])
 
         # rewards related to tracking error
-        devi_v = -np.square(ego_infos[:, 0] - self.exp_v)
-        devi_y = -np.square(tracking_infos[:, 0]) - np.square(tracking_infos[:, 1])
-        devi_phi = -np.square(tracking_infos[:, 2] * np.pi / 180.)
-        if ego_infos[0, 3]<0 and ego_infos[0, 4]<-18:
-            devi_road = -20*(0-ego_infos[0, 3])
-        elif ego_infos[0, 3]>3.75 and ego_infos[0, 4]<-18:
-            devi_road = -20*(ego_infos[0, 3]-3.75)
-        else:
-            devi_road=0
+        devi_y = -np.square(tracking_infos[:, 0])
+        devi_phi = -np.square(tracking_infos[:, 1] * np.pi / 180.)
+        devi_v = -np.square(tracking_infos[:, 2])
 
         # rewards related to veh2veh collision
-        ego_lws = (ego_infos[:, 6] - ego_infos[:, 7]) / 2.
-        ego_front_points = ego_infos[:, 3] + ego_lws * np.cos(ego_infos[:, 5] * np.pi / 180.), \
-                           ego_infos[:, 4] + ego_lws * np.sin(ego_infos[:, 5] * np.pi / 180.)
-        ego_rear_points = ego_infos[:, 3] - ego_lws * np.cos(ego_infos[:, 5] * np.pi / 180.), \
-                          ego_infos[:, 4] - ego_lws * np.sin(ego_infos[:, 5] * np.pi / 180.)
-        coeff = 1.14
-        rho_ego = ego_infos[0, 7] / 2. * coeff
-
         # veh2veh = np.zeros_like(veh_infos[:, 0])
-        # for veh_index in range(int(veh_infos.shape[1] / self.per_veh_info_dim)):
-        #     vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
-        #     # for i in [6, 7, 8, 9]:
-        #     #     veh2veh -= 1. / tf.square(vehs[:, i])
-        #     veh_lws = (vehs[:, 4] - vehs[:, 5]) / 2.
-        #     rho_vehs = vehs[:, 5] / 2. * coeff
-        #     veh_front_points = vehs[:, 0] + veh_lws * np.cos(vehs[:, 3] * np.pi / 180.), \
-        #                        vehs[:, 1] + veh_lws * np.sin(vehs[:, 3] * np.pi / 180.)
-        #     veh_rear_points = vehs[:, 0] - veh_lws * np.cos(vehs[:, 3] * np.pi / 180.), \
-        #                       vehs[:, 1] - veh_lws * np.sin(vehs[:, 3] * np.pi / 180.)
-        #     for ego_point in [ego_front_points, ego_rear_points]:
-        #         for veh_point in [veh_front_points, veh_rear_points]:
-        #             veh2veh_dist = np.sqrt(
-        #                 np.square(ego_point[0] - veh_point[0]) + np.square(ego_point[1] - veh_point[1])) - \
-        #                            (rho_ego + rho_vehs)
-        #             veh2veh -= 1 / np.abs(veh2veh_dist)
-        #             # veh2veh -= tf.nn.relu(-(veh2veh_dist - 10.))
-        #
-        # veh2veh += 0.8
-        # veh2veh = np.where(veh2veh < -3., -3. * np.ones_like(veh2veh), veh2veh)
-        # rewards = 0.01 * devi_v + 0.1 * devi_y + 5 * devi_phi + 0.02 * punish_yaw_rate + \
-        #           0.05 * punish_steer + 0.0005 * punish_a_x
-        rewards = 0.1 * devi_v + 0.1 * devi_y + 5*devi_phi + 1 * punish_yaw_rate
-        # if rewards<-50:
-        #     print(0.005 * devi_v, 0.01 * devi_y, 0.1 * devi_phi, 0.02 * punish_yaw_rate)
-        rewards = (1-prev_done)*rewards
+        # for veh_index in range(int(np.shape(veh_infos)[1] / self.per_veh_info_dim)):
+        #     vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
+        #     dists = np.sqrt(np.square(vehs[:, 0] - ego_infos[:, 3]) + np.square(vehs[:, 1] - ego_infos[:, 4]))
+        #     veh2veh -= np.where(dists<10, 10 - dists, np.zeros_like(veh_infos[:, 0]))
+
+        L, W = 4.8, 2.
+        veh2veh = np.zeros_like(veh_infos[:, 0])
+        for veh_index in range(int(np.shape(veh_infos)[1] / self.per_veh_info_dim)):
+            vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
+            rela_phis_rad = np.arctan2(vehs[:, 1] - ego_infos[:, 4], vehs[:, 0] - ego_infos[:, 3])
+            ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
+            cos_values, sin_values = np.cos(rela_phis_rad - ego_phis_rad), np.sin(rela_phis_rad - ego_phis_rad)
+            dists = np.sqrt(np.square(vehs[:, 0] - ego_infos[:, 3]) + np.square(vehs[:, 1] - ego_infos[:, 4]))
+            punish_cond = logical_and(logical_and(dists * cos_values > -5., dists * np.abs(sin_values) < (L + W) / 2),
+                                      dists < 10.)
+            veh2veh -= np.where(punish_cond, 10. - dists, np.zeros_like(veh_infos[:, 0]))
+
+        rewards = 0.04 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.5 * veh2veh
         return rewards
-
-    def _compute_bounds(self, obses):
-        miu_fs, miu_rs = obses[:, 10], obses[:, 11]
-        r_bounds = miu_rs * self.vehicle_dynamics.vehicle_params['g'] / np.abs(obses[:, 0])
-        return r_bounds
-
-    def judge_dones(self, obses):
-        final_dones = np.zeros_like(obses[:, 0]).astype(np.bool)
-        dones_type = np.array(['not_done_yet'] * len(obses[:, 0]), np.str)
-        ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
-                                               obses[:, self.ego_info_dim:self.ego_info_dim + 4], \
-                                               obses[:, self.ego_info_dim + 4:]
-        # dones related to ego stability
-        # r_bounds = self._compute_bounds(obses)
-        # stability_dones = -r_bounds < ego_infos[:, 2] < r_bounds
-        # dones_type = np.where(stability_dones, 'break_stability', dones_type)
-
-        ego_lws = (ego_infos[:, 6] - ego_infos[:, 7]) / 2.
-        ego_front_points = ego_infos[:, 3] + ego_lws * np.cos(ego_infos[:, 5] * np.pi / 180.), \
-                           ego_infos[:, 4] + ego_lws * np.sin(ego_infos[:, 5] * np.pi / 180.)
-        ego_rear_points = ego_infos[:, 3] - ego_lws * np.cos(ego_infos[:, 5] * np.pi / 180.), \
-                          ego_infos[:, 4] - ego_lws * np.sin(ego_infos[:, 5] * np.pi / 180.)
-        coeff = 1.14
-        rho_ego = ego_infos[0, 7] / 2 * coeff
-        veh2road_dones = np.zeros_like(obses[:, 0]).astype(np.bool)
-
-        if self.task == 'left':
-            dones_good_done = logical_and(logical_and(ego_infos[:, 4] > 0, ego_infos[:, 4] < 7.5),
-                                          ego_infos[:, 3] < -18 - 2)
-            dones_type = np.where(dones_good_done, 'good_done', dones_type)
-
-            for ego_point in [ego_front_points, ego_rear_points]:
-                dones_before1 = logical_and(ego_point[1] < -18, ego_point[0] - 0 < rho_ego)
-                dones_before2 = logical_and(ego_point[1] < -18, 3.75 - ego_point[0] < rho_ego)
-
-                middle_cond = logical_and(logical_and(ego_point[0] > -18, ego_point[0] < 18),
-                                          logical_and(ego_point[1] > -18, ego_point[1] < 18))
-                dones_middle1 = logical_and(middle_cond, 18 - ego_point[1] < rho_ego)
-                dones_middle2 = logical_and(middle_cond, 18 - ego_point[0] < rho_ego)
-                dones_middle3 = logical_and(logical_and(middle_cond, ego_point[1] > 7.5),
-                                            ego_point[0] - (-18) < rho_ego)
-                dones_middle4 = logical_and(logical_and(middle_cond, ego_point[1] < 0),
-                                            ego_point[0] - (-18) < rho_ego)
-                dones_middle5 = logical_and(logical_and(middle_cond, ego_point[0] < 0),
-                                            ego_point[1] - (-18) < rho_ego)
-                dones_middle6 = logical_and(logical_and(middle_cond, ego_point[0] > 3.75),
-                                            ego_point[1] - (-18) < rho_ego)
-
-                dones_middle7 = logical_and(middle_cond, np.sqrt(np.square(ego_point[0] - (-18)) + np.square(
-                    ego_point[1] - 0)) < rho_ego)
-                dones_middle8 = logical_and(middle_cond, np.sqrt(np.square(ego_point[0] - (-18)) + np.square(
-                    ego_point[1] - 7.5)) < rho_ego)
-
-                dones_after1 = logical_and(ego_point[0] < -18, ego_point[1] - 0 < rho_ego)
-                dones_after2 = logical_and(ego_point[0] < -18, 7.5 - ego_point[1] < rho_ego)
-
-                for dones in [dones_before1, dones_before2, dones_middle1, dones_middle2, dones_middle3, dones_middle4,
-                              dones_middle5, dones_middle6, dones_middle7, dones_middle8,
-                              dones_after1, dones_after2]:
-                    veh2road_dones = logical_or(veh2road_dones, dones)
-
-        dones_type = np.where(veh2road_dones, 'break_road_constrain', dones_type)
-
-        # dones related to veh2veh collision
-        veh2veh_dones = np.zeros_like(obses[:, 0]).astype(np.bool)
-        for veh_index in range(int(veh_infos.shape[1] / self.per_veh_info_dim)):
-            vehs = veh_infos[:, veh_index * self.per_veh_info_dim: (veh_index + 1) * self.per_veh_info_dim]
-            veh_lws = (vehs[:, 4] - vehs[:, 5]) / 2.
-            rho_vehs = vehs[:, 5] / 2. * coeff
-            veh_front_points = vehs[:, 0] + veh_lws * np.cos(vehs[:, 3] * np.pi / 180.), \
-                               vehs[:, 1] + veh_lws * np.sin(vehs[:, 3] * np.pi / 180.)
-            veh_rear_points = vehs[:, 0] - veh_lws * np.cos(vehs[:, 3] * np.pi / 180.), \
-                              vehs[:, 1] - veh_lws * np.sin(vehs[:, 3] * np.pi / 180.)
-            for ego_point in [ego_front_points, ego_rear_points]:
-                for veh_point in [veh_front_points, veh_rear_points]:
-                    veh2veh_square_dist = np.square(ego_point[0] - veh_point[0]) + np.square(
-                        ego_point[1] - veh_point[1])
-                    dones = np.sqrt(veh2veh_square_dist) < rho_ego + rho_vehs
-                    veh2veh_dones = logical_or(veh2veh_dones, dones)
-
-        dones_type = np.where(veh2veh_dones, 'collision', dones_type)
-
-        for dones in [veh2road_dones, dones_good_done, veh2veh_dones]:
-            final_dones = logical_or(final_dones, dones)
-
-        return final_dones, dones_type
-
-    def compute_done_rew(self, done, prev_done, done_type):
-        if done_type == 'good_done':
-            return (float(done) - float(prev_done)) * 20.
-        elif done_type == 'not_done_yet':
-            return 0.
-        else:
-            return -(float(done) - float(prev_done)) * 20.
 
     def cost_function(self, u):
         u = u.reshape(self.horizon, 2)
         loss = 0.
-        done = prev_done = 0
-        done_type = 'not_done_yet'
         x = self.init_x.copy()
         for i in range(0, self.horizon):
-            loss -= self.compute_rew(x[np.newaxis, :], u[i][np.newaxis, :], done)[0]
-            x = self.plant_model(u[i], x)
-            if done == 0:
-                dones, dones_type = self.judge_dones(x[np.newaxis, :])
-                done, done_type = dones[0], dones_type[0]
-            # else:
-                # print(done_type)
-            loss -= self.compute_done_rew(done, prev_done, done_type)
-            # print(i, loss)
-            prev_done = done
+            u_i = u[i] * np.array([0.4, 3.])
+            loss -= self.compute_rew(x[np.newaxis, :], u_i[np.newaxis, :])[0]
+            x = self.plant_model(u_i, x)
 
         return loss
 
 
-acc = 1e-2
 if __name__ == '__main__':
-    horizon_list = [20]
+    horizon_list = [30]
     env = gym.make('CrossroadEnd2end-v0', training_task='left', num_future_data=0)
     done = 0
     for horizon in horizon_list:
         for i in range(10):
             obs = env.reset()
             mpc = ModelPredictiveControl(obs, horizon)
-            bounds = [(-0.20, 0.20), (-3., 3.)] * horizon
+            bounds = [(-1., 1.), (-1., 1.)] * horizon
             u_init = np.zeros((horizon, 2))
             mpc.reset_init_x(obs, env.ref_path.ref_index)
-
-            while not done:
+            for _ in range(50):
                 start_time = time.time()
                 results = minimize(mpc.cost_function,
                                    x0=u_init.flatten(),
                                    method='SLSQP',
                                    bounds=bounds,
-                                   tol=acc,
+                                   tol=1e-1,
                                    options={'disp': True}
                                    )
                 action = results.x
-                print(action)
-                print(results.success, results.message)
+                # print(action)
+                # print(results.success, results.message)
                 end_time = time.time()
 
                 # u_init = np.concatenate([action[2:], action[-2:]])
+                if not results.success:
+                    print('fail')
+                    action = [0., 0.]
                 obs, reward, done, info = env.step(action[:2])
                 mpc.reset_init_x(obs, env.ref_path.ref_index)
                 env.render()
-            done = 0
-
 
 
 

@@ -502,11 +502,11 @@ class CrossroadEnd2end(gym.Env):
         return orig_x, orig_y
 
     def _reset_init_state(self):
-        random_index = int(np.random.random()*(len(self.ref_path.path[0])-1200)) + 600
+        random_index = int(np.random.random()*900) + 800
         # random_index = 1300
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
-        v = 10 * np.random.random()
+        v = 4 * np.random.random() + 5
         if self.training_task == 'left':
             routeID = 'dl'
         elif self.training_task == 'straight':
@@ -551,47 +551,17 @@ class CrossroadEnd2end(gym.Env):
             cos_value, sin_value = tf.cos(rela_phi_rad - ego_phi_rad), tf.sin(rela_phi_rad - ego_phi_rad)
             dist = tf.sqrt(tf.square(veh[0] - ego_infos[3]) + tf.square(veh[1]-ego_infos[4]))
 
-            if cos_value > 0 and dist*tf.abs(sin_value) < (L+W)/2 and dist*tf.abs(cos_value) < 10.:
-                veh2veh -= (10.-dist*cos_value)
+            if dist * cos_value > -5. and dist*tf.abs(sin_value) < (L+W)/2 and dist < 10.:
+                veh2veh -= (10.-dist)
 
-        # ego_lw = (L - W) / 2.
-        # coeff = 1.14
-        # rho_ego = W / 2. * coeff
-        # ego_front_point = tf.cast(ego_infos[3] + ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32), \
-        #                   tf.cast(ego_infos[4] + ego_lw * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
-        # ego_rear_point = tf.cast(ego_infos[3] - ego_lw * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32), \
-        #                  tf.cast(ego_infos[4] - ego_lw * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
-        #
-        # veh2veh = tf.constant(0.)
-        # for veh_index in range(int(len(veh_infos) / self.per_veh_info_dim)):
-        #     veh = veh_infos[veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
-        #     veh_lw = (L - W) / 2.
-        #     rho_veh = W / 2. * coeff
-        #     veh_front_point = tf.cast(veh[0] + veh_lw * tf.cos(veh[3] * np.pi / 180.), dtype=tf.float32), \
-        #                       tf.cast(veh[1] + veh_lw * tf.sin(veh[3] * np.pi / 180.), dtype=tf.float32)
-        #     veh_rear_point = tf.cast(veh[0] - veh_lw * tf.cos(veh[3] * np.pi / 180.), dtype=tf.float32), \
-        #                      tf.cast(veh[1] - veh_lw * tf.sin(veh[3] * np.pi / 180.), dtype=tf.float32)
-        #     for ego_point in [ego_front_point, ego_rear_point]:
-        #         for veh_point in [veh_front_point, veh_rear_point]:
-        #             veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(
-        #                 ego_point[1] - veh_point[1])) - tf.convert_to_tensor(rho_ego + rho_veh, dtype=tf.float32)
-        #             veh2veh -= 1. / tf.abs(veh2veh_dist)
-                    # veh2veh -= tf.nn.relu(-(veh2veh_dist-10.))
-
-        reward = 0.04 * devi_v + 0.01 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                  2. * punish_steer + 0.0005 * punish_a_x + 0.5 * veh2veh
-        reward_dict = dict(punish_steer=punish_steer.numpy(),
-                           punish_a_x=punish_a_x.numpy(),
-                           punish_yaw_rate=punish_yaw_rate.numpy(),
+        reward = 0.04 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.5 * veh2veh
+        reward_dict = dict(
                            devi_v=devi_v.numpy(),
                            devi_y=devi_y.numpy(),
                            devi_phi=devi_phi.numpy(),
                            veh2veh=veh2veh.numpy(),
-                           scaled_punish_steer=2. * punish_steer.numpy(),
-                           scaled_punish_a_x=0.0005 * punish_a_x.numpy(),
-                           scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
                            scaled_devi_v=0.04 * devi_v.numpy(),
-                           scaled_devi_y=0.01 * devi_y.numpy(),
+                           scaled_devi_y=0.04 * devi_y.numpy(),
                            scaled_devi_phi=0.1 * devi_phi.numpy(),
                            scaled_veh2veh=0.5 * veh2veh.numpy(),)
         return reward.numpy(), reward_dict

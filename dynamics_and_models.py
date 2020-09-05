@@ -24,87 +24,139 @@ L, W = 4.8, 2.
 
 class VehicleDynamics(object):
     def __init__(self, ):
-        self.vehicle_params = OrderedDict(C_f=88000.,  # front wheel cornering stiffness [N/rad]
-                                          C_r=94000.,  # rear wheel cornering stiffness [N/rad]
-                                          a=1.14,  # distance from CG to front axle [m]
-                                          b=1.40,  # distance from CG to rear axle [m]
-                                          mass=1500.,  # mass [kg]
-                                          I_z=2420.,  # Polar moment of inertia at CG [kg*m^2]
-                                          miu=1.0,  # tire-road friction coefficient
-                                          g=9.81,  # acceleration of gravity [m/s^2]
-                                          )
+        self.vehicle_params = dict(C_f=128915.5,  # front wheel cornering stiffness [N/rad]
+                                   C_r=85943.6,  # rear wheel cornering stiffness [N/rad]
+                                   a=1.06,  # distance from CG to front axle [m]
+                                   b=1.85,  # distance from CG to rear axle [m]
+                                   mass=1412.,  # mass [kg]
+                                   I_z=1536.7,  # Polar moment of inertia at CG [kg*m^2]
+                                   miu=1.0,  # tire-road friction coefficient
+                                   g=9.81,  # acceleration of gravity [m/s^2]
+                                   )
         a, b, mass, g = self.vehicle_params['a'], self.vehicle_params['b'], \
                         self.vehicle_params['mass'], self.vehicle_params['g']
         F_zf, F_zr = b * mass * g / (a + b), a * mass * g / (a + b)
         self.vehicle_params.update(dict(F_zf=F_zf,
                                         F_zr=F_zr))
 
-    def f_xu(self, states, actions):  # states and actions are tensors, [[], [], ...]
-        with tf.name_scope('f_xu') as scope:
-            # veh_state = obs: v_xs, v_ys, rs, delta_ys, delta_phis, steers, a_xs
-            # 1, 2, 0.2, 2.4, 1, 2, 0.4
+    def f_xu(self, states, actions, tau):  # states and actions are tensors, [[], [], ...]
+        v_x, v_y, r, x, y, phi = states[:,0],states[:,1],states[:,2],states[:,3], states[:,4],states[:,5]
+        phi = phi * np.pi / 180.
+        steer, a_x = actions[:,0],actions[:,1]
+        C_f = tf.convert_to_tensor(self.vehicle_params['C_f'], dtype=tf.float32)
+        C_r = tf.convert_to_tensor(self.vehicle_params['C_r'], dtype=tf.float32)
+        a = tf.convert_to_tensor(self.vehicle_params['a'], dtype=tf.float32)
+        b = tf.convert_to_tensor(self.vehicle_params['b'], dtype=tf.float32)
+        mass = tf.convert_to_tensor(self.vehicle_params['mass'], dtype=tf.float32)
+        I_z = tf.convert_to_tensor(self.vehicle_params['I_z'], dtype=tf.float32)
+        miu = tf.convert_to_tensor(self.vehicle_params['miu'], dtype=tf.float32)
+        g = tf.convert_to_tensor(self.vehicle_params['g'], dtype=tf.float32)
 
-            # 0.2 * torch.tensor([1, 5, 10, 12, 5, 10, 2]
-            # vx, vy, r, delta_phi, delta_y
-            # veh_full_state: v_ys, rs, v_xs, phis, ys, xs
-            v_x, v_y, r, x, y, phi = states[:, 0], states[:, 1], states[:, 2], \
-                                     states[:, 3], states[:, 4], states[:, 5]
-            phi = phi * np.pi / 180.
-            steer, a_x = actions[:, 0], actions[:, 1]
+        F_zf, F_zr = b * mass * g / (a + b), a * mass * g / (a + b)
+        F_xf = tf.where(a_x < 0, mass * a_x / 2, tf.zeros_like(a_x))
+        F_xr = tf.where(a_x < 0, mass * a_x / 2, mass * a_x)
+        miu_f = tf.sqrt(tf.square(miu * F_zf) - tf.square(F_xf)) / F_zf
+        miu_r = tf.sqrt(tf.square(miu * F_zr) - tf.square(F_xr)) / F_zr
+        alpha_f = tf.atan((v_y + a * r) / v_x) - steer
+        alpha_r = tf.atan((v_y - b * r) / v_x)
 
-            C_f = tf.convert_to_tensor(self.vehicle_params['C_f'], dtype=tf.float32)
-            C_r = tf.convert_to_tensor(self.vehicle_params['C_r'], dtype=tf.float32)
-            a = tf.convert_to_tensor(self.vehicle_params['a'], dtype=tf.float32)
-            b = tf.convert_to_tensor(self.vehicle_params['b'], dtype=tf.float32)
-            mass = tf.convert_to_tensor(self.vehicle_params['mass'], dtype=tf.float32)
-            I_z = tf.convert_to_tensor(self.vehicle_params['I_z'], dtype=tf.float32)
-            miu = tf.convert_to_tensor(self.vehicle_params['miu'], dtype=tf.float32)
-            g = tf.convert_to_tensor(self.vehicle_params['g'], dtype=tf.float32)
+        next_state = [v_x + tau*(a_x + v_y * r),
+                      (mass*v_y*v_x+tau*(a*C_f-b*C_r)*r-tau*C_f*steer*v_x-tau*mass*tf.square(v_x)*r)/(mass*v_x-tau*(C_f+C_r)),
+                      (-I_z*r*v_x-tau*(a*C_f-b*C_r)*v_y+tau*a*C_f*steer*v_x)/(tau*(tf.square(a)*C_f+tf.square(b)*C_r)-I_z*v_x),
+                      x+tau*(v_x * tf.cos(phi) - v_y * tf.sin(phi)),
+                      y+tau*(v_x * tf.sin(phi) + v_y * tf.cos(phi)),
+                      (phi+tau*r) * 180 / np.pi]
 
-            F_zf, F_zr = b * mass * g / (a + b), a * mass * g / (a + b)
-            F_xf = tf.where(a_x < 0, mass * a_x / 2, tf.zeros_like(a_x, dtype=tf.float32))
-            F_xr = tf.where(a_x < 0, mass * a_x / 2, mass * a_x)
-            miu_f = tf.sqrt(tf.square(miu * F_zf) - tf.square(F_xf)) / F_zf
-            miu_r = tf.sqrt(tf.square(miu * F_zr) - tf.square(F_xr)) / F_zr
-            alpha_f = tf.atan((v_y + a * r) / v_x) - steer
-            alpha_r = tf.atan((v_y - b * r) / v_x)
-
-            Ff_w1 = tf.square(C_f) / (3 * F_zf * miu_f)
-            Ff_w2 = tf.pow(C_f, 3) / (27 * tf.pow(F_zf * miu_f, 2))
-            F_yf_max = F_zf * miu_f
-
-            Fr_w1 = tf.square(C_r) / (3 * F_zr * miu_r)
-            Fr_w2 = tf.pow(C_r, 3) / (27 * tf.pow(F_zr * miu_r, 2))
-            F_yr_max = F_zr * miu_r
-
-            F_yf = - C_f * tf.tan(alpha_f) + Ff_w1 * tf.tan(alpha_f) * tf.abs(
-                tf.tan(alpha_f)) - Ff_w2 * tf.pow(tf.tan(alpha_f), 3)
-            F_yr = - C_r * tf.tan(alpha_r) + Fr_w1 * tf.tan(alpha_r) * tf.abs(
-                tf.tan(alpha_r)) - Fr_w2 * tf.pow(tf.tan(alpha_r), 3)
-
-            F_yf = tf.minimum(F_yf, F_yf_max)
-            F_yf = tf.maximum(F_yf, -F_yf_max)
-
-            F_yr = tf.minimum(F_yr, F_yr_max)
-            F_yr = tf.maximum(F_yr, -F_yr_max)
-
-            state_deriv = [a_x + v_y * r,
-                           (F_yf * tf.cos(steer) + F_yr) / mass - v_x * r,
-                           (a * F_yf * tf.cos(steer) - b * F_yr) / I_z,
-                           v_x * tf.cos(phi) - v_y * tf.sin(phi),
-                           v_x * tf.sin(phi) + v_y * tf.cos(phi),
-                           r * 180 / np.pi,
-                           ]
-
-            state_deriv_stack = tf.stack(state_deriv, axis=1)
-            ego_params = tf.stack([alpha_f, alpha_r, miu_f, miu_r], axis=1)
-        return state_deriv_stack, ego_params
+        return tf.stack(next_state, 1), tf.stack([alpha_f, alpha_r, miu_f, miu_r], 1)
 
     def prediction(self, x_1, u_1, frequency, RK):
-        f_xu_1, params = self.f_xu(x_1, u_1)
-        x_next = f_xu_1 / frequency + x_1
+        x_next, next_params = self.f_xu(x_1, u_1, 1/frequency)
+        return x_next, next_params
 
-        return x_next, params
+
+# class VehicleDynamics(object):
+#     def __init__(self, ):
+#         self.vehicle_params = OrderedDict(C_f=88000.,  # front wheel cornering stiffness [N/rad]
+#                                           C_r=94000.,  # rear wheel cornering stiffness [N/rad]
+#                                           a=1.14,  # distance from CG to front axle [m]
+#                                           b=1.40,  # distance from CG to rear axle [m]
+#                                           mass=1500.,  # mass [kg]
+#                                           I_z=2420.,  # Polar moment of inertia at CG [kg*m^2]
+#                                           miu=1.0,  # tire-road friction coefficient
+#                                           g=9.81,  # acceleration of gravity [m/s^2]
+#                                           )
+#         a, b, mass, g = self.vehicle_params['a'], self.vehicle_params['b'], \
+#                         self.vehicle_params['mass'], self.vehicle_params['g']
+#         F_zf, F_zr = b * mass * g / (a + b), a * mass * g / (a + b)
+#         self.vehicle_params.update(dict(F_zf=F_zf,
+#                                         F_zr=F_zr))
+#
+#     def f_xu(self, states, actions):  # states and actions are tensors, [[], [], ...]
+#         with tf.name_scope('f_xu') as scope:
+#             # veh_state = obs: v_xs, v_ys, rs, delta_ys, delta_phis, steers, a_xs
+#             # 1, 2, 0.2, 2.4, 1, 2, 0.4
+#
+#             # 0.2 * torch.tensor([1, 5, 10, 12, 5, 10, 2]
+#             # vx, vy, r, delta_phi, delta_y
+#             # veh_full_state: v_ys, rs, v_xs, phis, ys, xs
+#             v_x, v_y, r, x, y, phi = states[:, 0], states[:, 1], states[:, 2], \
+#                                      states[:, 3], states[:, 4], states[:, 5]
+#             phi = phi * np.pi / 180.
+#             steer, a_x = actions[:, 0], actions[:, 1]
+#
+#             C_f = tf.convert_to_tensor(self.vehicle_params['C_f'], dtype=tf.float32)
+#             C_r = tf.convert_to_tensor(self.vehicle_params['C_r'], dtype=tf.float32)
+#             a = tf.convert_to_tensor(self.vehicle_params['a'], dtype=tf.float32)
+#             b = tf.convert_to_tensor(self.vehicle_params['b'], dtype=tf.float32)
+#             mass = tf.convert_to_tensor(self.vehicle_params['mass'], dtype=tf.float32)
+#             I_z = tf.convert_to_tensor(self.vehicle_params['I_z'], dtype=tf.float32)
+#             miu = tf.convert_to_tensor(self.vehicle_params['miu'], dtype=tf.float32)
+#             g = tf.convert_to_tensor(self.vehicle_params['g'], dtype=tf.float32)
+#
+#             F_zf, F_zr = b * mass * g / (a + b), a * mass * g / (a + b)
+#             F_xf = tf.where(a_x < 0, mass * a_x / 2, tf.zeros_like(a_x, dtype=tf.float32))
+#             F_xr = tf.where(a_x < 0, mass * a_x / 2, mass * a_x)
+#             miu_f = tf.sqrt(tf.square(miu * F_zf) - tf.square(F_xf)) / F_zf
+#             miu_r = tf.sqrt(tf.square(miu * F_zr) - tf.square(F_xr)) / F_zr
+#             alpha_f = tf.atan((v_y + a * r) / v_x) - steer
+#             alpha_r = tf.atan((v_y - b * r) / v_x)
+#
+#             Ff_w1 = tf.square(C_f) / (3 * F_zf * miu_f)
+#             Ff_w2 = tf.pow(C_f, 3) / (27 * tf.pow(F_zf * miu_f, 2))
+#             F_yf_max = F_zf * miu_f
+#
+#             Fr_w1 = tf.square(C_r) / (3 * F_zr * miu_r)
+#             Fr_w2 = tf.pow(C_r, 3) / (27 * tf.pow(F_zr * miu_r, 2))
+#             F_yr_max = F_zr * miu_r
+#
+#             F_yf = - C_f * tf.tan(alpha_f) + Ff_w1 * tf.tan(alpha_f) * tf.abs(
+#                 tf.tan(alpha_f)) - Ff_w2 * tf.pow(tf.tan(alpha_f), 3)
+#             F_yr = - C_r * tf.tan(alpha_r) + Fr_w1 * tf.tan(alpha_r) * tf.abs(
+#                 tf.tan(alpha_r)) - Fr_w2 * tf.pow(tf.tan(alpha_r), 3)
+#
+#             F_yf = tf.minimum(F_yf, F_yf_max)
+#             F_yf = tf.maximum(F_yf, -F_yf_max)
+#
+#             F_yr = tf.minimum(F_yr, F_yr_max)
+#             F_yr = tf.maximum(F_yr, -F_yr_max)
+#
+#             state_deriv = [a_x + v_y * r,
+#                            (F_yf * tf.cos(steer) + F_yr) / mass - v_x * r,
+#                            (a * F_yf * tf.cos(steer) - b * F_yr) / I_z,
+#                            v_x * tf.cos(phi) - v_y * tf.sin(phi),
+#                            v_x * tf.sin(phi) + v_y * tf.cos(phi),
+#                            r * 180 / np.pi,
+#                            ]
+#
+#             state_deriv_stack = tf.stack(state_deriv, axis=1)
+#             ego_params = tf.stack([alpha_f, alpha_r, miu_f, miu_r], axis=1)
+#         return state_deriv_stack, ego_params
+#
+#     def prediction(self, x_1, u_1, frequency, RK):
+#         f_xu_1, params = self.f_xu(x_1, u_1)
+#         x_next = f_xu_1 / frequency + x_1
+#
+#         return x_next, params
 
 
 class EnvironmentModel(object):  # all tensors
@@ -172,53 +224,15 @@ class EnvironmentModel(object):  # all tensors
                 ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
                 cos_values, sin_values = tf.cos(rela_phis_rad-ego_phis_rad), tf.sin(rela_phis_rad-ego_phis_rad)
                 dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
-                punish_cond = logical_and(logical_and(cos_values>0, dists*tf.abs(sin_values)<(L+W)/2),
-                                          dists*tf.abs(cos_values)<10)
-                veh2veh -= tf.where(punish_cond, 10-dists*cos_values, tf.zeros_like(veh_infos[:, 0]))
+                punish_cond = logical_and(logical_and(dists*cos_values>-5., dists*tf.abs(sin_values)<(L+W)/2),
+                                          dists<10)
+                veh2veh -= tf.where(punish_cond, 10-dists, tf.zeros_like(veh_infos[:, 0]))
 
-            # ego_lws = (L - W) / 2.
-            # ego_front_points = tf.cast(ego_infos[:, 3] + ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.),
-            #                            dtype=tf.float32), \
-            #                    tf.cast(ego_infos[:, 4] + ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.),
-            #                            dtype=tf.float32)
-            # ego_rear_points = tf.cast(ego_infos[:, 3] - ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.),
-            #                           dtype=tf.float32), \
-            #                   tf.cast(ego_infos[:, 4] - ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.),
-            #                           dtype=tf.float32)
-            # coeff = 1.14
-            # rho_ego = W / 2. * coeff
-            #
-            # veh2veh = tf.zeros_like(veh_infos[:, 0])
-            # for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
-            #     vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
-            #     # for i in [6, 7, 8, 9]:
-            #     #     veh2veh -= 1. / tf.square(vehs[:, i])
-            #     veh_lws = (L - W) / 2.
-            #     rho_vehs = W / 2. * coeff
-            #     veh_front_points = tf.cast(vehs[:, 0] + veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
-            #                        tf.cast(vehs[:, 1] + veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
-            #     veh_rear_points = tf.cast(vehs[:, 0] - veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
-            #                       tf.cast(vehs[:, 1] - veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
-            #     for ego_point in [ego_front_points, ego_rear_points]:
-            #         for veh_point in [veh_front_points, veh_rear_points]:
-            #             veh2veh_dist = tf.sqrt(
-            #                 tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - \
-            #                            tf.convert_to_tensor(rho_ego + rho_vehs, dtype=tf.float32)
-            #             veh2veh -= 1 / tf.abs(veh2veh_dist)
-            #             # veh2veh -= tf.nn.relu(-(veh2veh_dist - 10.))
-            #
-            rewards = 0.04 * devi_v +  0.01 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                      2. * punish_steer + 0.0005 * punish_a_x + 0.5 * veh2veh
-            # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
-            #                         punish_a_x=punish_a_x.numpy()[0],
-            #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],
-            #                         devi_v=devi_v.numpy()[0],
+            rewards = 0.04 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.5 * veh2veh
+            # self.reward_info = dict(devi_v=devi_v.numpy()[0],
             #                         devi_y=devi_y.numpy()[0],
             #                         devi_phi=devi_phi.numpy()[0],
             #                         veh2veh=veh2veh.numpy()[0],
-            #                         scaled_punish_steer=2. * punish_steer.numpy()[0],
-            #                         scaled_punish_a_x=0.0005 * punish_a_x.numpy()[0],
-            #                         scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy()[0],
             #                         scaled_devi_v=0.04 * devi_v.numpy()[0],
             #                         scaled_devi_y=0.01 * devi_y.numpy()[0],
             #                         scaled_devi_phi=0.1 * devi_phi.numpy()[0],
