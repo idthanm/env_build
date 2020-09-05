@@ -24,8 +24,8 @@ L, W = 4.8, 2.
 
 class VehicleDynamics(object):
     def __init__(self, ):
-        self.vehicle_params = dict(C_f=128915.5,  # front wheel cornering stiffness [N/rad]
-                                   C_r=85943.6,  # rear wheel cornering stiffness [N/rad]
+        self.vehicle_params = dict(C_f=-128915.5,  # front wheel cornering stiffness [N/rad]
+                                   C_r=-85943.6,  # rear wheel cornering stiffness [N/rad]
                                    a=1.06,  # distance from CG to front axle [m]
                                    b=1.85,  # distance from CG to rear axle [m]
                                    mass=1412.,  # mass [kg]

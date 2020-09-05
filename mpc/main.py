@@ -14,6 +14,15 @@ def deal_with_phi_diff(phi_diff):
 
 # class VehicleDynamics(object):
 #     def __init__(self, ):
+#         # self.vehicle_params = dict(C_f=88000.,  # front wheel cornering stiffness [N/rad]
+#         #                            C_r=94000.,  # rear wheel cornering stiffness [N/rad]
+#         #                            a=1.14,  # distance from CG to front axle [m]
+#         #                            b=1.40,  # distance from CG to rear axle [m]
+#         #                            mass=1500.,  # mass [kg]
+#         #                            I_z=2420.,  # Polar moment of inertia at CG [kg*m^2]
+#         #                            miu=1.0,  # tire-road friction coefficient
+#         #                            g=9.81,  # acceleration of gravity [m/s^2]
+#         #                            )
 #         self.vehicle_params = dict(C_f=88000.,  # front wheel cornering stiffness [N/rad]
 #                                    C_r=94000.,  # rear wheel cornering stiffness [N/rad]
 #                                    a=1.14,  # distance from CG to front axle [m]
@@ -90,17 +99,8 @@ def deal_with_phi_diff(phi_diff):
 
 class VehicleDynamics(object):
     def __init__(self, ):
-        # self.vehicle_params = dict(C_f=88000.,  # front wheel cornering stiffness [N/rad]
-        #                            C_r=94000.,  # rear wheel cornering stiffness [N/rad]
-        #                            a=1.14,  # distance from CG to front axle [m]
-        #                            b=1.40,  # distance from CG to rear axle [m]
-        #                            mass=1500.,  # mass [kg]
-        #                            I_z=2420.,  # Polar moment of inertia at CG [kg*m^2]
-        #                            miu=1.0,  # tire-road friction coefficient
-        #                            g=9.81,  # acceleration of gravity [m/s^2]
-        #                            )
-        self.vehicle_params = dict(C_f=128915.5,  # front wheel cornering stiffness [N/rad]
-                                   C_r=85943.6,  # rear wheel cornering stiffness [N/rad]
+        self.vehicle_params = dict(C_f=-128915.5,  # front wheel cornering stiffness [N/rad]
+                                   C_r=-85943.6,  # rear wheel cornering stiffness [N/rad]
                                    a=1.06,  # distance from CG to front axle [m]
                                    b=1.85,  # distance from CG to rear axle [m]
                                    mass=1412.,  # mass [kg]
@@ -139,7 +139,6 @@ class VehicleDynamics(object):
                       x+tau*(v_x * np.cos(phi) - v_y * np.sin(phi)),
                       y+tau*(v_x * np.sin(phi) + v_y * np.cos(phi)),
                       (phi+tau*r) * 180 / np.pi]
-        # print((-I_z*r*v_x-tau*(a*C_f-b*C_r)*v_y+tau*a*C_f*steer*v_x)/(tau*(np.square(a)*C_f+np.square(b)*C_r)-I_z*v_x))
 
         return np.stack(next_state, 1), np.stack([miu_f, miu_r], 1)
 
@@ -443,7 +442,7 @@ class ModelPredictiveControl:
 
 
 if __name__ == '__main__':
-    horizon_list = [30]
+    horizon_list = [20]
     env = gym.make('CrossroadEnd2end-v0', training_task='left', num_future_data=0)
     done = 0
     for horizon in horizon_list:

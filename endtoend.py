@@ -897,7 +897,8 @@ def test_end2end():
         for j in range(50):
             # print(i)
             i += 1
-            action = np.array([0, 0], dtype=np.float32)
+            action=2*np.random.random(2)-1
+            # action = np.array([0.5, 0], dtype=np.float32)
             obs, reward, done, info = env.step(action)
             env.render()
         done = 0
