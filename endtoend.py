@@ -502,11 +502,11 @@ class CrossroadEnd2end(gym.Env):
         return orig_x, orig_y
 
     def _reset_init_state(self):
-        random_index = int(np.random.random()*900) + 800
+        random_index = int(np.random.random()*900) + 700
         # random_index = 1300
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
-        v = 4 * np.random.random() + 5
+        v = 8 * np.random.random()
         if self.training_task == 'left':
             routeID = 'dl'
         elif self.training_task == 'straight':
@@ -554,8 +554,8 @@ class CrossroadEnd2end(gym.Env):
             if (cos_value > 0. and dist*tf.abs(sin_value) < (L+W)/2 and dist < 10.) or dist < 3.:
                 veh2veh -= (10.-dist)
 
-        reward = 0.04 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                 0.5 * punish_steer + 0.0005 * punish_a_x + 0.5 * veh2veh
+        reward = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
+                 1. * punish_steer + 0.05 * punish_a_x + 0.5 * veh2veh
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
@@ -563,10 +563,10 @@ class CrossroadEnd2end(gym.Env):
                            devi_y=devi_y.numpy(),
                            devi_phi=devi_phi.numpy(),
                            veh2veh=veh2veh.numpy(),
-                           scaled_punish_steer=0.5 * punish_steer.numpy(),
-                           scaled_punish_a_x=0.0005 * punish_a_x.numpy(),
+                           scaled_punish_steer=1. * punish_steer.numpy(),
+                           scaled_punish_a_x=0.05 * punish_a_x.numpy(),
                            scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
-                           scaled_devi_v=0.04 * devi_v.numpy(),
+                           scaled_devi_v=0.01 * devi_v.numpy(),
                            scaled_devi_y=0.04 * devi_y.numpy(),
                            scaled_devi_phi=0.1 * devi_phi.numpy(),
                            scaled_veh2veh=0.5 * veh2veh.numpy(), )
