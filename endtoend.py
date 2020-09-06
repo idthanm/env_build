@@ -302,6 +302,7 @@ class CrossroadEnd2end(gym.Env):
             return True if y > 18 + 2 and 0 < x < 7.5 else False
 
     def _action_transformation_for_end2end(self, action):  # [-1, 1]
+        action = np.clip(action, -1.05, 1.05)
         steer_norm, a_x_norm = action[0], action[1]
         scaled_steer = 0.4 * steer_norm
         scaled_a_x = 3.*a_x_norm
@@ -899,7 +900,6 @@ def test_end2end():
     obs = env.reset()
     i = 0
     done = 0
-    start = time.time()
     while i < 100000:
         for j in range(50):
             # print(i)
@@ -911,8 +911,6 @@ def test_end2end():
         done = 0
         obs = env.reset()
         env.render()
-    end = time.time()
-    print(end-start)
 
 
 if __name__ == '__main__':

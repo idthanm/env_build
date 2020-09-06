@@ -146,7 +146,7 @@ class Traffic(object):
             traci.vehicle.setWidth(egoID, ego_dict['w'])
             ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi,
                                                                                            ego_l)
-            traci.vehicle.moveToXY(egoID, '0', 1, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
+            traci.vehicle.moveToXY(egoID, '1o', 0, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
             traci.vehicle.setSpeed(egoID, math.sqrt(ego_v_x ** 2 + ego_v_y ** 2))
             traci.vehicle.subscribeContext(egoID,
                                            traci.constants.CMD_GET_VEHICLE_VARIABLE,
@@ -283,7 +283,7 @@ class Traffic(object):
 
             ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi,
                                                                                            self.n_ego_dict[egoID]['l'])
-            traci.vehicle.moveToXY(egoID, '0', 1, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
+            traci.vehicle.moveToXY(egoID, '1o', 0, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
             traci.vehicle.setSpeed(egoID, math.sqrt(ego_v_x**2+ego_v_y**2))
 
     def collision_check(self):  # True: collision

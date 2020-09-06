@@ -12,6 +12,7 @@ def deal_with_phi_diff(phi_diff):
     phi_diff = np.where(phi_diff < -180., phi_diff + 360., phi_diff)
     return phi_diff
 
+
 # class VehicleDynamics(object):
 #     def __init__(self, ):
 #         # self.vehicle_params = dict(C_f=88000.,  # front wheel cornering stiffness [N/rad]
@@ -115,9 +116,9 @@ class VehicleDynamics(object):
                                         F_zr=F_zr))
 
     def f_xu(self, states, actions, tau):  # states and actions are tensors, [[], [], ...]
-        v_x, v_y, r, x, y, phi = states[:,0],states[:,1],states[:,2],states[:,3], states[:,4],states[:,5]
+        v_x, v_y, r, x, y, phi = states[:, 0], states[:, 1], states[:, 2], states[:, 3], states[:, 4], states[:, 5]
         phi = phi * np.pi / 180.
-        steer, a_x = actions[:,0],actions[:,1]
+        steer, a_x = actions[:, 0], actions[:, 1]
         C_f = self.vehicle_params['C_f']
         C_r = self.vehicle_params['C_r']
         a = self.vehicle_params['a']
@@ -133,17 +134,20 @@ class VehicleDynamics(object):
         miu_f = np.sqrt(np.square(miu * F_zf) - np.square(F_xf)) / F_zf
         miu_r = np.sqrt(np.square(miu * F_zr) - np.square(F_xr)) / F_zr
 
-        next_state = [v_x + tau*(a_x + v_y * r),
-                      (mass*v_y*v_x+tau*(a*C_f-b*C_r)*r-tau*C_f*steer*v_x-tau*mass*np.square(v_x)*r)/(mass*v_x-tau*(C_f+C_r)),
-                      (-I_z*r*v_x-tau*(a*C_f-b*C_r)*v_y+tau*a*C_f*steer*v_x)/(tau*(np.square(a)*C_f+np.square(b)*C_r)-I_z*v_x),
-                      x+tau*(v_x * np.cos(phi) - v_y * np.sin(phi)),
-                      y+tau*(v_x * np.sin(phi) + v_y * np.cos(phi)),
-                      (phi+tau*r) * 180 / np.pi]
+        next_state = [v_x + tau * (a_x + v_y * r),
+                      (mass * v_y * v_x + tau * (
+                                  a * C_f - b * C_r) * r - tau * C_f * steer * v_x - tau * mass * np.square(
+                          v_x) * r) / (mass * v_x - tau * (C_f + C_r)),
+                      (-I_z * r * v_x - tau * (a * C_f - b * C_r) * v_y + tau * a * C_f * steer * v_x) / (
+                                  tau * (np.square(a) * C_f + np.square(b) * C_r) - I_z * v_x),
+                      x + tau * (v_x * np.cos(phi) - v_y * np.sin(phi)),
+                      y + tau * (v_x * np.sin(phi) + v_y * np.cos(phi)),
+                      (phi + tau * r) * 180 / np.pi]
 
         return np.stack(next_state, 1), np.stack([miu_f, miu_r], 1)
 
     def prediction(self, x_1, u_1, frequency, RK):
-        x_next, next_params = self.f_xu(x_1, u_1, 1/frequency)
+        x_next, next_params = self.f_xu(x_1, u_1, 1 / frequency)
         return x_next, next_params
 
 
@@ -258,8 +262,8 @@ class ReferencePath(object):
                 phis_1 = np.arctan2(ys_2 - ys_1,
                                     xs_2 - xs_1) * 180 / pi
                 if i == 0:
-                    phis_1[len(start_straight_line_x):len(start_straight_line_x)+len(s_vals)] = \
-                        phis_1[len(start_straight_line_x)+100:len(start_straight_line_x)+len(s_vals)+100]
+                    phis_1[len(start_straight_line_x):len(start_straight_line_x) + len(s_vals)] = \
+                        phis_1[len(start_straight_line_x) + 100:len(start_straight_line_x) + len(s_vals) + 100]
                 planed_trj = xs_1, ys_1, phis_1
                 self.path_list.append(planed_trj)
 
@@ -297,15 +301,16 @@ class ReferencePath(object):
 
         def two2one(ref_xs, ref_ys):
             if self.task == 'left':
-                delta_ = np.sqrt(np.square(ego_xs-(-18)) + np.square(ego_ys-(-18)))-\
-                         np.sqrt(np.square(ref_xs-(-18)) + np.square(ref_ys-(-18)))
+                delta_ = np.sqrt(np.square(ego_xs - (-18)) + np.square(ego_ys - (-18))) - \
+                         np.sqrt(np.square(ref_xs - (-18)) + np.square(ref_ys - (-18)))
                 delta_ = np.where(ego_ys < -18, ego_xs - ref_xs, delta_)
                 delta_ = np.where(ego_xs < -18, ego_ys - ref_ys, delta_)
                 return delta_
+
         tracking_error = np.concatenate([np.stack([two2one(ref_point[0], ref_point[1]),
-                                              deal_with_phi_diff(ego_phis - ref_point[2]),
-                                              ego_vs - self.exp_v], 1)
-                                    for ref_point in all_ref], 1)
+                                                   deal_with_phi_diff(ego_phis - ref_point[2]),
+                                                   ego_vs - self.exp_v], 1)
+                                         for ref_point in all_ref], 1)
         return tracking_error
 
 
@@ -343,7 +348,7 @@ class ModelPredictiveControl:
 
     def ego_predict(self, ego_infos, actions):
         ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions,
-                                                                               self.fre, 1)
+                                                             self.fre, 1)
 
         return ego_next_infos
 
@@ -359,8 +364,9 @@ class ModelPredictiveControl:
         predictions_to_be_concat = []
 
         for vehs_index in range(len(veh_mode_list)):
-            predictions_to_be_concat.append(self.predict_for_a_mode(veh_infos[:, vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim],
-                                                                    veh_mode_list[vehs_index]))
+            predictions_to_be_concat.append(self.predict_for_a_mode(
+                veh_infos[:, vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim],
+                veh_mode_list[vehs_index]))
         return np.concatenate(predictions_to_be_concat, 1)
 
     def predict_for_a_mode(self, vehs, mode):
@@ -373,12 +379,12 @@ class ModelPredictiveControl:
         veh_ys_delta = veh_vs / self.fre * np.sin(veh_phis_rad)
 
         if mode in ['dl', 'rd', 'ur', 'lu']:
-            veh_phis_rad_delta = np.where(-18<veh_xs<18, (veh_vs / 19.875) / self.fre, zeros)
+            veh_phis_rad_delta = np.where(-18 < veh_xs < 18, (veh_vs / 19.875) / self.fre, zeros)
         elif mode in ['dr', 'ru', 'ul', 'ld']:
-            veh_phis_rad_delta = np.where(-18<veh_ys<18, -(veh_vs / 12.375) / self.fre, zeros)
+            veh_phis_rad_delta = np.where(-18 < veh_ys < 18, -(veh_vs / 12.375) / self.fre, zeros)
         else:
             veh_phis_rad_delta = zeros
-        next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis_rad =\
+        next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis_rad = \
             veh_xs + veh_xs_delta, veh_ys + veh_ys_delta, veh_vs, veh_phis_rad + veh_phis_rad_delta
         next_veh_phis_rad = np.where(next_veh_phis_rad > np.pi, next_veh_phis_rad - 2 * np.pi, next_veh_phis_rad)
         next_veh_phis_rad = np.where(next_veh_phis_rad <= -np.pi, next_veh_phis_rad + 2 * np.pi, next_veh_phis_rad)
@@ -426,7 +432,8 @@ class ModelPredictiveControl:
                                       dists < 10.)
             veh2veh -= np.where(punish_cond, 10. - dists, np.zeros_like(veh_infos[:, 0]))
 
-        rewards = 0.04 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.5 * veh2veh
+        rewards = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.5 * veh2veh + 0.02 * punish_yaw_rate + \
+                  1. * punish_steer + 0.05 * punish_a_x
         return rewards
 
     def cost_function(self, u):
@@ -473,7 +480,3 @@ if __name__ == '__main__':
                 obs, reward, done, info = env.step(action[:2])
                 mpc.reset_init_x(obs, env.ref_path.ref_index)
                 env.render()
-
-
-
-

@@ -20,7 +20,7 @@ from sumolib import checkBinary
 import sumolib
 import traci
 
-SUMO_BINARY = checkBinary('sumo')
+SUMO_BINARY = checkBinary('sumo-gui')
 SIM_PERIOD = 1.0 / 10
 
 dirname = os.path.dirname(__file__)
@@ -89,36 +89,35 @@ traci.vehicle.subscribeContext('ego',
                                                 traci.constants.VAR_ROUTE_INDEX],
                                        0, 2147483647)
 
-for i in range(1000):
-    if i <= 100:
-        port = sumolib.miscutils.getFreeSocketPort()
-        print(port)
-        traci.start(
-            [SUMO_BINARY, "-c", dirname + "/sumo_files/cross_test.sumocfg",
-             "--step-length", str(SIM_PERIOD),
-             "--lateral-resolution", "1.25",
-             "--random",
-             # "--start",
-             # "--quit-on-end",
-             "--no-warnings",
-             "--no-step-log",
-             # '--seed', str(int(seed))
-             ], port=port, numRetries=1)  # '--seed', str(int(seed))
-        # traci.vehicle.moveToXY('ego', '1o', 0, 16, 16, 90 - 129.2)
+# this is to debug
+# "sumo: ...MSLCM_SL2015.cpp:1913: virtual void MSLCM_SL2015::updateExpectedSublaneSpeeds(const MSLeaderDistanceInfo&, int, int): Assertion `preb.size() == lanes.size()' failed."
+# the problem happens the minute ego car get into the intersection, edgeID and lane should be tested
+for i in range(10000):
+    if i <= 10000:
+        traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=-18.6, angle=0.)
+        traci.vehicle.setSpeed('ego', 1.)
+        traci.simulationStep()
+        traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=-17., angle=0.)
+        traci.vehicle.setSpeed('ego', 1.)
+        traci.simulationStep()
+
+        # traci.vehicle.moveToXY('ego', '1o', 1, x=-17, y=1.5, angle=-90)
+        # # traci.vehicle.setSpeed('ego', 11.0)
         # traci.simulationStep()
-        # random_traffic = traci.vehicle.getContextSubscriptionResults('ego')
-        # del random_traffic['ego']
+        # traci.vehicle.moveToXY('ego', '1o', 1, x=-18.6, y=1.5, angle=-90)
+        # # traci.vehicle.setSpeed('ego', 11.0)
+        # traci.simulationStep()
 
+        # traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=17., angle=0.)
+        # # traci.vehicle.setSpeed('ego', 11.0)
+        # traci.simulationStep()
+        # traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=18.6, angle=0.)
+        # # traci.vehicle.setSpeed('ego', 11.0)
+        # traci.simulationStep()
 
-
-    # traci.vehicle.moveToXY('car2', '1o', 0, 5.625, -40)
-    # traci.vehicle.moveToXY('car3', '1o', 1, 1.875, -30)
-    elif 100<i <500 :
-        random_traffic = traci.vehicle.getContextSubscriptionResults('ego')
-
-        traci.simulationStep()
-    else:
-        traci.vehicle.moveToXY('ego', '1o', 0, -2.241, -5.148, 90 - 129.2)
-        traci.simulationStep()
-        # if i >= 150:
-        #     random_traffic = traci.vehicle.getContextSubscriptionResults('ego')
+        # traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=17., y=-1.5, angle=0.)
+        # # traci.vehicle.setSpeed('ego', 11.0)
+        # traci.simulationStep()
+        # traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=18.6, y=-1.5, angle=0.)
+        # # traci.vehicle.setSpeed('ego', 11.0)
+        # traci.simulationStep()
