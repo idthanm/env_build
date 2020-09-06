@@ -237,7 +237,7 @@ class EnvironmentModel(object):  # all tensors
                 veh2veh -= tf.where(punish_cond, 10 - dists, tf.zeros_like(veh_infos[:, 0]))
 
             rewards = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                      1. * punish_steer + 0.05 * punish_a_x + 0.5 * veh2veh
+                      0.1 * punish_steer + 0.005 * punish_a_x + 0.5 * veh2veh
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
             #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],
@@ -245,8 +245,8 @@ class EnvironmentModel(object):  # all tensors
             #                         devi_y=devi_y.numpy()[0],
             #                         devi_phi=devi_phi.numpy()[0],
             #                         veh2veh=veh2veh.numpy()[0],
-            #                         scaled_punish_steer=1. * punish_steer.numpy()[0],
-            #                         scaled_punish_a_x=0.05 * punish_a_x.numpy()[0],
+            #                         scaled_punish_steer=0.1 * punish_steer.numpy()[0],
+            #                         scaled_punish_a_x=0.005 * punish_a_x.numpy()[0],
             #                         scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy()[0],
             #                         scaled_devi_v=0.01 * devi_v.numpy()[0],
             #                         scaled_devi_y=0.04 * devi_y.numpy()[0],
