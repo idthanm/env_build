@@ -20,7 +20,7 @@ from gym.utils import seeding
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath
 from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination
-from traffic import Traffic
+from traffic import Traffic, deal_with_phi
 
 warnings.filterwarnings("ignore")
 
@@ -310,9 +310,6 @@ class CrossroadEnd2end(gym.Env):
         scaled_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
         return scaled_action
 
-    def _action_transformation_for_mpc(self, action):
-        return np.array(action, dtype=np.float32)
-
     def _get_next_ego_state(self, trans_action):
         current_v_x = self.ego_dynamics['v_x']
         current_v_y = self.ego_dynamics['v_y']
@@ -325,6 +322,8 @@ class CrossroadEnd2end(gym.Env):
         action = np.array([[steer, a_x]], dtype=np.float32)
         next_ego_state, next_ego_params = self.dynamics.prediction(state, action, 10, 1)
         next_ego_state, next_ego_params = next_ego_state.numpy()[0],  next_ego_params.numpy()[0]
+        next_ego_state[0] = next_ego_state[0] if next_ego_state[0] >= 0 else 0.
+        next_ego_state[-1] = deal_with_phi(next_ego_state[-1])
         return next_ego_state, next_ego_params
 
     def _get_obs(self, exit_='D'):
@@ -403,6 +402,8 @@ class CrossroadEnd2end(gym.Env):
                     lr.append(v)
                 elif start == name_setting['lo'] and end == name_setting['di']:
                     ld.append(v)
+            if v_light != 0 and ego_y < -18:
+                du.append(dict(x=1.875, y=-18, v=0, phi=90, l=5, w=2.5, route=None))
             # fetch veh in range
             dl = list(filter(lambda v: v['x'] > -28 and v['y'] > ego_y, dl))  # interest of left straight
             du = list(filter(lambda v: ego_y < v['y'] < 28, du))  # interest of left straight
@@ -450,7 +451,7 @@ class CrossroadEnd2end(gym.Env):
 
             fill_value_for_dl = dict(x=1.875, y=-50, v=0, phi=90, w=2.5, l=5, route=('1o', '4i'))
             fill_value_for_du = dict(x=1.875, y=-50, v=0, phi=90, w=2.5, l=5, route=('1o', '3i'))
-            fill_value_for_dr = dict(x=5.625, y=-50, v=0, phi=0, w=2.5, l=5, route=('1o', '2i'))
+            fill_value_for_dr = dict(x=5.625, y=-50, v=0, phi=90, w=2.5, l=5, route=('1o', '2i'))
 
             fill_value_for_ru = dict(x=35, y=5.625, v=0, phi=180, w=2.5, l=5, route=('2o', '3i'))
 
@@ -471,17 +472,17 @@ class CrossroadEnd2end(gym.Env):
                 tmp['ul'] = slice_or_fill(ul, fill_value_for_ul, 2)
                 veh_mode_list = [('dl', 1), ('du', 1), ('ud', 2), ('ul', 2)]
             elif task == 'straight':
-                tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, 2)
-                tmp['du'] = slice_or_fill(du, fill_value_for_du, 2)
-                tmp['ud'] = slice_or_fill(ud, fill_value_for_ud, 2)
-                tmp['ru'] = slice_or_fill(ru, fill_value_for_ru, 3)
-                tmp['ur'] = slice_or_fill(ur_straight, fill_value_for_ur_straight, 3)
-                veh_mode_list = [('dl', 2), ('du', 2), ('ud', 2), ('ru', 3), ('ur', 3)]
+                tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, 1)
+                tmp['du'] = slice_or_fill(du, fill_value_for_du, 1)
+                tmp['ud'] = slice_or_fill(ud, fill_value_for_ud, 1)
+                tmp['ru'] = slice_or_fill(ru, fill_value_for_ru, 2)
+                tmp['ur'] = slice_or_fill(ur_straight, fill_value_for_ur_straight, 2)
+                veh_mode_list = [('dl', 1), ('du', 1), ('ud', 1), ('ru', 2), ('ur', 2)]
             elif task == 'right':
-                tmp['dr'] = slice_or_fill(dr, fill_value_for_dr, 2)
-                tmp['ur'] = slice_or_fill(ur_right, fill_value_for_ur_right, 3)
-                tmp['lr'] = slice_or_fill(lr, fill_value_for_lr, 3)
-                veh_mode_list = [('dr', 2), ('ur', 3), ('lr', 3)]
+                tmp['dr'] = slice_or_fill(dr, fill_value_for_dr, 1)
+                tmp['ur'] = slice_or_fill(ur_right, fill_value_for_ur_right, 2)
+                tmp['lr'] = slice_or_fill(lr, fill_value_for_lr, 2)
+                veh_mode_list = [('dr', 1), ('ur', 2), ('lr', 2)]
 
             return tmp, veh_mode_list
 
@@ -896,7 +897,7 @@ class CrossroadEnd2end(gym.Env):
 
 def test_end2end():
     import time
-    env = CrossroadEnd2end('left')
+    env = CrossroadEnd2end('right')
     obs = env.reset()
     i = 0
     done = 0
@@ -904,8 +905,8 @@ def test_end2end():
         for j in range(50):
             # print(i)
             i += 1
-            action=2*np.random.random(2)-1
-            # action = np.array([0.5, 0], dtype=np.float32)
+            # action=2*np.random.random(2)-1
+            action = np.array([0.5, -1], dtype=np.float32)
             obs, reward, done, info = env.step(action)
             env.render()
         done = 0

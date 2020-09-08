@@ -274,18 +274,22 @@ class EnvironmentModel(object):  # all tensors
         return next_obses
 
     def ego_predict(self, ego_infos, actions):
-        ego_next_infos, ego_next_params = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions,
-                                                                           self.base_frequency, 1)
+        ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions,
+                                                             self.base_frequency, 1)
+        v_xs, v_ys, rs, xs, ys, phis = ego_next_infos[:, 0], ego_next_infos[:, 1], ego_next_infos[:, 2], \
+                                       ego_next_infos[:, 3], ego_next_infos[:, 4], ego_next_infos[:, 5]
+        v_xs = tf.clip_by_value(v_xs, 0., 35.)
+        ego_next_infos = tf.stack([v_xs, v_ys, rs, xs, ys, phis], axis=1)
         return ego_next_infos
 
     def veh_predict(self, veh_infos):
         if self.task == 'left':
             veh_mode_list = ['dl'] * 1 + ['du'] * 1 + ['ud'] * 2 + ['ul'] * 2
         elif self.task == 'straight':
-            veh_mode_list = ['dl'] * 2 + ['du'] * 2 + ['ud'] * 2 + ['ru'] * 3 + ['ur'] * 3
+            veh_mode_list = ['dl'] * 1 + ['du'] * 1 + ['ud'] * 1 + ['ru'] * 2 + ['ur'] * 2
         else:
             assert self.task == 'right'
-            veh_mode_list = ['dr'] * 2 + ['ur'] * 3 + ['lr'] * 3
+            veh_mode_list = ['dr'] * 1 + ['ur'] * 2 + ['lr'] * 2
 
         predictions_to_be_concat = []
 
@@ -581,9 +585,6 @@ class ReferencePath(object):
                 xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
                 phis_1 = np.arctan2(ys_2 - ys_1,
                                     xs_2 - xs_1) * 180 / pi
-                # if i == 1:
-                #     phis_1[len(start_straight_line_x):len(start_straight_line_x)+len(s_vals)] = \
-                #         phis_1[len(start_straight_line_x)+150:len(start_straight_line_x)+len(s_vals)+150]
                 planed_trj = xs_1, ys_1, phis_1
                 self.path_list.append(planed_trj)
 
@@ -648,9 +649,6 @@ class ReferencePath(object):
                 xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
                 phis_1 = np.arctan2(ys_2 - ys_1,
                                     xs_2 - xs_1) * 180 / pi
-                if i == 0:
-                    phis_1[len(start_straight_line_x):len(start_straight_line_x) + len(s_vals)] = \
-                        phis_1[len(start_straight_line_x) + 100:len(start_straight_line_x) + len(s_vals) + 100]
                 planed_trj = xs_1, ys_1, phis_1
                 self.path_list.append(planed_trj)
 
@@ -694,6 +692,16 @@ class ReferencePath(object):
                 delta_ = tf.where(ego_ys < -18, ego_xs - ref_xs, delta_)
                 delta_ = tf.where(ego_xs < -18, ego_ys - ref_ys, delta_)
                 return delta_
+            elif self.task == 'straight':
+                delta_ = ego_xs - ref_xs
+                return delta_
+            else:
+                assert self.task == 'right'
+                delta_ = -(tf.sqrt(tf.square(ego_xs - (18)) + tf.square(ego_ys - (-18))) -
+                           tf.sqrt(tf.square(ref_xs - (18)) + tf.square(ref_ys - (-18))))
+                delta_ = tf.where(ego_ys < -18, ego_xs - ref_xs, delta_)
+                delta_ = tf.where(ego_xs > 18, -(ego_ys - ref_ys), delta_)
+                return delta_
 
         tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
                                               deal_with_phi_diff(ego_phis - ref_point[2]),
@@ -730,7 +738,7 @@ def test_future_n_data():
 
 
 def test_tracking_error_vector():
-    path = ReferencePath('left')
+    path = ReferencePath('straight')
     xs = np.array([1.875, 1.875, -10, -20], np.float32)
     ys = np.array([-20, 0, -10, -1], np.float32)
     phis = np.array([90, 135, 135, 180], np.float32)
@@ -742,18 +750,19 @@ def test_tracking_error_vector():
 
 def test_model():
     from endtoend import CrossroadEnd2end
-    env = CrossroadEnd2end('left', 5)
-    model = EnvironmentModel('left', 5)
+    env = CrossroadEnd2end('straight', 5)
+    model = EnvironmentModel('straight', 5)
     obs_list = []
     obs = env.reset()
     done = 0
-    while not done:
+    # while not done:
+    for i in range(10):
         obs_list.append(obs)
-        action = np.array([0, 0], dtype=np.float32)
+        action = np.array([0, -1], dtype=np.float32)
         obs, reward, done, info = env.step(action)
         env.render()
     obses = np.stack(obs_list, 0)
-    model.reset(obses, 'left')
+    model.reset(obses, 'straight')
     print(obses.shape)
     for rollout_step in range(50):
         actions = tf.tile(tf.constant([[0, 0]], dtype=tf.float32), tf.constant([len(obses), 1]))
