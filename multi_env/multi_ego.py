@@ -134,7 +134,7 @@ class Simulation(object):
         for egoID, flag_list in n_ego_done.items():
             if flag_list[0]:
                 print('Ego {} collision!'.format(egoID))
-                # return 1
+                return 1
             elif flag_list[1]:
                 print('Ego {} achieve goal!'.format(egoID))
                 self.multiego.n_ego_dynamics.pop(egoID)
@@ -353,18 +353,18 @@ class Simulation(object):
 
 if __name__ == '__main__':
     init_n_ego_dict = dict(
-        DL1=dict(v_x=3, v_y=0, r=0, x=1.875, y=-30, phi=90, l=4.3, w=1.9, routeID='dl'),
-        DU1=dict(v_x=3, v_y=0, r=0, x=1.875, y=-38, phi=90, l=4.3, w=1.9, routeID='du'),
-        DR1=dict(v_x=3, v_y=0, r=0, x=5.625, y=-30, phi=90, l=4.3, w=1.9, routeID='dr'),
+        DL1=dict(v_x=5, v_y=0, r=0, x=1.875, y=-30, phi=90, l=4.3, w=1.9, routeID='dl'),
+        DU1=dict(v_x=5, v_y=0, r=0, x=1.875, y=-38, phi=90, l=4.3, w=1.9, routeID='du'),
+        DR1=dict(v_x=5, v_y=0, r=0, x=5.625, y=-30, phi=90, l=4.3, w=1.9, routeID='dr'),
         RD1=dict(v_x=3, v_y=0, r=0, x=30, y=1.875, phi=180, l=4.3, w=1.9, routeID='rd'),
         RL1=dict(v_x=3, v_y=0, r=0, x=22, y=1.875, phi=180, l=4.3, w=1.9, routeID='rl'),
-        RU1=dict(v_x=3, v_y=0, r=0, x=30, y=5.625, phi=180, l=4.3, w=1.9, routeID='ru'),
-        UR1=dict(v_x=3, v_y=0, r=0, x=-1.875, y=30, phi=-90, l=4.3, w=1.9, routeID='ur'),
-        UD1=dict(v_x=3, v_y=0, r=0, x=-1.875, y=22, phi=-90, l=4.3, w=1.9, routeID='ud'),
-        UL1=dict(v_x=3, v_y=0, r=0, x=-5.625, y=22, phi=-90, l=4.3, w=1.9, routeID='ul'),
-        LU1=dict(v_x=3, v_y=0, r=0, x=-30, y=-1.875, phi=0, l=4.3, w=1.9, routeID='lu'),
-        LR1=dict(v_x=3, v_y=0, r=0, x=-38, y=-1.875, phi=0, l=4.3, w=1.9, routeID='lr'),
-        LD1=dict(v_x=3, v_y=0, r=0, x=-30, y=-5.625, phi=0, l=4.3, w=1.9, routeID='ld'),
+        RU1=dict(v_x=5, v_y=0, r=0, x=30, y=5.625, phi=180, l=4.3, w=1.9, routeID='ru'),
+        UR1=dict(v_x=5, v_y=0, r=0, x=-1.875, y=30, phi=-90, l=4.3, w=1.9, routeID='ur'),
+        UD1=dict(v_x=5, v_y=0, r=0, x=-1.875, y=22, phi=-90, l=4.3, w=1.9, routeID='ud'),
+        UL1=dict(v_x=5, v_y=0, r=0, x=-5.625, y=22, phi=-90, l=4.3, w=1.9, routeID='ul'),
+        LU1=dict(v_x=5, v_y=0, r=0, x=-30, y=-1.875, phi=0, l=4.3, w=1.9, routeID='lu'),
+        LR1=dict(v_x=5, v_y=0, r=0, x=-38, y=-1.875, phi=0, l=4.3, w=1.9, routeID='lr'),
+        LD1=dict(v_x=5, v_y=0, r=0, x=-30, y=-5.625, phi=0, l=4.3, w=1.9, routeID='ld'),
     )
 
     simulation = Simulation(init_n_ego_dict)
