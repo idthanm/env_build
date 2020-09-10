@@ -11,7 +11,7 @@ import numpy as np
 from gym import spaces
 from tensorflow.keras.optimizers.schedules import PolynomialDecay
 
-from model import MLPNet
+from multi_env.model import MLPNet
 
 
 class PolicyWithQs(object):

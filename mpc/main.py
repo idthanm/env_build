@@ -1,10 +1,16 @@
-import numpy as np
-import gym
-from scipy.optimize import minimize
 import time
-from math import pi, cos, sin
+from math import pi
+
 import bezier
-from numpy import logical_and, logical_or
+import gym
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from numpy import logical_and
+from scipy.optimize import minimize
+
+from multi_env.multi_ego import LoadPolicy
 
 
 def deal_with_phi_diff(phi_diff):
@@ -96,6 +102,38 @@ def deal_with_phi_diff(phi_diff):
 #         f_xu_1, params = self.f_xu(x_1, u_1)
 #         x_next = f_xu_1 / frequency + x_1
 #         return x_next, params
+
+class TimerStat:
+    def __init__(self, window_size=10):
+        self._window_size = window_size
+        self._samples = []
+        self._units_processed = []
+        self._start_time = None
+        self._total_time = 0.0
+        self.count = 0
+
+    def __enter__(self):
+        assert self._start_time is None, "concurrent updates not supported"
+        self._start_time = time.time()
+
+    def __exit__(self, type, value, tb):
+        assert self._start_time is not None
+        time_delta = time.time() - self._start_time
+        self.push(time_delta)
+        self._start_time = None
+
+    def push(self, time_delta):
+        self._samples.append(time_delta)
+        if len(self._samples) > self._window_size:
+            self._samples.pop(0)
+        self.count += 1
+        self._total_time += time_delta
+
+    @property
+    def mean(self):
+        if not self._samples:
+            return 0.0
+        return float(np.mean(self._samples))
 
 
 class VehicleDynamics(object):
@@ -413,13 +451,6 @@ class ModelPredictiveControl:
         devi_phi = -np.square(tracking_infos[:, 1] * np.pi / 180.)
         devi_v = -np.square(tracking_infos[:, 2])
 
-        # rewards related to veh2veh collision
-        # veh2veh = np.zeros_like(veh_infos[:, 0])
-        # for veh_index in range(int(np.shape(veh_infos)[1] / self.per_veh_info_dim)):
-        #     vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
-        #     dists = np.sqrt(np.square(vehs[:, 0] - ego_infos[:, 3]) + np.square(vehs[:, 1] - ego_infos[:, 4]))
-        #     veh2veh -= np.where(dists<10, 10 - dists, np.zeros_like(veh_infos[:, 0]))
-
         L, W = 4.8, 2.
         veh2veh = np.zeros_like(veh_infos[:, 0])
         for veh_index in range(int(np.shape(veh_infos)[1] / self.per_veh_info_dim)):
@@ -448,35 +479,103 @@ class ModelPredictiveControl:
         return loss
 
 
-if __name__ == '__main__':
-    horizon_list = [20]
-    env = gym.make('CrossroadEnd2end-v0', training_task='left', num_future_data=0)
+def plot_mpc_rl(file_dir):
+    data = np.load(file_dir, allow_pickle=True)
+    iteration = np.array([i for i in range(len(data))])
+    mpc_steer = np.array([0.4*trunk['mpc_action'][0] for trunk in data])
+    mpc_acc = np.array([3*trunk['mpc_action'][1] for trunk in data])
+    mpc_time = np.array([trunk['mpc_time'] for trunk in data])
+    rl_steer = np.array([0.4 * trunk['rl_action'][0] for trunk in data])
+    rl_acc = np.array([3 * trunk['rl_action'][1] for trunk in data])
+    rl_time = np.array([trunk['rl_time'] for trunk in data])
+    df_mpc = pd.DataFrame({'algorithms': 'SLSQP',
+                           'iteration': iteration,
+                           'steer': mpc_steer,
+                           'acc': mpc_acc,
+                           'time': mpc_time})
+    df_rl = pd.DataFrame({'algorithms': 'CAPO',
+                          'iteration': iteration,
+                          'steer': rl_steer,
+                          'acc': rl_acc,
+                          'time': rl_time})
+    total_df = df_mpc.append(df_rl, ignore_index=True)
+    f1 = plt.figure(1)
+    ax1 = f1.add_axes([0.155, 0.12, 0.82, 0.86])
+    sns.lineplot(x="iteration", y="steer", hue="algorithms", data=total_df, linewidth=2, palette="bright",)
+    # ax1.set_ylabel('Average Q-value Estimation Bias', fontsize=15)
+    # ax1.set_xlabel("Million iterations", fontsize=15)
+    # plt.xlim(0, 3)
+    # plt.ylim(-40, 80)
+    plt.yticks(fontsize=15)
+    plt.xticks(fontsize=15)
+
+    f2 = plt.figure(2)
+    ax2 = f2.add_axes([0.155, 0.12, 0.82, 0.86])
+    sns.lineplot(x="iteration", y="acc", hue="algorithms", data=total_df, linewidth=2, palette="bright", )
+    # ax2.set_ylabel('Average Q-value Estimation Bias', fontsize=15)
+    # ax2.set_xlabel("Million iterations", fontsize=15)
+    # plt.xlim(0, 3)
+    # plt.ylim(-40, 80)
+    plt.yticks(fontsize=15)
+    plt.xticks(fontsize=15)
+
+    f3 = plt.figure(3)
+    ax3 = f3.add_axes([0.155, 0.12, 0.82, 0.86])
+    sns.lineplot(x="iteration", y="time", hue="algorithms", data=total_df, linewidth=2, palette="bright", )
+    # ax3.set_ylabel('Average Q-value Estimation Bias', fontsize=15)
+    # ax3.set_xlabel("Million iterations", fontsize=15)
+    # plt.xlim(0, 3)
+    # plt.ylim(-40, 80)
+    plt.yticks(fontsize=15)
+    plt.xticks(fontsize=15)
+    plt.show()
+
+
+def run_mpc():
+    horizon_list = [25]
     done = 0
+    mpc_timer, rl_timer = TimerStat(), TimerStat()
+    rl_policy = LoadPolicy('../multi_env/models/left', 94000)
+    env = gym.make('CrossroadEnd2end-v0', training_task='left', num_future_data=0)
+
     for horizon in horizon_list:
-        for i in range(10):
+        for i in range(1):
+            data2plot = []
             obs = env.reset()
             mpc = ModelPredictiveControl(obs, horizon)
             bounds = [(-1., 1.), (-1., 1.)] * horizon
             u_init = np.zeros((horizon, 2))
             mpc.reset_init_x(obs, env.ref_path.ref_index)
-            for _ in range(50):
-                start_time = time.time()
-                results = minimize(mpc.cost_function,
-                                   x0=u_init.flatten(),
-                                   method='SLSQP',
-                                   bounds=bounds,
-                                   tol=1e-1,
-                                   options={'disp': True}
-                                   )
-                action = results.x
-                # print(action)
-                # print(results.success, results.message)
-                end_time = time.time()
+            for _ in range(90):
+                with mpc_timer:
+                    results = minimize(mpc.cost_function,
+                                       x0=u_init.flatten(),
+                                       method='SLSQP',
+                                       bounds=bounds,
+                                       tol=1e-1,
+                                       options={'disp': True}
+                                       )
+                mpc_action = results.x
+                with rl_timer:
+                    rl_action = rl_policy.run(obs)
+                data2plot.append(dict(mpc_action=mpc_action,
+                                      rl_action=rl_action,
+                                      mpc_time=mpc_timer.mean,
+                                      rl_time=rl_timer.mean, ))
 
-                # u_init = np.concatenate([action[2:], action[-2:]])
+                # print(mpc_action)
+                # print(results.success, results.message)
+                # u_init = np.concatenate([mpc_action[2:], mpc_action[-2:]])
                 if not results.success:
                     print('fail')
-                    action = [0., 0.]
-                obs, reward, done, info = env.step(action[:2])
+                    mpc_action = [0., 0.]
+                obs, reward, done, info = env.step(mpc_action[:2])
                 mpc.reset_init_x(obs, env.ref_path.ref_index)
                 env.render()
+            np.save('./mpc_rl.npy', np.array(data2plot))
+
+
+if __name__ == '__main__':
+    plot_mpc_rl('./mpc_rl.npy')
+
+

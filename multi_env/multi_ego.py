@@ -23,6 +23,14 @@ from multi_env.policy import PolicyWithQs
 from multi_env.preprocessor import Preprocessor
 
 
+NAME2TASK = dict(DL='left', DU='straight', DR='right',
+                 RD='left', RL='straight', RU='right',
+                 UR='left', UD='straight', UL='right',
+                 LU='left', LR='straight', LD='right')
+ROTATE_ANGLE = dict(D=0, R=90, U=180, L=-90)
+dirname = os.path.dirname(__file__)
+
+
 class LoadPolicy(object):
     def __init__(self, model_dir, iter):
         parser = argparse.ArgumentParser()
@@ -45,20 +53,11 @@ class LoadPolicy(object):
         return action.numpy()[0]
 
 
-NAME2TASK = dict(DL='left', DU='straight', DR='right',
-                 RD='left', RL='straight', RU='right',
-                 UR='left', UD='straight', UL='right',
-                 LU='left', LR='straight', LD='right')
-ROTATE_ANGLE = dict(D=0, R=90, U=180, L=-90)
-dirname = os.path.dirname(__file__)
-TASK2MODEL = dict(left=LoadPolicy(dirname + '/models/left', 94000),
-                  straight=LoadPolicy(dirname + '/models/straight', 94000),
-                  right=LoadPolicy(dirname + '/models/right', 94000),
-                  )
-
-
 class MultiEgo(object):
     def __init__(self, init_n_ego_dict):  # init_n_ego_dict is used to init traffic (mainly) and ego dynamics
+        self.TASK2MODEL = dict(left=LoadPolicy(dirname + '/models/left', 94000),
+                               straight=LoadPolicy(dirname + '/models/straight', 94000),
+                               right=LoadPolicy(dirname + '/models/right', 94000),)
         self.n_ego_instance = {}
         self.n_ego_dynamics = {}
         for egoID, ego_dict in init_n_ego_dict.items():
@@ -95,7 +94,7 @@ class MultiEgo(object):
             self.n_ego_instance[egoID].v_light = v_light_trans
             obs = self.n_ego_instance[egoID]._get_obs(exit_=egoID[0])
             task = NAME2TASK[egoID[:2]]
-            logits = TASK2MODEL[task].run(obs)
+            logits = self.TASK2MODEL[task].run(obs)
             action_trans = self.n_ego_instance[egoID]._action_transformation_for_end2end(logits)
             next_ego_state, next_ego_params = self.n_ego_instance[egoID]._get_next_ego_state(action_trans)
             next_ego_dynamics = self.n_ego_instance[egoID]._get_ego_dynamics(next_ego_state, next_ego_params)
