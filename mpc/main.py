@@ -488,6 +488,9 @@ def plot_mpc_rl(file_dir):
     rl_steer = np.array([0.4 * trunk['rl_action'][0] for trunk in data])
     rl_acc = np.array([3 * trunk['rl_action'][1] for trunk in data])
     rl_time = np.array([trunk['rl_time'] for trunk in data])
+    print("mean_mpc_time: {}, mean_rl_time: {}".format(np.mean(mpc_time), np.mean(rl_time)))
+    print("var_mpc_time: {}, var_rl_time: {}".format(np.var(mpc_time), np.var(rl_time)))
+
     df_mpc = pd.DataFrame({'algorithms': 'SLSQP',
                            'iteration': iteration,
                            'steer': mpc_steer,
@@ -557,7 +560,7 @@ def run_mpc():
                                        )
                 mpc_action = results.x
                 with rl_timer:
-                    rl_action = rl_policy.run(obs)
+                    rl_action = rl_policy.run(obs).numpy()[0]
                 data2plot.append(dict(mpc_action=mpc_action,
                                       rl_action=rl_action,
                                       mpc_time=mpc_timer.mean,
@@ -572,10 +575,11 @@ def run_mpc():
                 obs, reward, done, info = env.step(mpc_action[:2])
                 mpc.reset_init_x(obs, env.ref_path.ref_index)
                 env.render()
-            np.save('./mpc_rl.npy', np.array(data2plot))
+            np.save('mpc_rl.npy', np.array(data2plot))
 
 
 if __name__ == '__main__':
-    plot_mpc_rl('./mpc_rl.npy')
+    # run_mpc()
+    plot_mpc_rl('mpc_rl_1.npy')
 
 

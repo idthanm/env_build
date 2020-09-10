@@ -11,6 +11,7 @@ import argparse
 import copy
 import json
 import os
+import tensorflow as tf
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -45,12 +46,14 @@ class LoadPolicy(object):
                                          self.args.obs_scale_factor, self.args.reward_scale_factor,
                                          gamma=self.args.gamma)
         # self.preprocessor.load_params(load_dir)
+        self.run(env.reset())
         env.close()
 
+    @tf.function
     def run(self, obs):
-        processed_obs = self.preprocessor.np_process_obses(np.array([obs]))
+        processed_obs = self.preprocessor.tf_process_obses(tf.convert_to_tensor([obs]))
         action, neglogp = self.policy.compute_action(processed_obs)
-        return action.numpy()[0]
+        return action
 
 
 class MultiEgo(object):
@@ -94,7 +97,7 @@ class MultiEgo(object):
             self.n_ego_instance[egoID].v_light = v_light_trans
             obs = self.n_ego_instance[egoID]._get_obs(exit_=egoID[0])
             task = NAME2TASK[egoID[:2]]
-            logits = self.TASK2MODEL[task].run(obs)
+            logits = self.TASK2MODEL[task].run(obs).numpy()[0]
             action_trans = self.n_ego_instance[egoID]._action_transformation_for_end2end(logits)
             next_ego_state, next_ego_params = self.n_ego_instance[egoID]._get_next_ego_state(action_trans)
             next_ego_dynamics = self.n_ego_instance[egoID]._get_ego_dynamics(next_ego_state, next_ego_params)
