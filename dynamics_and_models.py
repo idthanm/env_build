@@ -163,7 +163,7 @@ class VehicleDynamics(object):
 
 
 class EnvironmentModel(object):  # all tensors
-    def __init__(self, task, num_future_data=5):
+    def __init__(self, task, num_future_data=0):
         self.task = task
         self.vehicle_dynamics = VehicleDynamics()
         self.base_frequency = 10.

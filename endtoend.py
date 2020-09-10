@@ -101,7 +101,7 @@ MODE2TASK = {'dr': 'right', 'du': 'straight', 'dl': 'left',
 class CrossroadEnd2end(gym.Env):
     def __init__(self,
                  training_task,  # 'left', 'straight', 'right'
-                 num_future_data=5,
+                 num_future_data=0,
                  display=False):
         metadata = {'render.modes': ['human']}
         self.dynamics = VehicleDynamics()
@@ -115,7 +115,7 @@ class CrossroadEnd2end(gym.Env):
         self.init_state = {}
         self.action_number = 2
         self.exp_v = 8.
-        self.ego_l, self.ego_w = 4.8, 1.8
+        self.ego_l, self.ego_w = 4.3, 1.9
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(self.action_number,), dtype=np.float32)
 
         self.seed()
@@ -124,11 +124,11 @@ class CrossroadEnd2end(gym.Env):
 
         self.step_time = self.step_length / 1000.0
         self.init_state = self._reset_init_state()
-        self.traffic = Traffic(self.step_length,
-                               mode='training',
-                               init_n_ego_dict=self.init_state,
-                               training_task=self.training_task)
         if not display:
+            self.traffic = Traffic(self.step_length,
+                                   mode='training',
+                                   init_n_ego_dict=self.init_state,
+                                   training_task=self.training_task)
             self.reset()
             action = self.action_space.sample()
             observation, _reward, done, _info = self.step(action)
@@ -306,6 +306,9 @@ class CrossroadEnd2end(gym.Env):
         steer_norm, a_x_norm = action[0], action[1]
         scaled_steer = 0.4 * steer_norm
         scaled_a_x = 3.*a_x_norm
+        if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
+            scaled_steer = 0.
+            scaled_a_x = -3.
 
         scaled_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
         return scaled_action
@@ -407,8 +410,6 @@ class CrossroadEnd2end(gym.Env):
             # fetch veh in range
             dl = list(filter(lambda v: v['x'] > -28 and v['y'] > ego_y, dl))  # interest of left straight
             du = list(filter(lambda v: ego_y < v['y'] < 28, du))  # interest of left straight
-            if self.training_task == 'left':
-                du = list(filter(lambda v: ego_y < v['y'] < 28 and v['x'] < ego_x + 5, du))
 
             dr = list(filter(lambda v: v['x'] < 28 and v['y'] > ego_y, dr))  # interest of right
 
@@ -504,7 +505,13 @@ class CrossroadEnd2end(gym.Env):
         return orig_x, orig_y
 
     def _reset_init_state(self):
-        random_index = int(np.random.random()*900) + 700
+        if self.training_task == 'left':
+            random_index = int(np.random.random()*900) + 700
+        elif self.training_task == 'straight':
+            random_index = int(np.random.random()*1080) + 700
+        else:
+            random_index = int(np.random.random()*390) + 700
+
         # random_index = 1300
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
