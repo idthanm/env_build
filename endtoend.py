@@ -506,13 +506,13 @@ class CrossroadEnd2end(gym.Env):
 
     def _reset_init_state(self):
         if self.training_task == 'left':
-            random_index = int(np.random.random()*900) + 700
+            random_index = int(np.random.random()*(900+500)) + 700
         elif self.training_task == 'straight':
-            random_index = int(np.random.random()*1080) + 700
+            random_index = int(np.random.random()*(1080+500)) + 700
         else:
-            random_index = int(np.random.random()*390) + 700
+            random_index = int(np.random.random()*(390+500)) + 700
 
-        # random_index = 1300
+        # random_index = 1200
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 8 * np.random.random()
