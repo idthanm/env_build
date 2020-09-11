@@ -357,7 +357,7 @@ class Simulation(object):
 if __name__ == '__main__':
     init_n_ego_dict = dict(
         DL1=dict(v_x=5, v_y=0, r=0, x=1.875, y=-30, phi=90, l=4.3, w=1.9, routeID='dl'),
-        DU1=dict(v_x=5, v_y=0, r=0, x=1.875, y=-38, phi=90, l=4.3, w=1.9, routeID='du'),
+        DU1=dict(v_x=8, v_y=0, r=0, x=1.875, y=-38, phi=90, l=4.3, w=1.9, routeID='du'),
         DR1=dict(v_x=5, v_y=0, r=0, x=5.625, y=-30, phi=90, l=4.3, w=1.9, routeID='dr'),
         RD1=dict(v_x=3, v_y=0, r=0, x=30, y=1.875, phi=180, l=4.3, w=1.9, routeID='rd'),
         RL1=dict(v_x=3, v_y=0, r=0, x=22, y=1.875, phi=180, l=4.3, w=1.9, routeID='rl'),
