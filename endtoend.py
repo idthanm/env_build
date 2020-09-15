@@ -306,9 +306,9 @@ class CrossroadEnd2end(gym.Env):
         steer_norm, a_x_norm = action[0], action[1]
         scaled_steer = 0.4 * steer_norm
         scaled_a_x = 3.*a_x_norm
-        if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
-            scaled_steer = 0.
-            scaled_a_x = -3.
+        # if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
+        #     scaled_steer = 0.
+        #     scaled_a_x = -3.
 
         scaled_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
         return scaled_action
