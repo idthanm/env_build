@@ -464,7 +464,7 @@ class ModelPredictiveControl:
             veh2veh -= np.where(punish_cond, 10. - dists, np.zeros_like(veh_infos[:, 0]))
 
         rewards = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.5 * veh2veh + 0.02 * punish_yaw_rate + \
-                  1. * punish_steer + 0.05 * punish_a_x
+                  0.1 * punish_steer + 0.005 * punish_a_x
         return rewards
 
     def cost_function(self, u):
@@ -538,7 +538,7 @@ def run_mpc():
     horizon_list = [25]
     done = 0
     mpc_timer, rl_timer = TimerStat(), TimerStat()
-    rl_policy = LoadPolicy('../multi_env/models/left', 94000)
+    # rl_policy = LoadPolicy('../multi_env/models/left', 94000)
     env = gym.make('CrossroadEnd2end-v0', training_task='left', num_future_data=0)
 
     for horizon in horizon_list:
@@ -559,12 +559,12 @@ def run_mpc():
                                        options={'disp': True}
                                        )
                 mpc_action = results.x
-                with rl_timer:
-                    rl_action = rl_policy.run(obs).numpy()[0]
-                data2plot.append(dict(mpc_action=mpc_action,
-                                      rl_action=rl_action,
-                                      mpc_time=mpc_timer.mean,
-                                      rl_time=rl_timer.mean, ))
+                # with rl_timer:
+                #     rl_action = rl_policy.run(obs).numpy()[0]
+                # data2plot.append(dict(mpc_action=mpc_action,
+                #                       rl_action=rl_action,
+                #                       mpc_time=mpc_timer.mean,
+                #                       rl_time=rl_timer.mean, ))
 
                 # print(mpc_action)
                 # print(results.success, results.message)
@@ -575,11 +575,11 @@ def run_mpc():
                 obs, reward, done, info = env.step(mpc_action[:2])
                 mpc.reset_init_x(obs, env.ref_path.ref_index)
                 env.render()
-            np.save('mpc_rl.npy', np.array(data2plot))
+            # np.save('mpc_rl.npy', np.array(data2plot))
 
 
 if __name__ == '__main__':
-    # run_mpc()
-    plot_mpc_rl('mpc_rl_1.npy')
+    run_mpc()
+    # plot_mpc_rl('mpc_rl_1.npy')
 
 
