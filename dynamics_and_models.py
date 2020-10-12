@@ -552,6 +552,10 @@ class ReferencePath(object):
         self.ref_index = np.random.choice([0, 1])
         self.path = self.path_list[self.ref_index]
 
+    def _set_path(self):
+        pass
+        # self.path = shengcheng的轨迹
+
     def _construct_ref_path(self, task):
         sl = 40
         planed_trj = None
