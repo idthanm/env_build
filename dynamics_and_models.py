@@ -552,7 +552,7 @@ class ReferencePath(object):
         self.ref_index = np.random.choice([0, 1])
         self.path = self.path_list[self.ref_index]
 
-    def set_path(self):
+    def _set_path(self):
         pass
         # self.path = shengcheng的轨迹
 
