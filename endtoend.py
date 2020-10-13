@@ -323,7 +323,7 @@ class CrossroadEnd2end(gym.Env):
         steer, a_x = trans_action
         state = np.array([[current_v_x, current_v_y, current_r, current_x, current_y, current_phi]], dtype=np.float32)
         action = np.array([[steer, a_x]], dtype=np.float32)
-        next_ego_state, next_ego_params = self.dynamics.prediction(state, action, 10, 1)
+        next_ego_state, next_ego_params = self.dynamics.prediction(state, action, 10)
         next_ego_state, next_ego_params = next_ego_state.numpy()[0],  next_ego_params.numpy()[0]
         next_ego_state[0] = next_ego_state[0] if next_ego_state[0] >= 0 else 0.
         next_ego_state[-1] = deal_with_phi(next_ego_state[-1])

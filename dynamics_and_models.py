@@ -7,7 +7,6 @@
 # @FileName: dynamics_and_models.py
 # =====================================
 
-from collections import OrderedDict
 from math import pi, cos, sin
 
 import bezier
@@ -72,7 +71,7 @@ class VehicleDynamics(object):
 
         return tf.stack(next_state, 1), tf.stack([alpha_f, alpha_r, miu_f, miu_r], 1)
 
-    def prediction(self, x_1, u_1, frequency, RK):
+    def prediction(self, x_1, u_1, frequency):
         x_next, next_params = self.f_xu(x_1, u_1, 1 / frequency)
         return x_next, next_params
 
@@ -155,7 +154,7 @@ class VehicleDynamics(object):
 #             ego_params = tf.stack([alpha_f, alpha_r, miu_f, miu_r], axis=1)
 #         return state_deriv_stack, ego_params
 #
-#     def prediction(self, x_1, u_1, frequency, RK):
+#     def prediction(self, x_1, u_1, frequency):
 #         f_xu_1, params = self.f_xu(x_1, u_1)
 #         x_next = f_xu_1 / frequency + x_1
 #
@@ -171,7 +170,7 @@ class EnvironmentModel(object):  # all tensors
         self.ego_params = None
         self.actions = None
         self.task = None
-        self.ref_path = None
+        # self.ref_path = None
         self.num_future_data = num_future_data
         self.exp_v = 8.
         self.reward_info = None
@@ -183,7 +182,7 @@ class EnvironmentModel(object):  # all tensors
         self.obses = obses
         self.actions = None
         self.task = task
-        self.ref_path = ReferencePath(task, mode='training')
+        # self.ref_path = ReferencePath(task, mode='training')
         self.reward_info = None
 
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
@@ -264,23 +263,34 @@ class EnvironmentModel(object):  # all tensors
 
         next_ego_infos = self.ego_predict(ego_infos, actions)
 
-        next_tracking_infos = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
-                                                                  next_ego_infos[:, 4],
-                                                                  next_ego_infos[:, 5],
-                                                                  next_ego_infos[:, 0],
-                                                                  self.num_future_data)
+        # next_tracking_infos = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
+        #                                                           next_ego_infos[:, 4],
+        #                                                           next_ego_infos[:, 5],
+        #                                                           next_ego_infos[:, 0],
+        #                                                           self.num_future_data)
+        next_tracking_infos = self.tracking_error_predict(ego_infos, tracking_infos, actions)
         next_veh_infos = self.veh_predict(veh_infos)
         next_obses = tf.concat([next_ego_infos, next_tracking_infos, next_veh_infos], 1)
         return next_obses
 
     def ego_predict(self, ego_infos, actions):
-        ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions,
-                                                             self.base_frequency, 1)
+        ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions, self.base_frequency)
         v_xs, v_ys, rs, xs, ys, phis = ego_next_infos[:, 0], ego_next_infos[:, 1], ego_next_infos[:, 2], \
                                        ego_next_infos[:, 3], ego_next_infos[:, 4], ego_next_infos[:, 5]
         v_xs = tf.clip_by_value(v_xs, 0., 35.)
         ego_next_infos = tf.stack([v_xs, v_ys, rs, xs, ys, phis], axis=1)
         return ego_next_infos
+
+    def tracking_error_predict(self, ego_infos, tracking_infos, actions):
+        v_xs, v_ys, rs, xs, ys, phis = ego_infos[:, 0], ego_infos[:, 1], ego_infos[:, 2],\
+                                       ego_infos[:, 3], ego_infos[:, 4], ego_infos[:, 5]
+        delta_ys, delta_phis, delta_vs = tracking_infos[:, 0], tracking_infos[:, 1], tracking_infos[:, 2]
+        rela_obs = tf.stack([v_xs, v_ys, rs, xs, delta_ys, delta_phis], axis=1)
+        rela_obs_tp1, _ = self.vehicle_dynamics.prediction(rela_obs, actions, self.base_frequency)
+        v_xs_tp1, v_ys_tp1, rs_tp1, xs_tp1, delta_ys_tp1, delta_phis_tp1 = rela_obs_tp1[:, 0], rela_obs_tp1[:, 1], rela_obs_tp1[:, 2], \
+                                                                           rela_obs_tp1[:, 3], rela_obs_tp1[:, 4], rela_obs_tp1[:, 5]
+        next_tracking_infos = tf.stack([delta_ys_tp1, delta_phis_tp1, v_xs_tp1-self.exp_v], axis=1)
+        return next_tracking_infos
 
     def veh_predict(self, veh_infos):
         if self.task == 'left':
@@ -485,14 +495,14 @@ class EnvironmentModel(object):  # all tensors
             draw_rotate_rec(ego_x, ego_y, ego_phi, L, W, 'red')
 
             # plot planed trj
-            ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
-            indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32),
-                                                              np.array([ego_y], np.float32))
-            path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-            delta_x, delta_y, delta_phi, delta_v = tracing_info[:4]
-            # delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
-            plt.plot(path_x, path_y, 'go')
-            plot_phi_line(path_x, path_y, path_phi, 'g')
+            # ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
+            # indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32),
+            #                                                   np.array([ego_y], np.float32))
+            # path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+            # delta_x, delta_y, delta_phi, delta_v = tracing_info[:4]
+            # # delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
+            # plt.plot(path_x, path_y, 'go')
+            # plot_phi_line(path_x, path_y, path_phi, 'g')
 
             # plot text
             text_x, text_y_start = -110, 60
@@ -505,13 +515,13 @@ class EnvironmentModel(object):  # all tensors
             #                                                                                          min([right1, right2])))
             # plt.text(text_x, text_y_start - next(ge), '1deltas {:.2f} {:.2f}'.format(point11x, point11y))
             # plt.text(text_x, text_y_start - next(ge), '2deltas {:.2f} {:.2f}'.format(point12x, point12y))
-            plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
-            plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
-            plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
-            plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
+            # plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
+            # plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
+            # plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
+            # plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
             plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
-            plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
-            plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
+            # plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
+            # plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
 
             plt.text(text_x, text_y_start - next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
             plt.text(text_x, text_y_start - next(ge), 'exp_v: {:.2f}m/s'.format(self.exp_v))
@@ -750,8 +760,8 @@ def test_tracking_error_vector():
 
 def test_model():
     from endtoend import CrossroadEnd2end
-    env = CrossroadEnd2end('straight', 5)
-    model = EnvironmentModel('straight', 5)
+    env = CrossroadEnd2end('straight', 0)
+    model = EnvironmentModel('straight', 0)
     obs_list = []
     obs = env.reset()
     done = 0
