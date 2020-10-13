@@ -12,7 +12,8 @@ from dynamics_and_models import EnvironmentModel
 
 
 class HierarchicalDecision(object):
-    def __init__(self):
+    def __init__(self, task):
+        self.task = task
         env = CrossroadEnd2end()
         model = EnvironmentModel()
         # policy = LoadPolicy()
@@ -23,7 +24,7 @@ class HierarchicalDecision(object):
         return self.env.reset()
 
     def step(self,):
-        # traj_list, final_traj = self.stg.generate_static_trajectories(self.obs)
+        # traj_list, final_traj = self.stg.generate_and_select_static_trajectories(self.task, self.obs)
         # self.env.set_traj(final_traj)
         # self.obs = self.env._get_obs()
         # action = self.policy(self.obs)
