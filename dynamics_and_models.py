@@ -489,6 +489,7 @@ class EnvironmentModel(object):  # all tensors
             # ego_alpha_f, ego_alpha_r, ego_miu_f, ego_miu_r,\
             # up1, down1, left1, right1, point11x, point11y, point12x, point12y, \
             # up2, down2, left2, right2, point21x, point21y, point22x, point22y= ego_info
+            delta_y, delta_phi = tracing_info[0], tracing_info[1]
             ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi = ego_info
 
             plot_phi_line(ego_x, ego_y, ego_phi, 'red')
@@ -518,10 +519,10 @@ class EnvironmentModel(object):  # all tensors
             # plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
             # plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
             # plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
-            # plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
+            plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
             plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
             # plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
-            # plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
+            plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
 
             plt.text(text_x, text_y_start - next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
             plt.text(text_x, text_y_start - next(ge), 'exp_v: {:.2f}m/s'.format(self.exp_v))
@@ -701,17 +702,17 @@ class ReferencePath(object):
                          tf.sqrt(tf.square(ref_xs - (-18)) + tf.square(ref_ys - (-18)))
                 delta_ = tf.where(ego_ys < -18, ego_xs - ref_xs, delta_)
                 delta_ = tf.where(ego_xs < -18, ego_ys - ref_ys, delta_)
-                return delta_
+                return -delta_
             elif self.task == 'straight':
                 delta_ = ego_xs - ref_xs
-                return delta_
+                return -delta_
             else:
                 assert self.task == 'right'
                 delta_ = -(tf.sqrt(tf.square(ego_xs - (18)) + tf.square(ego_ys - (-18))) -
                            tf.sqrt(tf.square(ref_xs - (18)) + tf.square(ref_ys - (-18))))
                 delta_ = tf.where(ego_ys < -18, ego_xs - ref_xs, delta_)
                 delta_ = tf.where(ego_xs > 18, -(ego_ys - ref_ys), delta_)
-                return delta_
+                return -delta_
 
         tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
                                               deal_with_phi_diff(ego_phis - ref_point[2]),
@@ -760,8 +761,8 @@ def test_tracking_error_vector():
 
 def test_model():
     from endtoend import CrossroadEnd2end
-    env = CrossroadEnd2end('straight', 0)
-    model = EnvironmentModel('straight', 0)
+    env = CrossroadEnd2end('left', 0)
+    model = EnvironmentModel('left', 0)
     obs_list = []
     obs = env.reset()
     done = 0
@@ -772,10 +773,10 @@ def test_model():
         obs, reward, done, info = env.step(action)
         env.render()
     obses = np.stack(obs_list, 0)
-    model.reset(obses, 'straight')
+    model.reset(obses, 'left')
     print(obses.shape)
-    for rollout_step in range(50):
-        actions = tf.tile(tf.constant([[0, 0]], dtype=tf.float32), tf.constant([len(obses), 1]))
+    for rollout_step in range(100):
+        actions = tf.tile(tf.constant([[0.5, 0]], dtype=tf.float32), tf.constant([len(obses), 1]))
         obses, rewards = model.rollout_out(actions)
         print(rewards.numpy()[0])
         model.render()
