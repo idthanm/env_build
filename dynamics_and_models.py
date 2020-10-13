@@ -217,26 +217,47 @@ class EnvironmentModel(object):  # all tensors
             punish_yaw_rate = -tf.square(ego_infos[:, 2])
 
             # rewards related to tracking error
-            # devi_v = -tf.cast(tf.square(ego_infos[:, 0] - self.exp_v), dtype=tf.float32)
             devi_y = -tf.square(tracking_infos[:, 0])
             devi_phi = -tf.cast(tf.square(tracking_infos[:, 1] * np.pi / 180.), dtype=tf.float32)
             devi_v = -tf.square(tracking_infos[:, 2])
 
             # rewards related to veh2veh collision
+            ego_lws = (L - W) / 2.
+            coeff = 1.14
+            rho_ego = W / 2. * coeff
+            ego_front_points = tf.cast(ego_infos[:, 3] + ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32), \
+                               tf.cast(ego_infos[:, 4] + ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
+            ego_rear_points = tf.cast(ego_infos[:, 3] - ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32), \
+                              tf.cast(ego_infos[:, 4] - ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
             veh2veh = tf.zeros_like(veh_infos[:, 0])
+            # for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
+            #     vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
+            #     rela_phis_rad = tf.atan2(vehs[:, 1] - ego_infos[:, 4], vehs[:, 0] - ego_infos[:, 3])
+            #     ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
+            #     cos_values, sin_values = tf.cos(rela_phis_rad - ego_phis_rad), tf.sin(rela_phis_rad - ego_phis_rad)
+            #     dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
+            #     punish_cond = logical_or(logical_and(
+            #         logical_and(cos_values > 0., dists * tf.abs(sin_values) < (L + W) / 2),
+            #         dists < 10), dists<3.)
+            #     veh2veh -= tf.where(punish_cond, 10 - dists, tf.zeros_like(veh_infos[:, 0]))
+
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
-                rela_phis_rad = tf.atan2(vehs[:, 1] - ego_infos[:, 4], vehs[:, 0] - ego_infos[:, 3])
-                ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
-                cos_values, sin_values = tf.cos(rela_phis_rad - ego_phis_rad), tf.sin(rela_phis_rad - ego_phis_rad)
-                dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
-                punish_cond = logical_or(logical_and(
-                    logical_and(cos_values > 0., dists * tf.abs(sin_values) < (L + W) / 2),
-                    dists < 10), dists<3.)
-                veh2veh -= tf.where(punish_cond, 10 - dists, tf.zeros_like(veh_infos[:, 0]))
-
+                veh_lws = (L - W) / 2.
+                rho_vehs = W / 2. * coeff
+                veh_front_points = tf.cast(vehs[:, 0] + veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
+                                   tf.cast(vehs[:, 1] + veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
+                veh_rear_points = tf.cast(vehs[:, 0] - veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
+                                  tf.cast(vehs[:, 1] - veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
+                for ego_point in [ego_front_points, ego_rear_points]:
+                    for veh_point in [veh_front_points, veh_rear_points]:
+                        veh2veh_dist = tf.sqrt(
+                            tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - \
+                                       tf.convert_to_tensor(rho_ego + rho_vehs, dtype=tf.float32)
+                        if veh2veh_dist < 0:
+                            veh2veh -= tf.square(veh2veh_dist)
             rewards = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                      5 * punish_steer + 0.05 * punish_a_x + 0.5 * veh2veh
+                      5 * punish_steer + 0.05 * punish_a_x + 5 * veh2veh
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
             #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],
