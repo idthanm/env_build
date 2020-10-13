@@ -845,8 +845,9 @@ class CrossroadEnd2end(gym.Env):
 
             delta_, _, _ = tracking_info[:3]
             ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
-            indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
-            path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+            indexs, _ = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
+            tracking_point = self.ref_path.indexs2points(indexs+30)
+            path_x, path_y, path_phi = tracking_point[0][0], tracking_point[1][0], tracking_point[2][0]
             plt.plot(path_x, path_y, 'g.')
             delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
 
