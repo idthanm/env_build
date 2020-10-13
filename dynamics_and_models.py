@@ -254,8 +254,8 @@ class EnvironmentModel(object):  # all tensors
                         veh2veh_dist = tf.sqrt(
                             tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - \
                                        tf.convert_to_tensor(rho_ego + rho_vehs, dtype=tf.float32)
-                        if veh2veh_dist < 0:
-                            veh2veh -= tf.square(veh2veh_dist)
+                        veh2veh -= tf.where(veh2veh_dist < 0, tf.square(veh2veh_dist), tf.zeros_like(veh_infos[:, 0]))
+
             rewards = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
                       5 * punish_steer + 0.05 * punish_a_x + 5 * veh2veh
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
