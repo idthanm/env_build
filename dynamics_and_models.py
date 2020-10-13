@@ -714,8 +714,8 @@ class ReferencePath(object):
 
     def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n):
         indexs, current_points = self.find_closest_point(ego_xs, ego_ys)
-        tracking_points = self.indexs2points(indexs+50)
-        n_future_data = self.future_n_data(indexs+50, n)
+        tracking_points = self.indexs2points(indexs+80)
+        n_future_data = self.future_n_data(indexs+80, n)
         all_ref = [(current_points[0], current_points[1], tracking_points[2])] + n_future_data
 
         def two2one(ref_xs, ref_ys):
