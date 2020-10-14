@@ -238,8 +238,8 @@ class EnvironmentModel(object):  # all tensors
                 dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
                 punish_cond = logical_or(logical_and(
                     logical_and(cos_values > 0., dists * tf.abs(sin_values) < (L + W) / 2),
-                    dists < 10), dists<3.)
-                veh2veh = tf.where(punish_cond, tf.square(10 - dists), tf.zeros_like(veh_infos[:, 0]))
+                    dists < 7), dists<3.)
+                veh2veh = tf.where(punish_cond, tf.square(7 - dists), tf.zeros_like(veh_infos[:, 0]))
 
             # for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
             #     vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
@@ -258,7 +258,7 @@ class EnvironmentModel(object):  # all tensors
 
             rewards = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
                       5 * punish_steer + 0.05 * punish_a_x
-            punish_term = veh2veh
+            punish_term = 0.5*veh2veh
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
             #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],
