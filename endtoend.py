@@ -561,7 +561,7 @@ class CrossroadEnd2end(gym.Env):
             dist = tf.sqrt(tf.square(veh[0] - ego_infos[3]) + tf.square(veh[1]-ego_infos[4]))
 
             if (cos_value > 0. and dist*tf.abs(sin_value) < (L+W)/2 and dist < 10.) or dist < 3.:
-                veh2veh = (10.-dist)
+                veh2veh = tf.square(10.-dist)
 
         reward = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
                  5 * punish_steer + 0.05 * punish_a_x
