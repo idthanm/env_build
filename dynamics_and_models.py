@@ -188,11 +188,11 @@ class EnvironmentModel(object):  # all tensors
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
             self.actions = self._action_transformation_for_end2end(actions)
-            rewards = self.compute_rewards3(self.obses, self.actions)
+            rewards, punish_term = self.compute_rewards(self.obses, self.actions)
             self.obses = self.compute_next_obses(self.obses, self.actions)
             # self.reward_info.update({'final_rew': rewards.numpy()[0]})
 
-        return self.obses, rewards
+        return self.obses, rewards, punish_term
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
@@ -200,7 +200,7 @@ class EnvironmentModel(object):  # all tensors
         steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm
         return tf.stack([steer_scale, a_xs_scale], 1)
 
-    def compute_rewards3(self, obses, actions):
+    def compute_rewards(self, obses, actions):
         with tf.name_scope('compute_reward') as scope:
             ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
                                                    obses[:,
@@ -222,42 +222,43 @@ class EnvironmentModel(object):  # all tensors
             devi_v = -tf.square(tracking_infos[:, 2])
 
             # rewards related to veh2veh collision
-            ego_lws = (L - W) / 2.
-            coeff = 1.14
-            rho_ego = W / 2. * coeff
-            ego_front_points = tf.cast(ego_infos[:, 3] + ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32), \
-                               tf.cast(ego_infos[:, 4] + ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
-            ego_rear_points = tf.cast(ego_infos[:, 3] - ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32), \
-                              tf.cast(ego_infos[:, 4] - ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
+            # ego_lws = (L - W) / 2.
+            # coeff = 1.14
+            # rho_ego = W / 2. * coeff
+            # ego_front_points = tf.cast(ego_infos[:, 3] + ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32), \
+            #                    tf.cast(ego_infos[:, 4] + ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
+            # ego_rear_points = tf.cast(ego_infos[:, 3] - ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32), \
+            #                   tf.cast(ego_infos[:, 4] - ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
             veh2veh = tf.zeros_like(veh_infos[:, 0])
-            # for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
-            #     vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
-            #     rela_phis_rad = tf.atan2(vehs[:, 1] - ego_infos[:, 4], vehs[:, 0] - ego_infos[:, 3])
-            #     ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
-            #     cos_values, sin_values = tf.cos(rela_phis_rad - ego_phis_rad), tf.sin(rela_phis_rad - ego_phis_rad)
-            #     dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
-            #     punish_cond = logical_or(logical_and(
-            #         logical_and(cos_values > 0., dists * tf.abs(sin_values) < (L + W) / 2),
-            #         dists < 10), dists<3.)
-            #     veh2veh -= tf.where(punish_cond, 10 - dists, tf.zeros_like(veh_infos[:, 0]))
-
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
-                veh_lws = (L - W) / 2.
-                rho_vehs = W / 2. * coeff
-                veh_front_points = tf.cast(vehs[:, 0] + veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
-                                   tf.cast(vehs[:, 1] + veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
-                veh_rear_points = tf.cast(vehs[:, 0] - veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
-                                  tf.cast(vehs[:, 1] - veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
-                for ego_point in [ego_front_points, ego_rear_points]:
-                    for veh_point in [veh_front_points, veh_rear_points]:
-                        veh2veh_dist = tf.sqrt(
-                            tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - \
-                                       tf.convert_to_tensor(rho_ego + rho_vehs, dtype=tf.float32)
-                        veh2veh -= tf.where(veh2veh_dist < 0, tf.square(veh2veh_dist), tf.zeros_like(veh_infos[:, 0]))
+                rela_phis_rad = tf.atan2(vehs[:, 1] - ego_infos[:, 4], vehs[:, 0] - ego_infos[:, 3])
+                ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
+                cos_values, sin_values = tf.cos(rela_phis_rad - ego_phis_rad), tf.sin(rela_phis_rad - ego_phis_rad)
+                dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
+                punish_cond = logical_or(logical_and(
+                    logical_and(cos_values > 0., dists * tf.abs(sin_values) < (L + W) / 2),
+                    dists < 10), dists<3.)
+                veh2veh -= tf.where(punish_cond, 10 - dists, tf.zeros_like(veh_infos[:, 0]))
+
+            # for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
+            #     vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
+            #     veh_lws = (L - W) / 2.
+            #     rho_vehs = W / 2. * coeff
+            #     veh_front_points = tf.cast(vehs[:, 0] + veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
+            #                        tf.cast(vehs[:, 1] + veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
+            #     veh_rear_points = tf.cast(vehs[:, 0] - veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
+            #                       tf.cast(vehs[:, 1] - veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
+            #     for ego_point in [ego_front_points, ego_rear_points]:
+            #         for veh_point in [veh_front_points, veh_rear_points]:
+            #             veh2veh_dist = tf.sqrt(
+            #                 tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - \
+            #                            tf.convert_to_tensor(rho_ego + rho_vehs, dtype=tf.float32)
+            #             veh2veh -= tf.where(veh2veh_dist < 0, tf.square(veh2veh_dist), tf.zeros_like(veh_infos[:, 0]))
 
             rewards = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                      5 * punish_steer + 0.05 * punish_a_x + 5 * veh2veh
+                      5 * punish_steer + 0.05 * punish_a_x
+            punish_term = veh2veh
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
             #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],
@@ -273,7 +274,7 @@ class EnvironmentModel(object):  # all tensors
             #                         scaled_devi_phi=0.1 * devi_phi.numpy()[0],
             #                         scaled_veh2veh=0.5 * veh2veh.numpy()[0],
             #                         reward=rewards.numpy()[0])
-            return rewards
+            return rewards, punish_term
 
     def compute_next_obses(self, obses, actions):
         ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], obses[:,
@@ -799,8 +800,8 @@ def test_model():
     print(obses.shape)
     for rollout_step in range(100):
         actions = tf.tile(tf.constant([[0.5, 0]], dtype=tf.float32), tf.constant([len(obses), 1]))
-        obses, rewards = model.rollout_out(actions)
-        print(rewards.numpy()[0])
+        obses, rewards, punish = model.rollout_out(actions)
+        print(rewards.numpy()[0], punish.numpy()[0])
         model.render()
 
 

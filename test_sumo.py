@@ -33,6 +33,8 @@ traci.start(
      # "--quit-on-end",
      "--no-warnings",
      "--no-step-log",
+     "--collision.check-junctions",
+     "--collision.action", "remove",
      # '--seed', str(int(seed))
      ], numRetries=5)  # '--seed', str(int(seed))
 #
@@ -89,35 +91,48 @@ traci.vehicle.subscribeContext('ego',
                                                 traci.constants.VAR_ROUTE_INDEX],
                                        0, 2147483647)
 
-# this is to debug
-# "sumo: ...MSLCM_SL2015.cpp:1913: virtual void MSLCM_SL2015::updateExpectedSublaneSpeeds(const MSLeaderDistanceInfo&, int, int): Assertion `preb.size() == lanes.size()' failed."
-# the problem happens the minute ego car get into the intersection, edgeID and lane should be tested
-for i in range(10000):
-    if i <= 10000:
-        traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=-18.6, angle=0.)
-        traci.vehicle.setSpeed('ego', 1.)
-        traci.simulationStep()
-        traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=-17., angle=0.)
-        traci.vehicle.setSpeed('ego', 1.)
-        traci.simulationStep()
+def test_MSLCM_bug():
+    # this is to debug
+    # "sumo: ...MSLCM_SL2015.cpp:1913: virtual void MSLCM_SL2015::updateExpectedSublaneSpeeds(const MSLeaderDistanceInfo&, int, int): Assertion `preb.size() == lanes.size()' failed."
+    # the problem happens the minute ego car get into the intersection, edgeID and lane should be tested
+    for i in range(10000):
+        if i <= 10000:
+            traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=-18.6, angle=0.)
+            traci.vehicle.setSpeed('ego', 1.)
+            traci.simulationStep()
+            traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=-17., angle=0.)
+            traci.vehicle.setSpeed('ego', 1.)
+            traci.simulationStep()
 
-        # traci.vehicle.moveToXY('ego', '1o', 1, x=-17, y=1.5, angle=-90)
-        # # traci.vehicle.setSpeed('ego', 11.0)
-        # traci.simulationStep()
-        # traci.vehicle.moveToXY('ego', '1o', 1, x=-18.6, y=1.5, angle=-90)
-        # # traci.vehicle.setSpeed('ego', 11.0)
-        # traci.simulationStep()
+            # traci.vehicle.moveToXY('ego', '1o', 1, x=-17, y=1.5, angle=-90)
+            # # traci.vehicle.setSpeed('ego', 11.0)
+            # traci.simulationStep()
+            # traci.vehicle.moveToXY('ego', '1o', 1, x=-18.6, y=1.5, angle=-90)
+            # # traci.vehicle.setSpeed('ego', 11.0)
+            # traci.simulationStep()
 
-        # traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=17., angle=0.)
-        # # traci.vehicle.setSpeed('ego', 11.0)
-        # traci.simulationStep()
-        # traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=18.6, angle=0.)
-        # # traci.vehicle.setSpeed('ego', 11.0)
-        # traci.simulationStep()
+            # traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=17., angle=0.)
+            # # traci.vehicle.setSpeed('ego', 11.0)
+            # traci.simulationStep()
+            # traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=18.6, angle=0.)
+            # # traci.vehicle.setSpeed('ego', 11.0)
+            # traci.simulationStep()
 
-        # traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=17., y=-1.5, angle=0.)
-        # # traci.vehicle.setSpeed('ego', 11.0)
-        # traci.simulationStep()
-        # traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=18.6, y=-1.5, angle=0.)
-        # # traci.vehicle.setSpeed('ego', 11.0)
-        # traci.simulationStep()
+            # traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=17., y=-1.5, angle=0.)
+            # # traci.vehicle.setSpeed('ego', 11.0)
+            # traci.simulationStep()
+            # traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=18.6, y=-1.5, angle=0.)
+            # # traci.vehicle.setSpeed('ego', 11.0)
+            # traci.simulationStep()
+
+
+def test_other_car_collision():
+    for i in range(10000):
+        if i <= 10000:
+            traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=-5, y=-5, angle=-30.)
+            # traci.vehicle.setSpeed('ego', 0.)
+            traci.simulationStep()
+
+
+if __name__ == '__main__':
+    test_other_car_collision()

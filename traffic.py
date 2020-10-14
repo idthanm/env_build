@@ -29,9 +29,10 @@ from traci.exceptions import FatalTraCIError
 
 
 def _convert_car_coord_to_sumo_coord(x_in_car_coord, y_in_car_coord, a_in_car_coord, car_length):  # a in deg
-    x_in_sumo_coord = x_in_car_coord + car_length / 2 * math.cos(math.radians(a_in_car_coord))
-    y_in_sumo_coord = y_in_car_coord + car_length / 2 * math.sin(math.radians(a_in_car_coord))
+    # x_in_sumo_coord = x_in_car_coord + car_length / 2 * math.cos(math.radians(a_in_car_coord))
+    # y_in_sumo_coord = y_in_car_coord + car_length / 2 * math.sin(math.radians(a_in_car_coord))
     a_in_sumo_coord = -a_in_car_coord + 90.
+    x_in_sumo_coord, y_in_sumo_coord = x_in_car_coord, y_in_car_coord
     return x_in_sumo_coord, y_in_sumo_coord, a_in_sumo_coord
 
 

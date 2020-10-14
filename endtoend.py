@@ -564,7 +564,7 @@ class CrossroadEnd2end(gym.Env):
                 veh2veh -= (10.-dist)
 
         reward = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                 5 * punish_steer + 0.05 * punish_a_x + 0.5 * veh2veh
+                 5 * punish_steer + 0.05 * punish_a_x
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
