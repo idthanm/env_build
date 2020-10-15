@@ -299,7 +299,7 @@ class EnvironmentModel(object):  # all tensors
         ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions, self.base_frequency)
         v_xs, v_ys, rs, xs, ys, phis = ego_next_infos[:, 0], ego_next_infos[:, 1], ego_next_infos[:, 2], \
                                        ego_next_infos[:, 3], ego_next_infos[:, 4], ego_next_infos[:, 5]
-        v_xs = tf.clip_by_value(v_xs, 0., 35.)
+        # v_xs = tf.clip_by_value(v_xs, 0., 35.)
         ego_next_infos = tf.stack([v_xs, v_ys, rs, xs, ys, phis], axis=1)
         return ego_next_infos
 
