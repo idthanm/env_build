@@ -419,8 +419,8 @@ class CrossroadEnd2end(gym.Env):
 
             ur_straight = list(filter(lambda v: v['x'] < ego_x + 7 and ego_y < v['y'] < 28, ur))  # interest of straight
             ur_right = list(filter(lambda v: v['x'] < 28 and v['y'] < 18, ur))  # interest of right
-            ud = list(filter(lambda v: ego_y < v['y'] < 18 and ego_x > v['x'], ud))  # interest of left
-            ul = list(filter(lambda v: -28 < v['x'] < ego_x+2 and v['y'] < 28, ul))  # interest of left
+            ud = list(filter(lambda v: ego_y < v['y'] < 18 and ego_x > v['x']+2, ud))  # interest of left
+            ul = list(filter(lambda v: -28 < v['x'] < ego_x and v['y'] < 18, ul))  # interest of left
 
             lu = lu  # not interest in case of traffic light
             lr = list(filter(lambda v: -28 < v['x'] < 28, lr))  # interest of right
