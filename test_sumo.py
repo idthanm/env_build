@@ -25,7 +25,7 @@ SIM_PERIOD = 1.0 / 10
 
 dirname = os.path.dirname(__file__)
 traci.start(
-    [SUMO_BINARY, "-c", dirname + "/sumo_files/cross_test.sumocfg",
+    [SUMO_BINARY, "-c", dirname + "/sumo_files/cross.sumocfg",
      "--step-length", str(SIM_PERIOD),
      "--lateral-resolution", "1.25",
      "--random",
@@ -128,10 +128,13 @@ def test_MSLCM_bug():
 
 def test_other_car_collision():
     for i in range(10000):
-        if i <= 10000:
-            traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=-5, y=-5, angle=-30.)
+        if 500<i <= 10000:
+            traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=-15, y=5, angle=-50.)
             # traci.vehicle.setSpeed('ego', 0.)
             traci.simulationStep()
+        else:
+            traci.simulationStep()
+
 
 
 if __name__ == '__main__':
