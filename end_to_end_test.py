@@ -10,6 +10,8 @@
 import numpy as np
 
 from endtoend import CrossroadEnd2end
+import tensorflow as tf
+print(tf.__version__)
 
 
 def action_fn(obs):
@@ -17,27 +19,10 @@ def action_fn(obs):
     return np.array([0, 0])
 
 
-# class Testt:
-#     def __init__(self):
-#         pass
-#
-#     def testtt(self, b):
-#         self.a = 1
-#         b = b
-#         def fn():
-#             return b
-#         return fn
-#
-#     def change_a(self, x):
-#         fn = self.testtt(x)
-#         self.a = fn()
-#         return self.a
-
-
 if __name__ == '__main__':
-    env = CrossroadEnd2end(frameskip=1, training_task='right')
+    env = CrossroadEnd2end(training_task='left', mode='training')
     done = 0
-    episode_num = 10
+    episode_num = 100
     for i in range(episode_num):  # run episode_num episodes
         done = 0
         obs = env.reset()

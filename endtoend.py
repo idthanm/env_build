@@ -19,6 +19,7 @@ from gym.utils import seeding
 
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath
+# from hierarchical_decision.static_traj_generator import StaticTrajectoryGenerator
 from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination
 from traffic import Traffic, deal_with_phi
 
@@ -306,9 +307,9 @@ class CrossroadEnd2end(gym.Env):
         steer_norm, a_x_norm = action[0], action[1]
         scaled_steer = 0.4 * steer_norm
         scaled_a_x = 3.*a_x_norm
-        # if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
-        #     scaled_steer = 0.
-        #     scaled_a_x = -3.
+        if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
+            scaled_steer = 0.
+            scaled_a_x = -3.
 
         scaled_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
         return scaled_action
@@ -512,7 +513,7 @@ class CrossroadEnd2end(gym.Env):
         else:
             random_index = int(np.random.random()*(390+500)) + 700
 
-        # random_index = 1200
+        # random_index = 500
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 8 * np.random.random()
@@ -582,7 +583,7 @@ class CrossroadEnd2end(gym.Env):
 
         return reward.numpy(), reward_dict
 
-    def render(self, mode='human'):
+    def render(self, real_time_traj, mode='human'):
         if mode == 'human':
             # plot basic map
             square_length = 36
@@ -844,11 +845,23 @@ class CrossroadEnd2end(gym.Env):
             #     plot_phi_line(path_x, path_y, path_phi, 'g')
 
             delta_, _, _ = tracking_info[:3]
-            ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
+            # ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
             indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
             path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-            plt.plot(path_x, path_y, 'g.')
+            # plt.plot(path_x, path_y, 'g.')
             delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
+
+            # plot real time traj
+            try:
+                color = ['b', 'coral']
+                for i, item in enumerate(real_time_traj):
+                    plt.plot(item.path_list[0], item.path_list[1], color=color[i])
+            except Exception:
+                pass
+
+            # for j, item_point in enumerate(self.real_path.feature_points_all):
+            #     for k in range(len(item_point)):
+            #         plt.scatter(item_point[k][0], item_point[k][1], c='g')
 
             # plot ego dynamics
             text_x, text_y_start = -110, 60

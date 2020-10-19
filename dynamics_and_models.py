@@ -543,18 +543,23 @@ def deal_with_phi_diff(phi_diff):
 
 
 class ReferencePath(object):
-    def __init__(self, task, mode=None):
+    def __init__(self, task, mode=None, path_list=None):
         self.mode = mode
         self.exp_v = 8.
         self.task = task
-        self.path_list = []
-        self._construct_ref_path(self.task)
-        self.ref_index = np.random.choice([0, 1])
-        self.path = self.path_list[self.ref_index]
+        self.mode = mode
+        self._set_path(path_list)
 
-    def _set_path(self):
-        pass
-        # self.path = shengcheng的轨迹
+    def _set_path(self, path_list):
+        if self.mode == 'selecting':
+            self.path_list = path_list
+
+        else:                         # 训练时：只考虑一条全局的轨迹
+            self.path_list = []
+            self._construct_ref_path(self.task)
+            self.ref_index = np.random.choice([0, 1])
+            self.path = self.path_list[self.ref_index]
+
 
     def _construct_ref_path(self, task):
         sl = 40
@@ -725,12 +730,12 @@ class ReferencePath(object):
 
 
 def test_ref_path():
-    path = ReferencePath('left')
+    path = ReferencePath('left', mode='training')
     path.plot_path(1.875, 0)
 
 
 def test_future_n_data():
-    path = ReferencePath('straight')
+    path = ReferencePath('straight', mode='training')
     plt.axis('equal')
     current_i = 600
     plt.plot(path.path[0], path.path[1])
@@ -742,7 +747,7 @@ def test_future_n_data():
 
 
 def test_tracking_error_vector():
-    path = ReferencePath('straight')
+    path = ReferencePath('straight', mode='training')
     xs = np.array([1.875, 1.875, -10, -20], np.float32)
     ys = np.array([-20, 0, -10, -1], np.float32)
     phis = np.array([90, 135, 135, 180], np.float32)
