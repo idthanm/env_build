@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 
 class StaticTrajectoryGenerator(object):
     def __init__(self, task, state, v_light, mode='selecting', model=None, policy=None):
+        # state: [v_x, v_y, r, x, y, phi(°)]
+        # 去掉mode，直接传入
         self.mode = mode
         self.path_num = 2  # the number of static trajectories
         self.exp_v = 8.
@@ -70,6 +72,7 @@ class StaticTrajectoryGenerator(object):
 
     def _future_point_choice(self, state=None):
         # choose the forward feature points according to the current state
+
         self.feature_points = []
         x, y, v, phi = state['x'], state['y'], state['v_x'], state['phi'] / 180 * pi
         for i, item in enumerate(self.feature_points_all):

@@ -183,6 +183,7 @@ class EnvironmentModel(object):  # all tensors
         self.obses = obses
         self.actions = None
         self.task = task
+        #
         self.ref_path = ReferencePath(task, mode='training')
         self.reward_info = None
 
@@ -263,7 +264,7 @@ class EnvironmentModel(object):  # all tensors
                                                            self.num_future_data + 1):]
 
         next_ego_infos = self.ego_predict(ego_infos, actions)
-
+        # todo: 修改
         next_tracking_infos = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
                                                                   next_ego_infos[:, 4],
                                                                   next_ego_infos[:, 5],
