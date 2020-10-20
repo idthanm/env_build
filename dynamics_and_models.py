@@ -197,7 +197,7 @@ class EnvironmentModel(object):  # all tensors
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
-        steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm
+        steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm-1.
         return tf.stack([steer_scale, a_xs_scale], 1)
 
     def compute_rewards(self, obses, actions):
@@ -295,7 +295,7 @@ class EnvironmentModel(object):  # all tensors
         ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions, self.base_frequency)
         v_xs, v_ys, rs, xs, ys, phis = ego_next_infos[:, 0], ego_next_infos[:, 1], ego_next_infos[:, 2], \
                                        ego_next_infos[:, 3], ego_next_infos[:, 4], ego_next_infos[:, 5]
-        # v_xs = tf.clip_by_value(v_xs, 0., 35.)
+        v_xs = tf.clip_by_value(v_xs, 0., 35.)
         ego_next_infos = tf.stack([v_xs, v_ys, rs, xs, ys, phis], axis=1)
         return ego_next_infos
 

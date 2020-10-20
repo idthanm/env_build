@@ -36,9 +36,10 @@ def deal_with_phi(phi):
 
 
 class LoadPolicy(object):
-    def __init__(self, model_dir, iter):
+    def __init__(self, exp_dir, iter):
+        model_dir = exp_dir + '/models'
         parser = argparse.ArgumentParser()
-        params = json.loads(open(model_dir + '/config.json').read())
+        params = json.loads(open(exp_dir + '/config.json').read())
         for key, val in params.items():
             parser.add_argument("-" + key, default=val)
         self.args = parser.parse_args()
@@ -54,9 +55,9 @@ class LoadPolicy(object):
 
     @tf.function
     def run(self, obs):
-        processed_obs = self.preprocessor.tf_process_obses(obs)
-        action, logp = self.policy.compute_action(processed_obs)
-        return action
+        processed_obs = self.preprocessor.np_process_obses(obs)
+        action, logp = self.policy.compute_action(processed_obs[np.newaxis, :])
+        return action[0]
 
 
 class VehicleDynamics(object):
@@ -79,7 +80,7 @@ class VehicleDynamics(object):
     def f_xu(self, x, u, tau):
         v_x, v_y, r, x, y, phi = x[0], x[1], x[2], x[3], x[4], x[5]
         phi = phi * np.pi / 180.
-        steer, a_x = u[0]*0.4, u[1]*3
+        steer, a_x = u[0]*0.4, u[1]*3-1.
         C_f = self.vehicle_params['C_f']
         C_r = self.vehicle_params['C_r']
         a = self.vehicle_params['a']
