@@ -323,7 +323,7 @@ class CrossroadEnd2end(gym.Env):
         steer, a_x = trans_action
         state = np.array([[current_v_x, current_v_y, current_r, current_x, current_y, current_phi]], dtype=np.float32)
         action = np.array([[steer, a_x]], dtype=np.float32)
-        next_ego_state, next_ego_params = self.dynamics.prediction(state, action, 10, 1)
+        next_ego_state, next_ego_params = self.dynamics.prediction(state, action, 10)
         next_ego_state, next_ego_params = next_ego_state.numpy()[0],  next_ego_params.numpy()[0]
         next_ego_state[0] = next_ego_state[0] if next_ego_state[0] >= 0 else 0.
         next_ego_state[-1] = deal_with_phi(next_ego_state[-1])
@@ -419,8 +419,8 @@ class CrossroadEnd2end(gym.Env):
 
             ur_straight = list(filter(lambda v: v['x'] < ego_x + 7 and ego_y < v['y'] < 28, ur))  # interest of straight
             ur_right = list(filter(lambda v: v['x'] < 28 and v['y'] < 18, ur))  # interest of right
-            ud = list(filter(lambda v: ego_y < v['y'] < 18 and ego_x > v['x'], ud))  # interest of left
-            ul = list(filter(lambda v: -28 < v['x'] < ego_x+5 and v['y'] < 28, ul))  # interest of left
+            ud = list(filter(lambda v: ego_y-2 < v['y'] < 18 and ego_x > v['x'], ud))  # interest of left
+            ul = list(filter(lambda v: -28 < v['x'] < ego_x and v['y'] < 18, ul))  # interest of left
 
             lu = lu  # not interest in case of traffic light
             lr = list(filter(lambda v: -28 < v['x'] < 28, lr))  # interest of right
@@ -561,10 +561,10 @@ class CrossroadEnd2end(gym.Env):
             dist = tf.sqrt(tf.square(veh[0] - ego_infos[3]) + tf.square(veh[1]-ego_infos[4]))
 
             if (cos_value > 0. and dist*tf.abs(sin_value) < (L+W)/2 and dist < 10.) or dist < 3.:
-                veh2veh -= (10.-dist)
+                veh2veh += tf.square(10.-dist)
 
         reward = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                 0.1 * punish_steer + 0.005 * punish_a_x + 0.5 * veh2veh
+                 5 * punish_steer + 0.05 * punish_a_x
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
@@ -572,8 +572,8 @@ class CrossroadEnd2end(gym.Env):
                            devi_y=devi_y.numpy(),
                            devi_phi=devi_phi.numpy(),
                            veh2veh=veh2veh.numpy(),
-                           scaled_punish_steer=0.1 * punish_steer.numpy(),
-                           scaled_punish_a_x=0.005 * punish_a_x.numpy(),
+                           scaled_punish_steer=5 * punish_steer.numpy(),
+                           scaled_punish_a_x=0.05 * punish_a_x.numpy(),
                            scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
                            scaled_devi_v=0.01 * devi_v.numpy(),
                            scaled_devi_y=0.04 * devi_y.numpy(),
@@ -843,12 +843,15 @@ class CrossroadEnd2end(gym.Env):
             #     plt.plot(path_x, path_y, 'g.')
             #     plot_phi_line(path_x, path_y, path_phi, 'g')
 
-            delta_, _, _ = tracking_info[:3]
+            tracking_delta_y, tracking_delta_phi, tracking_delta_v = tracking_info[:3]
             ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
-            indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
-            path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-            plt.plot(path_x, path_y, 'g.')
-            delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
+            indexs, current_point = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
+            tracking_point = self.ref_path.indexs2points(indexs+80)
+            goal_x, goal_y, _ = current_point[0][0], current_point[1][0], current_point[2][0]
+            x2plot, y2plot, goal_phi = tracking_point[0][0], tracking_point[1][0], tracking_point[2][0]
+            plt.plot(x2plot, y2plot, 'g.')
+            plt.plot(goal_x, goal_y, 'g.')
+            # delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
 
             # plot ego dynamics
             text_x, text_y_start = -110, 60
@@ -861,14 +864,12 @@ class CrossroadEnd2end(gym.Env):
             #                                                                                          min([right1, right2])))
             # plt.text(text_x, text_y_start - next(ge), '1deltas {:.2f} {:.2f}'.format(point11x, point11y))
             # plt.text(text_x, text_y_start - next(ge), '2deltas {:.2f} {:.2f}'.format(point12x, point12y))
-            plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
-            plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
-            plt.text(text_x, text_y_start - next(ge), 'delta_: {:.2f}m'.format(delta_))
-            plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
-            plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
+            plt.text(text_x, text_y_start - next(ge), 'goal_x: {:.2f}m'.format(goal_x))
+            plt.text(text_x, text_y_start - next(ge), 'goal_y: {:.2f}m'.format(goal_y))
             plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
-            plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
-            plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
+            plt.text(text_x, text_y_start - next(ge), r'goal_phi: ${:.2f}\degree$'.format(goal_phi))
+            plt.text(text_x, text_y_start - next(ge), 'tracking_delta_y: {:.2f}m'.format(tracking_delta_y))
+            plt.text(text_x, text_y_start - next(ge), r'tracking_delta_phi: ${:.2f}\degree$'.format(tracking_delta_phi))
 
             plt.text(text_x, text_y_start - next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
             plt.text(text_x, text_y_start - next(ge), 'exp_v: {:.2f}m/s'.format(self.exp_v))
@@ -904,7 +905,7 @@ class CrossroadEnd2end(gym.Env):
 
 def test_end2end():
     import time
-    env = CrossroadEnd2end('right')
+    env = CrossroadEnd2end('left')
     obs = env.reset()
     i = 0
     done = 0
@@ -913,7 +914,7 @@ def test_end2end():
             # print(i)
             i += 1
             # action=2*np.random.random(2)-1
-            action = np.array([0.5, -1], dtype=np.float32)
+            action = np.array([0, 0], dtype=np.float32)
             obs, reward, done, info = env.step(action)
             env.render()
         done = 0

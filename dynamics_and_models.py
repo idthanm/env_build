@@ -7,7 +7,6 @@
 # @FileName: dynamics_and_models.py
 # =====================================
 
-from collections import OrderedDict
 from math import pi, cos, sin
 
 import bezier
@@ -72,7 +71,7 @@ class VehicleDynamics(object):
 
         return tf.stack(next_state, 1), tf.stack([alpha_f, alpha_r, miu_f, miu_r], 1)
 
-    def prediction(self, x_1, u_1, frequency, RK):
+    def prediction(self, x_1, u_1, frequency):
         x_next, next_params = self.f_xu(x_1, u_1, 1 / frequency)
         return x_next, next_params
 
@@ -155,7 +154,7 @@ class VehicleDynamics(object):
 #             ego_params = tf.stack([alpha_f, alpha_r, miu_f, miu_r], axis=1)
 #         return state_deriv_stack, ego_params
 #
-#     def prediction(self, x_1, u_1, frequency, RK):
+#     def prediction(self, x_1, u_1, frequency):
 #         f_xu_1, params = self.f_xu(x_1, u_1)
 #         x_next = f_xu_1 / frequency + x_1
 #
@@ -171,7 +170,7 @@ class EnvironmentModel(object):  # all tensors
         self.ego_params = None
         self.actions = None
         self.task = None
-        self.ref_path = None
+        # self.ref_path = None
         self.num_future_data = num_future_data
         self.exp_v = 8.
         self.reward_info = None
@@ -183,17 +182,17 @@ class EnvironmentModel(object):  # all tensors
         self.obses = obses
         self.actions = None
         self.task = task
-        self.ref_path = ReferencePath(task, mode='training')
+        # self.ref_path = ReferencePath(task, mode='training')
         self.reward_info = None
 
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
             self.actions = self._action_transformation_for_end2end(actions)
-            rewards = self.compute_rewards3(self.obses, self.actions)
+            rewards, punish_term = self.compute_rewards(self.obses, self.actions)
             self.obses = self.compute_next_obses(self.obses, self.actions)
             # self.reward_info.update({'final_rew': rewards.numpy()[0]})
 
-        return self.obses, rewards
+        return self.obses, rewards, punish_term
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
@@ -201,7 +200,7 @@ class EnvironmentModel(object):  # all tensors
         steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm
         return tf.stack([steer_scale, a_xs_scale], 1)
 
-    def compute_rewards3(self, obses, actions):
+    def compute_rewards(self, obses, actions):
         with tf.name_scope('compute_reward') as scope:
             ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
                                                    obses[:,
@@ -218,26 +217,44 @@ class EnvironmentModel(object):  # all tensors
             punish_yaw_rate = -tf.square(ego_infos[:, 2])
 
             # rewards related to tracking error
-            # devi_v = -tf.cast(tf.square(ego_infos[:, 0] - self.exp_v), dtype=tf.float32)
             devi_y = -tf.square(tracking_infos[:, 0])
             devi_phi = -tf.cast(tf.square(tracking_infos[:, 1] * np.pi / 180.), dtype=tf.float32)
             devi_v = -tf.square(tracking_infos[:, 2])
 
             # rewards related to veh2veh collision
+            ego_lws = (L - W) / 2.
+            ego_front_points = tf.cast(ego_infos[:, 3] + ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32), \
+                               tf.cast(ego_infos[:, 4] + ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
+            ego_rear_points = tf.cast(ego_infos[:, 3] - ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32), \
+                              tf.cast(ego_infos[:, 4] - ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
             veh2veh = tf.zeros_like(veh_infos[:, 0])
+            # for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
+            #     vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
+            #     rela_phis_rad = tf.atan2(vehs[:, 1] - ego_infos[:, 4], vehs[:, 0] - ego_infos[:, 3])
+            #     ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
+            #     cos_values, sin_values = tf.cos(rela_phis_rad - ego_phis_rad), tf.sin(rela_phis_rad - ego_phis_rad)
+            #     dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
+            #     punish_cond = logical_or(logical_and(
+            #         logical_and(cos_values > 0., dists * tf.abs(sin_values) < (L + W) / 2),
+            #         dists < 7), dists<3.)
+            #     veh2veh += tf.where(punish_cond, tf.square(7 - dists), tf.zeros_like(veh_infos[:, 0]))
+
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
-                rela_phis_rad = tf.atan2(vehs[:, 1] - ego_infos[:, 4], vehs[:, 0] - ego_infos[:, 3])
-                ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
-                cos_values, sin_values = tf.cos(rela_phis_rad - ego_phis_rad), tf.sin(rela_phis_rad - ego_phis_rad)
-                dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
-                punish_cond = logical_or(logical_and(
-                    logical_and(cos_values > 0., dists * tf.abs(sin_values) < (L + W) / 2),
-                    dists < 10), dists<3.)
-                veh2veh -= tf.where(punish_cond, 10 - dists, tf.zeros_like(veh_infos[:, 0]))
+                veh_lws = (L - W) / 2.
+                veh_front_points = tf.cast(vehs[:, 0] + veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
+                                   tf.cast(vehs[:, 1] + veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
+                veh_rear_points = tf.cast(vehs[:, 0] - veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
+                                  tf.cast(vehs[:, 1] - veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
+                for ego_point in [ego_front_points]:
+                    for veh_point in [veh_front_points, veh_rear_points]:
+                        veh2veh_dist = tf.sqrt(
+                            tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - 5.
+                        veh2veh += tf.where(veh2veh_dist < 0, tf.square(veh2veh_dist), tf.zeros_like(veh_infos[:, 0]))
 
-            rewards = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                      0.1 * punish_steer + 0.005 * punish_a_x + 0.5 * veh2veh
+            rewards = 0.1 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
+                      5 * punish_steer + 0.05 * punish_a_x
+            punish_term = veh2veh
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
             #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],
@@ -245,15 +262,15 @@ class EnvironmentModel(object):  # all tensors
             #                         devi_y=devi_y.numpy()[0],
             #                         devi_phi=devi_phi.numpy()[0],
             #                         veh2veh=veh2veh.numpy()[0],
-            #                         scaled_punish_steer=0.1 * punish_steer.numpy()[0],
-            #                         scaled_punish_a_x=0.005 * punish_a_x.numpy()[0],
+            #                         scaled_punish_steer=5 * punish_steer.numpy()[0],
+            #                         scaled_punish_a_x=0.05 * punish_a_x.numpy()[0],
             #                         scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy()[0],
             #                         scaled_devi_v=0.01 * devi_v.numpy()[0],
             #                         scaled_devi_y=0.04 * devi_y.numpy()[0],
             #                         scaled_devi_phi=0.1 * devi_phi.numpy()[0],
             #                         scaled_veh2veh=0.5 * veh2veh.numpy()[0],
             #                         reward=rewards.numpy()[0])
-            return rewards
+            return rewards, punish_term
 
     def compute_next_obses(self, obses, actions):
         ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], obses[:,
@@ -264,23 +281,34 @@ class EnvironmentModel(object):  # all tensors
 
         next_ego_infos = self.ego_predict(ego_infos, actions)
 
-        next_tracking_infos = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
-                                                                  next_ego_infos[:, 4],
-                                                                  next_ego_infos[:, 5],
-                                                                  next_ego_infos[:, 0],
-                                                                  self.num_future_data)
+        # next_tracking_infos = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
+        #                                                           next_ego_infos[:, 4],
+        #                                                           next_ego_infos[:, 5],
+        #                                                           next_ego_infos[:, 0],
+        #                                                           self.num_future_data)
+        next_tracking_infos = self.tracking_error_predict(ego_infos, tracking_infos, actions)
         next_veh_infos = self.veh_predict(veh_infos)
         next_obses = tf.concat([next_ego_infos, next_tracking_infos, next_veh_infos], 1)
         return next_obses
 
     def ego_predict(self, ego_infos, actions):
-        ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions,
-                                                             self.base_frequency, 1)
+        ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions, self.base_frequency)
         v_xs, v_ys, rs, xs, ys, phis = ego_next_infos[:, 0], ego_next_infos[:, 1], ego_next_infos[:, 2], \
                                        ego_next_infos[:, 3], ego_next_infos[:, 4], ego_next_infos[:, 5]
-        v_xs = tf.clip_by_value(v_xs, 0., 35.)
+        # v_xs = tf.clip_by_value(v_xs, 0., 35.)
         ego_next_infos = tf.stack([v_xs, v_ys, rs, xs, ys, phis], axis=1)
         return ego_next_infos
+
+    def tracking_error_predict(self, ego_infos, tracking_infos, actions):
+        v_xs, v_ys, rs, xs, ys, phis = ego_infos[:, 0], ego_infos[:, 1], ego_infos[:, 2],\
+                                       ego_infos[:, 3], ego_infos[:, 4], ego_infos[:, 5]
+        delta_ys, delta_phis, delta_vs = tracking_infos[:, 0], tracking_infos[:, 1], tracking_infos[:, 2]
+        rela_obs = tf.stack([v_xs, v_ys, rs, xs, delta_ys, delta_phis], axis=1)
+        rela_obs_tp1, _ = self.vehicle_dynamics.prediction(rela_obs, actions, self.base_frequency)
+        v_xs_tp1, v_ys_tp1, rs_tp1, xs_tp1, delta_ys_tp1, delta_phis_tp1 = rela_obs_tp1[:, 0], rela_obs_tp1[:, 1], rela_obs_tp1[:, 2], \
+                                                                           rela_obs_tp1[:, 3], rela_obs_tp1[:, 4], rela_obs_tp1[:, 5]
+        next_tracking_infos = tf.stack([delta_ys_tp1, delta_phis_tp1, v_xs_tp1-self.exp_v], axis=1)
+        return next_tracking_infos
 
     def veh_predict(self, veh_infos):
         if self.task == 'left':
@@ -479,20 +507,21 @@ class EnvironmentModel(object):  # all tensors
             # ego_alpha_f, ego_alpha_r, ego_miu_f, ego_miu_r,\
             # up1, down1, left1, right1, point11x, point11y, point12x, point12y, \
             # up2, down2, left2, right2, point21x, point21y, point22x, point22y= ego_info
+            delta_y, delta_phi = tracing_info[0], tracing_info[1]
             ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi = ego_info
 
             plot_phi_line(ego_x, ego_y, ego_phi, 'red')
             draw_rotate_rec(ego_x, ego_y, ego_phi, L, W, 'red')
 
             # plot planed trj
-            ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
-            indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32),
-                                                              np.array([ego_y], np.float32))
-            path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-            delta_x, delta_y, delta_phi, delta_v = tracing_info[:4]
-            # delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
-            plt.plot(path_x, path_y, 'go')
-            plot_phi_line(path_x, path_y, path_phi, 'g')
+            # ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
+            # indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32),
+            #                                                   np.array([ego_y], np.float32))
+            # path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+            # delta_x, delta_y, delta_phi, delta_v = tracing_info[:4]
+            # # delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
+            # plt.plot(path_x, path_y, 'go')
+            # plot_phi_line(path_x, path_y, path_phi, 'g')
 
             # plot text
             text_x, text_y_start = -110, 60
@@ -505,12 +534,12 @@ class EnvironmentModel(object):  # all tensors
             #                                                                                          min([right1, right2])))
             # plt.text(text_x, text_y_start - next(ge), '1deltas {:.2f} {:.2f}'.format(point11x, point11y))
             # plt.text(text_x, text_y_start - next(ge), '2deltas {:.2f} {:.2f}'.format(point12x, point12y))
-            plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
-            plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
-            plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
+            # plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
+            # plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
+            # plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
             plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
             plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
-            plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
+            # plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
             plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
 
             plt.text(text_x, text_y_start - next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
@@ -686,8 +715,9 @@ class ReferencePath(object):
 
     def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n):
         indexs, current_points = self.find_closest_point(ego_xs, ego_ys)
-        n_future_data = self.future_n_data(indexs, n)
-        all_ref = [current_points] + n_future_data
+        tracking_points = self.indexs2points(indexs+80)
+        n_future_data = self.future_n_data(indexs+80, n)
+        all_ref = [(current_points[0], current_points[1], tracking_points[2])] + n_future_data
 
         def two2one(ref_xs, ref_ys):
             if self.task == 'left':
@@ -695,17 +725,17 @@ class ReferencePath(object):
                          tf.sqrt(tf.square(ref_xs - (-18)) + tf.square(ref_ys - (-18)))
                 delta_ = tf.where(ego_ys < -18, ego_xs - ref_xs, delta_)
                 delta_ = tf.where(ego_xs < -18, ego_ys - ref_ys, delta_)
-                return delta_
+                return -delta_
             elif self.task == 'straight':
                 delta_ = ego_xs - ref_xs
-                return delta_
+                return -delta_
             else:
                 assert self.task == 'right'
                 delta_ = -(tf.sqrt(tf.square(ego_xs - (18)) + tf.square(ego_ys - (-18))) -
                            tf.sqrt(tf.square(ref_xs - (18)) + tf.square(ref_ys - (-18))))
                 delta_ = tf.where(ego_ys < -18, ego_xs - ref_xs, delta_)
                 delta_ = tf.where(ego_xs > 18, -(ego_ys - ref_ys), delta_)
-                return delta_
+                return -delta_
 
         tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
                                               deal_with_phi_diff(ego_phis - ref_point[2]),
@@ -754,8 +784,8 @@ def test_tracking_error_vector():
 
 def test_model():
     from endtoend import CrossroadEnd2end
-    env = CrossroadEnd2end('straight', 5)
-    model = EnvironmentModel('straight', 5)
+    env = CrossroadEnd2end('left', 0)
+    model = EnvironmentModel('left', 0)
     obs_list = []
     obs = env.reset()
     done = 0
@@ -766,12 +796,12 @@ def test_model():
         obs, reward, done, info = env.step(action)
         env.render()
     obses = np.stack(obs_list, 0)
-    model.reset(obses, 'straight')
+    model.reset(obses, 'left')
     print(obses.shape)
-    for rollout_step in range(50):
-        actions = tf.tile(tf.constant([[0, 0]], dtype=tf.float32), tf.constant([len(obses), 1]))
-        obses, rewards = model.rollout_out(actions)
-        print(rewards.numpy()[0])
+    for rollout_step in range(100):
+        actions = tf.tile(tf.constant([[0.5, 0]], dtype=tf.float32), tf.constant([len(obses), 1]))
+        obses, rewards, punish = model.rollout_out(actions)
+        print(rewards.numpy()[0], punish.numpy()[0])
         model.render()
 
 
