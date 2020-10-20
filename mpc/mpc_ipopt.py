@@ -88,8 +88,9 @@ class VehicleDynamics(object):
         I_z = self.vehicle_params['I_z']
         miu = self.vehicle_params['miu']
         g = self.vehicle_params['g']
+        next_v = v_x + tau * (a_x + v_y * r)
 
-        next_state = [v_x + tau * (a_x + v_y * r),
+        next_state = [if_else(next_v<0, 0, next_v),
                       (mass * v_y * v_x + tau * (
                                   a * C_f - b * C_r) * r - tau * C_f * steer * v_x - tau * mass * power(
                           v_x, 2) * r) / (mass * v_x - tau * (C_f + C_r)),
@@ -116,19 +117,18 @@ class Dynamics(object):
 
     def tracking_error_pred(self, x, u):
         v_x, v_y, r, x, y, phi, delta_y, delta_phi, delta_v = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8]
-        # self.path.tracking_error_vector(x, y, phi, v, 0)
         delta_phi = deal_with_phi_casa(delta_phi)
         next_x = self.vd.f_xu([v_x, v_y, r, x, delta_y, delta_phi], u, self.tau)
         next_tracking_error = next_x[-2:] + [next_x[0] - self.exp_v]
         return next_tracking_error
 
-    def vehs_pred(self, x_vehs):
+    def vehs_pred(self):
         predictions = []
         for vehs_index in range(len(self.veh_mode_list)):
             predictions += \
-                    self.predict_for_a_mode(x_vehs[vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim],
+                    self.predict_for_a_mode(self.vehs[vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim],
                     self.veh_mode_list[vehs_index])
-        return predictions
+        self.vehs = predictions
 
     def predict_for_a_mode(self, vehs, mode):
         veh_x, veh_y, veh_v, veh_phi = vehs[0], vehs[1], vehs[2], vehs[3]
@@ -151,11 +151,9 @@ class Dynamics(object):
     def f_xu(self, x, u):
         next_ego = self.vd.f_xu(x, u, self.tau)
         next_tracking = self.tracking_error_pred(x, u)
-        self.vehs = self.vehs_pred(self.vehs)
         return next_ego + next_tracking
 
     def g_x(self, x):
-        mingap = 3
         ego_x, ego_y, ego_phi = x[3], x[4], x[5]
         g_list = []
         ego_lws = (4.8-2.2) / 2.
@@ -185,12 +183,10 @@ class Dynamics(object):
                                veh_y + veh_lws * math.sin(veh_phi * np.pi / 180.)
             veh_rear_points = veh_x - veh_lws * math.cos(veh_phi * np.pi / 180.), \
                               veh_y - veh_lws * math.sin(veh_phi * np.pi / 180.)
-            for ego_point in [ego_front_points, ego_rear_points]:
+            for ego_point in [ego_front_points]:
                 for veh_point in [veh_front_points, veh_rear_points]:
-                    veh2veh_dist = power(ego_point[0] - veh_point[0], 2) + power(ego_point[1] - veh_point[1], 2) \
-                                   - power(rho_ego + rho_vehs, 2)
+                    veh2veh_dist = sqrt(power(ego_point[0] - veh_point[0],4) + power(ego_point[1] - veh_point[1],4))-5.
                     g_list.append(veh2veh_dist)
-
         return g_list
 
 
@@ -212,36 +208,16 @@ class ModelPredictiveControl(object):
         self.DYNAMICS_DIM = 9
         self.ACTION_DIM = 2
         self.dynamics = None
-        self._sol_dic = {'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0}
+        self._sol_dic = {'ipopt.print_level': 0,
+                         # 'ipopt.max_iter': 10000,
+                         'ipopt.sb': 'yes',
+                         'print_time': 0}
 
-    def mpc_solver(self, x_init):
-        """
-        Solver of nonlinear MPC
-
-        Parameters
-        ----------
-        x_init: list
-            input state for MPC.
-
-        Returns
-        ----------
-        state: np.array     shape: [predict_steps+1, state_dimension]
-            state trajectory of MPC in the whole predict horizon.
-        control: np.array   shape: [predict_steps, control_dimension]
-            control signal of MPC in the whole predict horizon.
-        """
+    def mpc_solver(self, x_init, XO):
         self.dynamics = Dynamics(x_init, self.task, self.exp_v, 1/self.base_frequency, self.veh_mode_list)
 
         x = SX.sym('x', self.DYNAMICS_DIM)
         u = SX.sym('u', self.ACTION_DIM)
-
-        # discrete dynamic model
-        f = vertcat(*self.dynamics.f_xu(x, u))
-        g = vertcat(*self.dynamics.g_x(x))
-
-        # Create solver instance
-        F = Function("F", [x, u], [f])
-        G_f = Function('Gf', [x], [g])
 
         # Create empty NLP
         w = []
@@ -259,6 +235,11 @@ class ModelPredictiveControl(object):
         ubw += x_init[:9]
 
         for k in range(1, self.horizon + 1):
+            f = vertcat(*self.dynamics.f_xu(x, u))
+            F = Function("F", [x, u], [f])
+            g = vertcat(*self.dynamics.g_x(x))
+            G_f = Function('Gf', [x], [g])
+
             # Local control
             Uname = 'U' + str(k - 1)
             Uk = MX.sym(Uname, self.ACTION_DIM)
@@ -268,6 +249,7 @@ class ModelPredictiveControl(object):
 
             Fk = F(Xk, Uk)
             Gk = G_f(Xk)
+            self.dynamics.vehs_pred()
             Xname = 'X' + str(k)
             Xk = MX.sym(Xname, self.DYNAMICS_DIM)
 
@@ -276,16 +258,11 @@ class ModelPredictiveControl(object):
             lbg += [0.0] * self.DYNAMICS_DIM
             ubg += [0.0] * self.DYNAMICS_DIM
             G += [Gk]
-            lbg += [0.0] * len(self.veh_mode_list)*4
-            ubg += [inf] * len(self.veh_mode_list)*4
+            lbg += [0.0] * len(self.veh_mode_list)*2
+            ubg += [inf] * len(self.veh_mode_list)*2
             w += [Xk]
             lbw += [-inf] * self.DYNAMICS_DIM
             ubw += [inf] * self.DYNAMICS_DIM
-            # w += [Gk]
-            # lbw += [-inf,-inf]
-            # ubw += [inf, inf]
-            # lbw += [-inf, -inf, -inf, -inf, -inf]
-            # ubw += [inf, inf, inf, inf, inf]
 
             # Cost function
             F_cost = Function('F_cost', [x, u], [0.1 * power(x[8], 2)
@@ -301,8 +278,9 @@ class ModelPredictiveControl(object):
         S = nlpsol('S', 'ipopt', nlp, self._sol_dic)
 
         # Solve NLP
-        r = S(lbx=lbw, ubx=ubw, x0=0, lbg=lbg, ubg=ubg)
+        r = S(lbx=vertcat(*lbw), ubx=vertcat(*ubw), x0=XO, lbg=vertcat(*lbg), ubg=vertcat(*ubg))
         state_all = np.array(r['x'])
+        g_all = np.array(r['g'])
         state = np.zeros([self.horizon, self.DYNAMICS_DIM])
         control = np.zeros([self.horizon, self.ACTION_DIM])
         nt = self.DYNAMICS_DIM + self.ACTION_DIM  # total variable per step
@@ -311,7 +289,7 @@ class ModelPredictiveControl(object):
         for i in range(self.horizon):
             state[i] = state_all[nt * i: nt * (i+1) - self.ACTION_DIM].reshape(-1)
             control[i] = state_all[nt * (i+1) - self.ACTION_DIM: nt * (i+1)].reshape(-1)
-        return state, control
+        return state, control, state_all, g_all
 
 
 def plot_mpc_rl(file_dir, mpc_name):
@@ -460,12 +438,16 @@ def run_mpc():
             # obs4rl = env4rl.reset(init_obs=obs)
             mpc = ModelPredictiveControl(horizon)
             rew, rew4rl = 0., 0.
+            state_all = np.array((list(obs[:9]) + [0, 0])*horizon + list(obs[:9])).reshape((-1, 1))
             for _ in range(100):
                 with mpc_timer:
-                    print(list(obs)[:6])
-                    state, control = mpc.mpc_solver(list(obs))
-                mpc_action = control[0]
-                print(mpc_action)
+                    state, control, state_all, g_all = mpc.mpc_solver(list(obs), state_all)
+                if any(g_all < -1):
+                    print('optimization fail')
+                    mpc_action = np.array([0., -1.])
+                    state_all = np.array((list(obs[:9]) + [0, 0]) * horizon + list(obs[:9])).reshape((-1, 1))
+                else:
+                    mpc_action = control[0]
                 # with rl_timer:
                 #     rl_action_mpc = rl_policy.run(obs).numpy()[0]
                 #     rl_action = rl_policy.run(obs4rl).numpy()[0]
@@ -487,15 +469,13 @@ def run_mpc():
                 # obs4rl, rew4rl, _, _ = env4rl.step(np.array([rl_action]))
                 env4mpc.render()
                 plt.plot([state[i][3] for i in range(1, horizon-1)], [state[i][4] for i in range(1, horizon-1)], 'r*')
-                print(state)
                 plt.show()
                 plt.pause(0.1)
             np.save('mpc_rl.npy', np.array(data2plot))
 
 
 if __name__ == '__main__':
-    # run_mpc()
+    run_mpc()
     # plot_mpc_rl('./mpc_rl.npy', 'IPOPT')
-    print(cos(np.pi))
 
 
