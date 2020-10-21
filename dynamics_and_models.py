@@ -246,15 +246,22 @@ class EnvironmentModel(object):  # all tensors
                                    tf.cast(vehs[:, 1] + veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
                 veh_rear_points = tf.cast(vehs[:, 0] - veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
                                   tf.cast(vehs[:, 1] - veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
-                for ego_point in [ego_front_points]:
+                for ego_point in [ego_front_points, ego_rear_points]:
                     for veh_point in [veh_front_points, veh_rear_points]:
                         veh2veh_dist = tf.sqrt(
                             tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - 5.
                         veh2veh += tf.where(veh2veh_dist < 0, tf.square(veh2veh_dist), tf.zeros_like(veh_infos[:, 0]))
 
+            veh2road = tf.zeros_like(veh_infos[:, 0])
+            for ego_point in [ego_front_points, ego_rear_points]:
+                veh2road += tf.where(logical_and(ego_point[1] < -18, ego_point[0] < 1),
+                                     tf.square(ego_point[0]-1), tf.zeros_like(veh_infos[:, 0]))
+                veh2road += tf.where(logical_and(ego_point[1] < -18, 3.75-ego_point[0] < 1),
+                                     tf.square(3.75-ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
+
             rewards = 0.1 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
                       5 * punish_steer + 0.05 * punish_a_x
-            punish_term = veh2veh
+            punish_term = veh2veh + veh2road
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
             #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],

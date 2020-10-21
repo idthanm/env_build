@@ -184,10 +184,14 @@ class Dynamics(object):
                                veh_y + veh_lws * math.sin(veh_phi * np.pi / 180.)
             veh_rear_points = veh_x - veh_lws * math.cos(veh_phi * np.pi / 180.), \
                               veh_y - veh_lws * math.sin(veh_phi * np.pi / 180.)
-            for ego_point in [ego_front_points]:
+            for ego_point in [ego_front_points, ego_rear_points]:
                 for veh_point in [veh_front_points, veh_rear_points]:
                     veh2veh_dist = sqrt(power(ego_point[0] - veh_point[0],4) + power(ego_point[1] - veh_point[1],4))-5.
                     g_list.append(veh2veh_dist)
+
+        g_list.append(if_else(logic_and(ego_y<-18, ego_x<1), ego_x-1, 1))
+        g_list.append(if_else(logic_and(ego_y<-18, 3.75-ego_x<1), 3.75-ego_x-1, 1))
+
         return g_list
 
 
@@ -259,8 +263,8 @@ class ModelPredictiveControl(object):
             lbg += [0.0] * self.DYNAMICS_DIM
             ubg += [0.0] * self.DYNAMICS_DIM
             G += [Gk]
-            lbg += [0.0] * len(self.veh_mode_list)*2
-            ubg += [inf] * len(self.veh_mode_list)*2
+            lbg += [0.0] * (len(self.veh_mode_list)*4+2)
+            ubg += [inf] * (len(self.veh_mode_list)*4+2)
             w += [Xk]
             lbw += [-inf] * self.DYNAMICS_DIM
             ubw += [inf] * self.DYNAMICS_DIM
