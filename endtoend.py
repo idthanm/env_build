@@ -553,17 +553,47 @@ class CrossroadEnd2end(gym.Env):
         devi_v = -tf.square(tracking_infos[2])
 
         veh2veh = tf.constant(0.)
+        ego_lws = (L - W) / 2.
+        ego_front_points = tf.cast(ego_infos[3] + ego_lws * tf.cos(ego_infos[5] * np.pi / 180.),
+                                   dtype=tf.float32), \
+                           tf.cast(ego_infos[4] + ego_lws * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
+        ego_rear_points = tf.cast(ego_infos[3] - ego_lws * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32), \
+                          tf.cast(ego_infos[4] - ego_lws * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
+        # for veh_index in range(int(len(veh_infos) / self.per_veh_info_dim)):
+        #     veh = veh_infos[veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
+        #     rela_phi_rad = tf.atan2(veh[1]-ego_infos[4], veh[0]-ego_infos[3])
+        #     ego_phi_rad = ego_infos[5] * np.pi / 180.
+        #     cos_value, sin_value = tf.cos(rela_phi_rad - ego_phi_rad), tf.sin(rela_phi_rad - ego_phi_rad)
+        #     dist = tf.sqrt(tf.square(veh[0] - ego_infos[3]) + tf.square(veh[1]-ego_infos[4]))
+        #
+        #     if (cos_value > 0. and dist*tf.abs(sin_value) < (L+W)/2 and dist < 10.) or dist < 3.:
+        #         veh2veh += tf.square(10.-dist)
+
         for veh_index in range(int(len(veh_infos) / self.per_veh_info_dim)):
-            veh = veh_infos[veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
-            rela_phi_rad = tf.atan2(veh[1]-ego_infos[4], veh[0]-ego_infos[3])
-            ego_phi_rad = ego_infos[5] * np.pi / 180.
-            cos_value, sin_value = tf.cos(rela_phi_rad - ego_phi_rad), tf.sin(rela_phi_rad - ego_phi_rad)
-            dist = tf.sqrt(tf.square(veh[0] - ego_infos[3]) + tf.square(veh[1]-ego_infos[4]))
+            vehs = veh_infos[veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
+            veh_lws = (L - W) / 2.
+            veh_front_points = tf.cast(vehs[0] + veh_lws * tf.cos(vehs[3] * np.pi / 180.), dtype=tf.float32), \
+                               tf.cast(vehs[1] + veh_lws * tf.sin(vehs[3] * np.pi / 180.), dtype=tf.float32)
+            veh_rear_points = tf.cast(vehs[0] - veh_lws * tf.cos(vehs[3] * np.pi / 180.), dtype=tf.float32), \
+                              tf.cast(vehs[1] - veh_lws * tf.sin(vehs[3] * np.pi / 180.), dtype=tf.float32)
+            for ego_point in [ego_front_points, ego_rear_points]:
+                for veh_point in [veh_front_points, veh_rear_points]:
+                    veh2veh_dist = tf.sqrt(
+                        tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - 5.
+                    if veh2veh_dist < 0:
+                        veh2veh += tf.square(veh2veh_dist)
 
-            if (cos_value > 0. and dist*tf.abs(sin_value) < (L+W)/2 and dist < 10.) or dist < 3.:
-                veh2veh += tf.square(10.-dist)
+        veh2road = tf.constant(0.)
+        if self.training_task == 'left':
+            for ego_point in [ego_front_points, ego_rear_points]:
+                veh2road += tf.square(ego_point[0] - 1) if ego_point[1] < -18 and ego_point[0] < 1 else 0
+                veh2road += tf.square(3.75 - ego_point[0] - 1) if ego_point[1] < -18 and 3.75 - ego_point[0] < 1 else 0
+                veh2road += tf.square(ego_point[1] + 5) if ego_point[0] > 0 and ego_point[1] > -5 else 0
+                veh2road += tf.square(5.625 - ego_point[0] - 1) if ego_point[1] > -18 and 5.625 - ego_point[0] < 1 else 0
+                veh2road += tf.square(7.5 - ego_point[1] - 1) if ego_point[0] < 0 and 7.5 - ego_point[1] < 1 else 0
+                veh2road += tf.square(ego_point[1] - 0 - 1) if ego_point[0] < -18 and ego_point[1] - 0 < 1 else 0
 
-        reward = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
+        reward = 0.1 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
                  5 * punish_steer + 0.05 * punish_a_x
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
@@ -571,14 +601,14 @@ class CrossroadEnd2end(gym.Env):
                            devi_v=devi_v.numpy(),
                            devi_y=devi_y.numpy(),
                            devi_phi=devi_phi.numpy(),
-                           veh2veh=veh2veh.numpy(),
                            scaled_punish_steer=5 * punish_steer.numpy(),
                            scaled_punish_a_x=0.05 * punish_a_x.numpy(),
                            scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
-                           scaled_devi_v=0.01 * devi_v.numpy(),
-                           scaled_devi_y=0.04 * devi_y.numpy(),
-                           scaled_devi_phi=0.1 * devi_phi.numpy(),
-                           scaled_veh2veh=0.5 * veh2veh.numpy(), )
+                           scaled_devi_v=0.1 * devi_v.numpy(),
+                           scaled_devi_y=0.8 * devi_y.numpy(),
+                           scaled_devi_phi=0.8 * devi_phi.numpy(),
+                           veh2veh=veh2veh.numpy(),
+                           veh2road=veh2road.numpy(),)
 
         return reward.numpy(), reward_dict
 
@@ -858,12 +888,6 @@ class CrossroadEnd2end(gym.Env):
             ge = iter(range(0, 1000, 4))
             plt.text(text_x, text_y_start - next(ge), 'ego_x: {:.2f}m'.format(ego_x))
             plt.text(text_x, text_y_start - next(ge), 'ego_y: {:.2f}m'.format(ego_y))
-            # plt.text(text_x, text_y_start - next(ge), 'UDLR: {:.2f} {:.2f} {:.2f} {:.2f}'.format(min([up1, up2]),
-            #                                                                                          min([down1, down2]),
-            #                                                                                          min([left1, left2]),
-            #                                                                                          min([right1, right2])))
-            # plt.text(text_x, text_y_start - next(ge), '1deltas {:.2f} {:.2f}'.format(point11x, point11y))
-            # plt.text(text_x, text_y_start - next(ge), '2deltas {:.2f} {:.2f}'.format(point12x, point12y))
             plt.text(text_x, text_y_start - next(ge), 'goal_x: {:.2f}m'.format(goal_x))
             plt.text(text_x, text_y_start - next(ge), 'goal_y: {:.2f}m'.format(goal_y))
             plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
@@ -914,7 +938,7 @@ def test_end2end():
             # print(i)
             i += 1
             # action=2*np.random.random(2)-1
-            action = np.array([0, 0], dtype=np.float32)
+            action = np.array([0, 1], dtype=np.float32)
             obs, reward, done, info = env.step(action)
             env.render()
         done = 0
