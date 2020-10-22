@@ -170,7 +170,7 @@ class EnvironmentModel(object):  # all tensors
         self.obses = None
         self.ego_params = None
         self.actions = None
-        self.task = None
+        self.task = task
         self.ref_path = None
         self.num_future_data = num_future_data
         self.exp_v = 8.
@@ -179,12 +179,17 @@ class EnvironmentModel(object):  # all tensors
         self.per_veh_info_dim = 4
         self.per_tracking_info_dim = 3
 
-    def reset(self, obses, task):
-        self.obses = obses
+    def reset(self, obses, task, trajectory=None, mode=None):
+        if mode=='selecting':
+            self.ref_path = trajectory
+            self.obses = obses[np.newaxis, :]
+        else:
+            self.ref_path = ReferencePath(task, mode='training')
+            self.obses = obses
+
         self.actions = None
+
         self.task = task
-        #
-        self.ref_path = ReferencePath(task, mode='training')
         self.reward_info = None
 
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
@@ -198,6 +203,7 @@ class EnvironmentModel(object):  # all tensors
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
+        actions = tf.reshape(actions, [1, -1])
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
         steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm
         return tf.stack([steer_scale, a_xs_scale], 1)
@@ -210,6 +216,12 @@ class EnvironmentModel(object):  # all tensors
                                                                self.num_future_data + 1)], \
                                                    obses[:, self.ego_info_dim + self.per_tracking_info_dim * (
                                                                self.num_future_data + 1):]
+            # ego_infos, tracking_infos, veh_infos = obses[:self.ego_info_dim], \
+            #                                        obses[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
+            #                                                    self.num_future_data + 1)], \
+            #                                        obses[self.ego_info_dim + self.per_tracking_info_dim * (
+            #                                                    self.num_future_data + 1):]
+
             steers, a_xs = actions[:, 0], actions[:, 1]
             # rewards related to action
             punish_steer = -tf.square(steers)
@@ -544,16 +556,16 @@ def deal_with_phi_diff(phi_diff):
 
 
 class ReferencePath(object):
-    def __init__(self, task, mode=None, path_list=None):
+    def __init__(self, task, mode=None, path=None):
         self.mode = mode
         self.exp_v = 8.
         self.task = task
         self.mode = mode
-        self._set_path(path_list)
+        self._set_path(path)
 
-    def _set_path(self, path_list):
+    def _set_path(self, path):
         if self.mode == 'selecting':
-            self.path_list = path_list
+            self.path = path
 
         else:                         # 训练时：只考虑一条全局的轨迹
             self.path_list = []
@@ -668,6 +680,9 @@ class ReferencePath(object):
         pathx_tile = tf.tile(tf.reshape(self.path[0], (1, -1)), tf.constant([len(xs), 1]))
         pathy_tile = tf.tile(tf.reshape(self.path[1], (1, -1)), tf.constant([len(xs), 1]))
 
+        pathx_tile = tf.cast(pathx_tile, dtype=tf.float32)
+        pathy_tile = tf.cast(pathy_tile, dtype=tf.float32)
+
         dist_array = tf.square(xs_tile - pathx_tile) + tf.square(ys_tile - pathy_tile)
 
         indexs = tf.argmin(dist_array, 1)
@@ -688,13 +703,9 @@ class ReferencePath(object):
                  tf.gather(self.path[1], indexs), \
                  tf.gather(self.path[2], indexs)
 
-        return points[0], points[1], points[2]
+        return tf.cast(points[0], dtype=tf.float32), tf.cast(points[1], dtype=tf.float32), tf.cast(points[2], dtype=tf.float32)
 
     def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n):
-        indexs, current_points = self.find_closest_point(ego_xs, ego_ys)
-        n_future_data = self.future_n_data(indexs, n)
-        all_ref = [current_points] + n_future_data
-
         def two2one(ref_xs, ref_ys):
             if self.task == 'left':
                 delta_ = tf.sqrt(tf.square(ego_xs - (-18)) + tf.square(ego_ys - (-18))) - \
@@ -713,10 +724,28 @@ class ReferencePath(object):
                 delta_ = tf.where(ego_xs > 18, -(ego_ys - ref_ys), delta_)
                 return delta_
 
-        tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
-                                              deal_with_phi_diff(ego_phis - ref_point[2]),
-                                              ego_vs - self.exp_v], 1)
-                                    for ref_point in all_ref], 1)
+        if self.mode == 'tracking':
+            indexs = tf.constant([1], dtype=tf.int64)
+            current_points = self.indexs2points(indexs)
+            n_future_data = self.future_n_data(indexs, n)
+            all_ref = [current_points] + n_future_data
+            print(current_points)
+
+            tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
+                                                  deal_with_phi_diff(ego_phis - ref_point[2]),
+                                                  ego_vs - self.exp_v], 1)
+                                        for ref_point in all_ref], 1)
+
+        else:
+            indexs, current_points = self.find_closest_point(ego_xs, ego_ys)
+            print('Index:', indexs.numpy(), 'points:', current_points[:])
+            n_future_data = self.future_n_data(indexs, n)
+            all_ref = [current_points] + n_future_data
+
+            tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
+                                                  deal_with_phi_diff(ego_phis - ref_point[2]),
+                                                  ego_vs - self.exp_v], 1)
+                                        for ref_point in all_ref], 1)
         return tracking_error
 
     def plot_path(self, x, y):

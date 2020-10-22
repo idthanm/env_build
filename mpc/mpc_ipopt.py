@@ -36,9 +36,10 @@ def deal_with_phi(phi):
 
 
 class LoadPolicy(object):
-    def __init__(self, model_dir, iter):
+    def __init__(self, exp_dir, iter):
+        model_dir = exp_dir + '/models'
         parser = argparse.ArgumentParser()
-        params = json.loads(open(model_dir + '/config.json').read())
+        params = json.loads(open(exp_dir + '/config.json').read())
         for key, val in params.items():
             parser.add_argument("-" + key, default=val)
         self.args = parser.parse_args()
@@ -49,14 +50,17 @@ class LoadPolicy(object):
                                          self.args.obs_scale_factor, self.args.reward_scale_factor,
                                          gamma=self.args.gamma)
         # self.preprocessor.load_params(load_dir)
-        self.run(env.reset())
-        env.close()
+        init_obs = env.reset()
+        # print(init_obs)
+        # init_obs = init_obs[np.newaxis, :]
+        self.run(init_obs)
+
 
     @tf.function
     def run(self, obs):
-        processed_obs = self.preprocessor.tf_process_obses(obs)
-        action, logp = self.policy.compute_action(processed_obs)
-        return action
+        processed_obs = self.preprocessor.np_process_obses(obs)
+        action, logp = self.policy.compute_action(processed_obs[np.newaxis, :])
+        return action[0]
 
 
 class VehicleDynamics(object):
@@ -475,7 +479,8 @@ def run_mpc():
 
 
 if __name__ == '__main__':
-    run_mpc()
+    test = LoadPolicy('./mpc/rl_experiments/experiment-2020-10-20-14-52-58', 95000)
+    # run_mpc()
     # plot_mpc_rl('./mpc_rl.npy', 'IPOPT')
 
 

@@ -172,6 +172,9 @@ class CrossroadEnd2end(gym.Env):
         self.done_type = 'not_done_yet'
         return self.obs
 
+    def close(self):
+        del self.traffic
+
     def step(self, action):
         self.action = self._action_transformation_for_end2end(action)
         reward, self.reward_info = self.compute_reward3(self.obs, self.action)
@@ -330,7 +333,7 @@ class CrossroadEnd2end(gym.Env):
         next_ego_state[-1] = deal_with_phi(next_ego_state[-1])
         return next_ego_state, next_ego_params
 
-    def _get_obs(self, exit_='D'):
+    def _get_obs(self, exit_='D', mode=None):
         ego_x = self.ego_dynamics['x']
         ego_y = self.ego_dynamics['y']
         ego_phi = self.ego_dynamics['phi']
@@ -513,7 +516,7 @@ class CrossroadEnd2end(gym.Env):
         else:
             random_index = int(np.random.random()*(390+500)) + 700
 
-        # random_index = 500
+        random_index = 1200
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 8 * np.random.random()
@@ -583,7 +586,7 @@ class CrossroadEnd2end(gym.Env):
 
         return reward.numpy(), reward_dict
 
-    def render(self, real_time_traj, mode='human'):
+    def render(self, real_time_traj, traj_return, mode='human'):
         if mode == 'human':
             # plot basic map
             square_length = 36
@@ -855,7 +858,7 @@ class CrossroadEnd2end(gym.Env):
             try:
                 color = ['b', 'coral']
                 for i, item in enumerate(real_time_traj):
-                    plt.plot(item.path_list[0], item.path_list[1], color=color[i])
+                    plt.plot(item.path[0], item.path[1], color=color[i])
             except Exception:
                 pass
 
@@ -911,8 +914,33 @@ class CrossroadEnd2end(gym.Env):
                 for key, val in self.reward_info.items():
                     plt.text(text_x, text_y_start - next(ge), '{}: {:.4f}'.format(key, val))
 
+            # indicator for trajectory selection
+            text_x, text_y_start = 25, -40
+            ge = iter(range(0, 1000, 6))
+            if traj_return is not None:
+                for i, value in enumerate(traj_return):
+                    plt.text(text_x, text_y_start-next(ge), 'J=:{:.4f}'.format(value), fontsize=12, color=color[i], fontstyle='italic')
+
             plt.show()
             plt.pause(0.1)
+
+    def set_traj(self, trajectory, mode):
+        """set the real trajectory to reconstruct observation"""
+        self.ref_path = trajectory
+        self.ref_path.mode = mode
+        # ego_infos, tracking_infos, ego_infos = self.obs[:self.ego_info_dim], self.obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
+        #                                                                             self.num_future_data + 1)], \
+        #                                        self.obs[self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data + 1):]
+        #
+        # tracking_error = trajectory.tracking_error_vector(np.array([ego_infos[3]], dtype=np.float32),
+        #                                                      np.array([ego_infos[4]], dtype=np.float32),
+        #                                                      np.array([ego_infos[5]], dtype=np.float32),
+        #                                                      np.array([ego_infos[0]], dtype=np.float32),
+        #                                                      self.num_future_data).numpy()[0]
+        #
+        # vector = np.concatenate((ego_infos, tracking_error, ego_infos), axis=0)
+        # return vector
+
 
 
 def test_end2end():

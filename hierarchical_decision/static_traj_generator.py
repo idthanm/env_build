@@ -156,9 +156,9 @@ class StaticTrajectoryGenerator(object):
                 current_path = planed_trj[:, 0], planed_trj[:, 1], planed_trj[:, 3]
                 self.path_list.append(ReferencePath(self.task, self.mode, current_path))
 
-        self.path = self.path_list[self.ref_index].path_list
+        self.path = self.path_list[self.ref_index].path
 
-    def trajectory_planning(self, x0, x_des1, x_des2, L0, L3, new_method_bound, v=8.0, T=0.1, N=20):
+    def trajectory_planning(self, x0, x_des1, x_des2, L0, L3, new_method_bound, v=4.0, T=0.1, N=20):
         traj, L0, L3, flag = self.reference_trajectory(x0, x_des1, x_des2, L0, L3, v, T, N, new_method_bound)
         return traj, L0, L3, flag
 
@@ -264,7 +264,6 @@ class StaticTrajectoryGenerator(object):
                 Y_t = Y3 * (2 - t) ** 3 + 3 * Y3_0 * (t - 1) * (2 - t) ** 2 + 3 * Y3_1 * (t - 1) ** 2 * (2 - t) + Y4 * (
                             t - 1) ** 3
         return X_t, Y_t
-
 
     def select_traj(self):
         pass
