@@ -270,7 +270,7 @@ class ModelPredictiveControl(object):
             ubw += [inf] * self.DYNAMICS_DIM
 
             # Cost function
-            F_cost = Function('F_cost', [x, u], [0.1 * power(x[8], 2)
+            F_cost = Function('F_cost', [x, u], [0.01 * power(x[8], 2)
                                                  + 0.8 * power(x[6], 2)
                                                  + 0.8 * power(x[7]*np.pi/180., 2)
                                                  + 0.02 * power(x[2], 2)
@@ -452,6 +452,7 @@ def run_mpc():
                     mpc_action = np.array([0., -1.])
                     state_all = np.array((list(obs[:9]) + [0, 0]) * horizon + list(obs[:9])).reshape((-1, 1))
                 else:
+                    state_all = np.zeros(shape=(11*horizon+9, 1))
                     mpc_action = control[0]
                 # with rl_timer:
                 #     rl_action_mpc = rl_policy.run(obs).numpy()[0]
@@ -471,6 +472,7 @@ def run_mpc():
 
                 mpc_action = mpc_action.astype(np.float32)
                 obs, rew, _, _ = env4mpc.step(mpc_action)
+                print(obs, mpc_action)
                 # obs4rl, rew4rl, _, _ = env4rl.step(np.array([rl_action]))
                 env4mpc.render()
                 plt.plot([state[i][3] for i in range(1, horizon-1)], [state[i][4] for i in range(1, horizon-1)], 'r*')
