@@ -19,7 +19,6 @@ from gym.utils import seeding
 
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath
-# from hierarchical_decision.static_traj_generator import StaticTrajectoryGenerator
 from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination
 from traffic import Traffic, deal_with_phi
 
@@ -310,9 +309,9 @@ class CrossroadEnd2end(gym.Env):
         steer_norm, a_x_norm = action[0], action[1]
         scaled_steer = 0.4 * steer_norm
         scaled_a_x = 3.*a_x_norm
-        if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
-            scaled_steer = 0.
-            scaled_a_x = -3.
+        # if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
+        #     scaled_steer = 0.
+        #     scaled_a_x = -3.
 
         scaled_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
         return scaled_action
@@ -327,7 +326,7 @@ class CrossroadEnd2end(gym.Env):
         steer, a_x = trans_action
         state = np.array([[current_v_x, current_v_y, current_r, current_x, current_y, current_phi]], dtype=np.float32)
         action = np.array([[steer, a_x]], dtype=np.float32)
-        next_ego_state, next_ego_params = self.dynamics.prediction(state, action, 10, 1)
+        next_ego_state, next_ego_params = self.dynamics.prediction(state, action, 10)
         next_ego_state, next_ego_params = next_ego_state.numpy()[0],  next_ego_params.numpy()[0]
         next_ego_state[0] = next_ego_state[0] if next_ego_state[0] >= 0 else 0.
         next_ego_state[-1] = deal_with_phi(next_ego_state[-1])
@@ -423,8 +422,8 @@ class CrossroadEnd2end(gym.Env):
 
             ur_straight = list(filter(lambda v: v['x'] < ego_x + 7 and ego_y < v['y'] < 28, ur))  # interest of straight
             ur_right = list(filter(lambda v: v['x'] < 28 and v['y'] < 18, ur))  # interest of right
-            ud = list(filter(lambda v: ego_y < v['y'] < 18 and ego_x > v['x'], ud))  # interest of left
-            ul = list(filter(lambda v: -28 < v['x'] < ego_x+5 and v['y'] < 28, ul))  # interest of left
+            ud = list(filter(lambda v: ego_y-2 < v['y'] < 18 and ego_x > v['x'], ud))  # interest of left
+            ul = list(filter(lambda v: -28 < v['x'] < ego_x and v['y'] < 18, ul))  # interest of left
 
             lu = lu  # not interest in case of traffic light
             lr = list(filter(lambda v: -28 < v['x'] < 28, lr))  # interest of right
@@ -557,32 +556,62 @@ class CrossroadEnd2end(gym.Env):
         devi_v = -tf.square(tracking_infos[2])
 
         veh2veh = tf.constant(0.)
+        ego_lws = (L - W) / 2.
+        ego_front_points = tf.cast(ego_infos[3] + ego_lws * tf.cos(ego_infos[5] * np.pi / 180.),
+                                   dtype=tf.float32), \
+                           tf.cast(ego_infos[4] + ego_lws * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
+        ego_rear_points = tf.cast(ego_infos[3] - ego_lws * tf.cos(ego_infos[5] * np.pi / 180.), dtype=tf.float32), \
+                          tf.cast(ego_infos[4] - ego_lws * tf.sin(ego_infos[5] * np.pi / 180.), dtype=tf.float32)
+        # for veh_index in range(int(len(veh_infos) / self.per_veh_info_dim)):
+        #     veh = veh_infos[veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
+        #     rela_phi_rad = tf.atan2(veh[1]-ego_infos[4], veh[0]-ego_infos[3])
+        #     ego_phi_rad = ego_infos[5] * np.pi / 180.
+        #     cos_value, sin_value = tf.cos(rela_phi_rad - ego_phi_rad), tf.sin(rela_phi_rad - ego_phi_rad)
+        #     dist = tf.sqrt(tf.square(veh[0] - ego_infos[3]) + tf.square(veh[1]-ego_infos[4]))
+        #
+        #     if (cos_value > 0. and dist*tf.abs(sin_value) < (L+W)/2 and dist < 10.) or dist < 3.:
+        #         veh2veh += tf.square(10.-dist)
+
         for veh_index in range(int(len(veh_infos) / self.per_veh_info_dim)):
-            veh = veh_infos[veh_index * self.per_veh_info_dim:(veh_index + 1)*self.per_veh_info_dim]
-            rela_phi_rad = tf.atan2(veh[1]-ego_infos[4], veh[0]-ego_infos[3])
-            ego_phi_rad = ego_infos[5] * np.pi / 180.
-            cos_value, sin_value = tf.cos(rela_phi_rad - ego_phi_rad), tf.sin(rela_phi_rad - ego_phi_rad)
-            dist = tf.sqrt(tf.square(veh[0] - ego_infos[3]) + tf.square(veh[1]-ego_infos[4]))
+            vehs = veh_infos[veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
+            veh_lws = (L - W) / 2.
+            veh_front_points = tf.cast(vehs[0] + veh_lws * tf.cos(vehs[3] * np.pi / 180.), dtype=tf.float32), \
+                               tf.cast(vehs[1] + veh_lws * tf.sin(vehs[3] * np.pi / 180.), dtype=tf.float32)
+            veh_rear_points = tf.cast(vehs[0] - veh_lws * tf.cos(vehs[3] * np.pi / 180.), dtype=tf.float32), \
+                              tf.cast(vehs[1] - veh_lws * tf.sin(vehs[3] * np.pi / 180.), dtype=tf.float32)
+            for ego_point in [ego_front_points, ego_rear_points]:
+                for veh_point in [veh_front_points, veh_rear_points]:
+                    veh2veh_dist = tf.sqrt(
+                        tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - 5.
+                    if veh2veh_dist < 0:
+                        veh2veh += tf.square(veh2veh_dist)
 
-            if (cos_value > 0. and dist*tf.abs(sin_value) < (L+W)/2 and dist < 10.) or dist < 3.:
-                veh2veh -= (10.-dist)
+        veh2road = tf.constant(0.)
+        if self.training_task == 'left':
+            for ego_point in [ego_front_points, ego_rear_points]:
+                veh2road += tf.square(ego_point[0] - 1) if ego_point[1] < -18 and ego_point[0] < 1 else 0
+                veh2road += tf.square(3.75 - ego_point[0] - 1) if ego_point[1] < -18 and 3.75 - ego_point[0] < 1 else 0
+                veh2road += tf.square(ego_point[1] + 5) if ego_point[0] > 0 and ego_point[1] > -5 else 0
+                veh2road += tf.square(5.625 - ego_point[0] - 1) if ego_point[1] > -18 and 5.625 - ego_point[0] < 1 else 0
+                veh2road += tf.square(7.5 - ego_point[1] - 1) if ego_point[0] < 0 and 7.5 - ego_point[1] < 1 else 0
+                veh2road += tf.square(ego_point[1] - 0 - 1) if ego_point[0] < -18 and ego_point[1] - 0 < 1 else 0
 
-        reward = 0.01 * devi_v + 0.04 * devi_y + 0.1 * devi_phi + 0.02 * punish_yaw_rate + \
-                 0.1 * punish_steer + 0.005 * punish_a_x + 0.5 * veh2veh
+        reward = 0.1 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
+                 5 * punish_steer + 0.05 * punish_a_x
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
                            devi_v=devi_v.numpy(),
                            devi_y=devi_y.numpy(),
                            devi_phi=devi_phi.numpy(),
-                           veh2veh=veh2veh.numpy(),
-                           scaled_punish_steer=0.1 * punish_steer.numpy(),
-                           scaled_punish_a_x=0.005 * punish_a_x.numpy(),
+                           scaled_punish_steer=5 * punish_steer.numpy(),
+                           scaled_punish_a_x=0.05 * punish_a_x.numpy(),
                            scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
-                           scaled_devi_v=0.01 * devi_v.numpy(),
-                           scaled_devi_y=0.04 * devi_y.numpy(),
-                           scaled_devi_phi=0.1 * devi_phi.numpy(),
-                           scaled_veh2veh=0.5 * veh2veh.numpy(), )
+                           scaled_devi_v=0.1 * devi_v.numpy(),
+                           scaled_devi_y=0.8 * devi_y.numpy(),
+                           scaled_devi_phi=0.8 * devi_phi.numpy(),
+                           veh2veh=veh2veh.numpy(),
+                           veh2road=veh2road.numpy(),)
 
         return reward.numpy(), reward_dict
 
@@ -945,7 +974,7 @@ class CrossroadEnd2end(gym.Env):
 
 def test_end2end():
     import time
-    env = CrossroadEnd2end('right')
+    env = CrossroadEnd2end('left')
     obs = env.reset()
     i = 0
     done = 0
@@ -954,7 +983,7 @@ def test_end2end():
             # print(i)
             i += 1
             # action=2*np.random.random(2)-1
-            action = np.array([0.5, -1], dtype=np.float32)
+            action = np.array([0, 0], dtype=np.float32)
             obs, reward, done, info = env.step(action)
             env.render()
         done = 0

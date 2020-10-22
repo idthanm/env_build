@@ -83,7 +83,7 @@ class VehicleDynamics(object):
     def f_xu(self, x, u, tau):
         v_x, v_y, r, x, y, phi = x[0], x[1], x[2], x[3], x[4], x[5]
         phi = phi * np.pi / 180.
-        steer, a_x = u[0]*0.4, u[1]*3
+        steer, a_x = u[0]*0.4, u[1]*3-1.
         C_f = self.vehicle_params['C_f']
         C_r = self.vehicle_params['C_r']
         a = self.vehicle_params['a']
@@ -187,10 +187,14 @@ class Dynamics(object):
                                veh_y + veh_lws * math.sin(veh_phi * np.pi / 180.)
             veh_rear_points = veh_x - veh_lws * math.cos(veh_phi * np.pi / 180.), \
                               veh_y - veh_lws * math.sin(veh_phi * np.pi / 180.)
-            for ego_point in [ego_front_points]:
+            for ego_point in [ego_front_points, ego_rear_points]:
                 for veh_point in [veh_front_points, veh_rear_points]:
                     veh2veh_dist = sqrt(power(ego_point[0] - veh_point[0],4) + power(ego_point[1] - veh_point[1],4))-5.
                     g_list.append(veh2veh_dist)
+
+        g_list.append(if_else(logic_and(ego_y<-18, ego_x<1), ego_x-1, 1))
+        g_list.append(if_else(logic_and(ego_y<-18, 3.75-ego_x<1), 3.75-ego_x-1, 1))
+
         return g_list
 
 
@@ -262,14 +266,14 @@ class ModelPredictiveControl(object):
             lbg += [0.0] * self.DYNAMICS_DIM
             ubg += [0.0] * self.DYNAMICS_DIM
             G += [Gk]
-            lbg += [0.0] * len(self.veh_mode_list)*2
-            ubg += [inf] * len(self.veh_mode_list)*2
+            lbg += [0.0] * (len(self.veh_mode_list)*4+2)
+            ubg += [inf] * (len(self.veh_mode_list)*4+2)
             w += [Xk]
             lbw += [-inf] * self.DYNAMICS_DIM
             ubw += [inf] * self.DYNAMICS_DIM
 
             # Cost function
-            F_cost = Function('F_cost', [x, u], [0.1 * power(x[8], 2)
+            F_cost = Function('F_cost', [x, u], [0.01 * power(x[8], 2)
                                                  + 0.8 * power(x[6], 2)
                                                  + 0.8 * power(x[7]*np.pi/180., 2)
                                                  + 0.02 * power(x[2], 2)
@@ -451,6 +455,7 @@ def run_mpc():
                     mpc_action = np.array([0., -1.])
                     state_all = np.array((list(obs[:9]) + [0, 0]) * horizon + list(obs[:9])).reshape((-1, 1))
                 else:
+                    state_all = np.zeros(shape=(11*horizon+9, 1))
                     mpc_action = control[0]
                 # with rl_timer:
                 #     rl_action_mpc = rl_policy.run(obs).numpy()[0]
@@ -470,6 +475,7 @@ def run_mpc():
 
                 mpc_action = mpc_action.astype(np.float32)
                 obs, rew, _, _ = env4mpc.step(mpc_action)
+                print(obs, mpc_action)
                 # obs4rl, rew4rl, _, _ = env4rl.step(np.array([rl_action]))
                 env4mpc.render()
                 plt.plot([state[i][3] for i in range(1, horizon-1)], [state[i][4] for i in range(1, horizon-1)], 'r*')
