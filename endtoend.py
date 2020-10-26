@@ -209,7 +209,7 @@ class CrossroadEnd2end(gym.Env):
         F_zf, F_zr = self.dynamics.vehicle_params['F_zf'], self.dynamics.vehicle_params['F_zr']
         C_f, C_r = self.dynamics.vehicle_params['C_f'], self.dynamics.vehicle_params['C_r']
         alpha_f_bound, alpha_r_bound = 3 * miu_f * F_zf / C_f, 3 * miu_r * F_zr / C_r
-        r_bound = miu_r * self.dynamics.vehicle_params['g'] / abs(out['v_x'])
+        r_bound = miu_r * self.dynamics.vehicle_params['g'] / (abs(out['v_x'])+1e-8)
 
         l, w, x, y, phi = out['l'], out['w'], out['x'], out['y'], out['phi']
 
@@ -303,9 +303,9 @@ class CrossroadEnd2end(gym.Env):
 
     def _action_transformation_for_end2end(self, action):  # [-1, 1]
         action = np.clip(action, -1.05, 1.05)
-        steer_norm, a_x_norm = action[0], action[1] - 1
+        steer_norm, a_x_norm = action[0], action[1]
         scaled_steer = 0.4 * steer_norm
-        scaled_a_x = 3.*a_x_norm
+        scaled_a_x = 3.*a_x_norm - 1
         # if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
         #     scaled_steer = 0.
         #     scaled_a_x = -3.
@@ -419,7 +419,7 @@ class CrossroadEnd2end(gym.Env):
 
             ur_straight = list(filter(lambda v: v['x'] < ego_x + 7 and ego_y < v['y'] < 28, ur))  # interest of straight
             ur_right = list(filter(lambda v: v['x'] < 28 and v['y'] < 18, ur))  # interest of right
-            ud = list(filter(lambda v: max(ego_y-2, -18) < v['y'] < 18 and ego_x > v['x'], ud))  # interest of left
+            ud = list(filter(lambda v: max(ego_y-2, -18) < v['y'] < 18 and ego_x > v['x'] and ego_x>0.7, ud))  # interest of left
             ul = list(filter(lambda v: -28 < v['x'] < ego_x and v['y'] < 18, ul))  # interest of left
 
             lu = lu  # not interest in case of traffic light
@@ -593,7 +593,7 @@ class CrossroadEnd2end(gym.Env):
                 veh2road += tf.square(7.5 - ego_point[1] - 1) if ego_point[0] < 0 and 7.5 - ego_point[1] < 1 else 0
                 veh2road += tf.square(ego_point[1] - 0 - 1) if ego_point[0] < -18 and ego_point[1] - 0 < 1 else 0
 
-        reward = 0.1 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
+        reward = 0.01 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
                  5 * punish_steer + 0.05 * punish_a_x
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
@@ -604,7 +604,7 @@ class CrossroadEnd2end(gym.Env):
                            scaled_punish_steer=5 * punish_steer.numpy(),
                            scaled_punish_a_x=0.05 * punish_a_x.numpy(),
                            scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
-                           scaled_devi_v=0.1 * devi_v.numpy(),
+                           scaled_devi_v=0.01 * devi_v.numpy(),
                            scaled_devi_y=0.8 * devi_y.numpy(),
                            scaled_devi_phi=0.8 * devi_phi.numpy(),
                            veh2veh=veh2veh.numpy(),

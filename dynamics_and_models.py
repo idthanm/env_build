@@ -56,8 +56,8 @@ class VehicleDynamics(object):
         F_xr = tf.where(a_x < 0, mass * a_x / 2, mass * a_x)
         miu_f = tf.sqrt(tf.square(miu * F_zf) - tf.square(F_xf)) / F_zf
         miu_r = tf.sqrt(tf.square(miu * F_zr) - tf.square(F_xr)) / F_zr
-        alpha_f = tf.atan((v_y + a * r) / v_x) - steer
-        alpha_r = tf.atan((v_y - b * r) / v_x)
+        alpha_f = tf.atan((v_y + a * r) / (v_x+1e-8)) - steer
+        alpha_r = tf.atan((v_y - b * r) / (v_x+1e-8))
 
         next_state = [v_x + tau * (a_x + v_y * r),
                       (mass * v_y * v_x + tau * (

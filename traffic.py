@@ -181,7 +181,7 @@ class Traffic(object):
 
             if 'left_assi' not in random_traffic:
                 traci.vehicle.addLegacy(vehID='left_assi', routeID='dl',
-                                        depart=0, pos=20, lane=1, speed=init_n_ego_dict['ego']['v_x']+2,
+                                        depart=0, pos=20, lane=1, speed=2,
                                         typeID='self_car')
                 x, y = 1.875, min(-19, init_n_ego_dict['ego']['y']-8)
                 edgeID, lane = xy2_edgeID_lane(x, y)

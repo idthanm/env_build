@@ -59,7 +59,7 @@ traci.vehicle.addLegacy(vehID='ego2', routeID='ud',
 # traci.vehicle.moveToXY('car3', '1o', 1, 1.875, -30)
 
 traci.vehicle.addLegacy(vehID='ego', routeID='dl',
-                        depart=0, pos=0, lane=1, speed=8,
+                        depart=0, pos=0, lane=1, speed=0,
                         typeID='self_car')
 
 traci.vehicle.subscribeContext('ego',
@@ -78,7 +78,7 @@ traci.vehicle.subscribeContext('ego',
                                         traci.constants.VAR_ROUTE_INDEX],
                                0, 2147483647)
 
-traci.vehicle.subscribeContext('ego',
+traci.vehicle.subscribeContext('ego1',
                                        traci.constants.CMD_GET_VEHICLE_VARIABLE,
                                        999999, [traci.constants.VAR_POSITION,
                                                 traci.constants.VAR_LENGTH,
@@ -100,12 +100,16 @@ def test_MSLCM_bug():
     # the problem happens the minute ego car get into the intersection, edgeID and lane should be tested
     for i in range(10000):
         if i <= 10000:
-            traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=-18.6, angle=0.)
+            traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=1, x=1.5, y=-18.6, angle=0.)
             traci.vehicle.setSpeed('ego', 1.)
             traci.simulationStep()
-            traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=1.5, y=-17., angle=0.)
+            random_traffic = traci.vehicle.getContextSubscriptionResults('ego1')
+            print(random_traffic['ego'])
+            traci.vehicle.moveToXY(vehID='ego', edgeID='0', lane=0, x=1.5, y=-17, angle=0.)
             traci.vehicle.setSpeed('ego', 1.)
             traci.simulationStep()
+            random_traffic = traci.vehicle.getContextSubscriptionResults('ego1')
+            print(random_traffic['ego'])
 
             # traci.vehicle.moveToXY('ego', '1o', 1, x=-17, y=1.5, angle=-90)
             # # traci.vehicle.setSpeed('ego', 11.0)
@@ -140,7 +144,7 @@ def test_other_car_collision():
     for i in range(10000):
         if 0 < i <= 10000:
             if i < 2:
-                traci.vehicle.moveToXY(vehID='ego2', edgeID='4o', lane=1, x=-1.875, y=5, angle=-180)
+                traci.vehicle.moveToXY(vehID='ego2', edgeID='4o', lane=1, x=-1.875, y=10, angle=-180)
 
             # traci.vehicle.setLength('ego', 5)
             # traci.vehicle.setWidth('ego', 2)
@@ -151,8 +155,8 @@ def test_other_car_collision():
             traci.vehicle.setSpeed('ego', 0)
 
             traci.vehicle.moveToXY(vehID='ego', edgeID='0', lane=0, x=ego_x_sumo, y=ego_y_sumo, angle=ego_phi_sumo)
-            if i < 5:
-               traci.vehicle.moveToXY(vehID='ego1', edgeID='1o', lane=1, x=1.875, y=min(-19, ego_y-8), angle=0)
+            # if i < 5:
+            #    traci.vehicle.moveToXY(vehID='ego1', edgeID='1o', lane=1, x=1.875, y=min(-19, ego_y-8), angle=0)
 
             traci.simulationStep()
         else:

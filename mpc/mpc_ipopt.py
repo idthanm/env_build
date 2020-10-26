@@ -135,9 +135,9 @@ class Dynamics(object):
     def predict_for_a_mode(self, vehs, mode):
         ego_x, ego_y = self.x_init[3], self.x_init[4]
         veh_x, veh_y, veh_v, veh_phi = vehs[0], vehs[1], vehs[2], vehs[3]
-        if self.task == 'left':
-            if -3.75<ego_x<1.3 and -18<ego_y<veh_y and mode == 'ud':
-                veh_v = max(veh_v - self.tau * 4, 0)
+        # if self.task == 'left':
+        #     if -3.75<ego_x<1.3 and -18<ego_y<veh_y and mode == 'ud':
+        #         veh_v = -9 # max(veh_v - self.tau * 4, 0)
 
         veh_phis_rad = veh_phi * np.pi / 180.
         veh_x_delta = veh_v * self.tau * math.cos(veh_phis_rad)
@@ -196,10 +196,10 @@ class Dynamics(object):
                     veh2veh_dist = sqrt(power(ego_point[0] - veh_point[0], 2) + power(ego_point[1] - veh_point[1], 2))-3.5
                     g_list.append(veh2veh_dist)
 
-        # for ego_point in [ego_front_points, ego_rear_points]:
+        # for ego_point in [ego_front_points]:
         #     g_list.append(if_else(logic_and(ego_point[1]<-18, ego_point[0]<1), ego_point[0]-1, 1))
         #     g_list.append(if_else(logic_and(ego_point[1]<-18, 3.75-ego_point[0]<1), 3.75-ego_point[0]-1, 1))
-        #     g_list.append(if_else(logic_and(ego_point[0]>0, -5-ego_point[1]<0), -5-ego_point[1], 1))
+        #     g_list.append(if_else(logic_and(ego_point[0]>0, 0-ego_point[1]<0), 0-ego_point[1], 1))
         #     g_list.append(if_else(logic_and(ego_point[1]>-18, 3.75-ego_point[0]<1), 3.75-ego_point[0]-1, 1))
         #     g_list.append(if_else(logic_and(ego_point[0]<0, 7.5-ego_point[1]<1), 7.5-ego_point[1]-1, 1))
         #     g_list.append(if_else(logic_and(ego_point[0]<-18, ego_point[1]-0<1), ego_point[1]-0-1, 1))
@@ -226,7 +226,7 @@ class ModelPredictiveControl(object):
         self.ACTION_DIM = 2
         self.dynamics = None
         self._sol_dic = {'ipopt.print_level': 0,
-                         'ipopt.max_iter': 10000,
+                         # 'ipopt.max_iter': 10000,
                          'ipopt.sb': 'yes',
                          'print_time': 0}
 
@@ -281,13 +281,15 @@ class ModelPredictiveControl(object):
             lbw += [0.] + [-inf] * (self.DYNAMICS_DIM-1)
             ubw += [10.] + [inf] * (self.DYNAMICS_DIM-1)
 
+
             # Cost function
-            F_cost = Function('F_cost', [x, u], [0.01 * power(x[8], 2)
+            F_cost = Function('F_cost', [x, u], [0.5 * power(x[8], 2)
                                                  + 0.8 * power(x[6], 2)
                                                  + 0.8 * power(x[7]*np.pi/180., 2)
                                                  + 0.02 * power(x[2], 2)
                                                  + 5 * power(u[0], 2)
-                                                 + 0.05 * power(u[1], 2)])
+                                                 + 0.05 * power(u[1], 2)
+                                                 ])
             J += F_cost(w[k * 2], w[k * 2 - 1])
 
         # Create NLP solver
