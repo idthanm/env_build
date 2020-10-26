@@ -19,8 +19,8 @@ from gym.utils import seeding
 
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath
-from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination
-from traffic import Traffic, deal_with_phi
+from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination, deal_with_phi
+from traffic import Traffic
 
 warnings.filterwarnings("ignore")
 
@@ -115,7 +115,7 @@ class CrossroadEnd2end(gym.Env):
         self.init_state = {}
         self.action_number = 2
         self.exp_v = 8.
-        self.ego_l, self.ego_w = 4.3, 1.9
+        self.ego_l, self.ego_w = L, W
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(self.action_number,), dtype=np.float32)
 
         self.seed()
@@ -305,7 +305,7 @@ class CrossroadEnd2end(gym.Env):
         action = np.clip(action, -1.05, 1.05)
         steer_norm, a_x_norm = action[0], action[1]
         scaled_steer = 0.4 * steer_norm
-        scaled_a_x = 3.*a_x_norm-1.
+        scaled_a_x = 3.*a_x_norm
         # if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
         #     scaled_steer = 0.
         #     scaled_a_x = -3.
@@ -419,7 +419,7 @@ class CrossroadEnd2end(gym.Env):
 
             ur_straight = list(filter(lambda v: v['x'] < ego_x + 7 and ego_y < v['y'] < 28, ur))  # interest of straight
             ur_right = list(filter(lambda v: v['x'] < 28 and v['y'] < 18, ur))  # interest of right
-            ud = list(filter(lambda v: ego_y-2 < v['y'] < 18 and ego_x > v['x'], ud))  # interest of left
+            ud = list(filter(lambda v: max(ego_y-2, -18) < v['y'] < 18 and ego_x > v['x'], ud))  # interest of left
             ul = list(filter(lambda v: -28 < v['x'] < ego_x and v['y'] < 18, ul))  # interest of left
 
             lu = lu  # not interest in case of traffic light
@@ -934,11 +934,11 @@ def test_end2end():
     i = 0
     done = 0
     while i < 100000:
-        for j in range(50):
+        for j in range(200):
             # print(i)
             i += 1
             # action=2*np.random.random(2)-1
-            action = np.array([0, 1], dtype=np.float32)
+            action = np.array([0, -1], dtype=np.float32)
             obs, reward, done, info = env.step(action)
             env.render()
         done = 0

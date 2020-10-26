@@ -26,29 +26,7 @@ import sumolib
 from sumolib import checkBinary
 import traci
 from traci.exceptions import FatalTraCIError
-
-
-def _convert_car_coord_to_sumo_coord(x_in_car_coord, y_in_car_coord, a_in_car_coord, car_length):  # a in deg
-    x_in_sumo_coord = x_in_car_coord + car_length / 2 * math.cos(math.radians(a_in_car_coord))
-    y_in_sumo_coord = y_in_car_coord + car_length / 2 * math.sin(math.radians(a_in_car_coord))
-    a_in_sumo_coord = -a_in_car_coord + 90.
-    return x_in_sumo_coord, y_in_sumo_coord, a_in_sumo_coord
-
-
-def _convert_sumo_coord_to_car_coord(x_in_sumo_coord, y_in_sumo_coord, a_in_sumo_coord, car_length):
-    a_in_car_coord = -a_in_sumo_coord + 90.
-    x_in_car_coord = x_in_sumo_coord - (math.cos(a_in_car_coord / 180. * math.pi) * car_length / 2)
-    y_in_car_coord = y_in_sumo_coord - (math.sin(a_in_car_coord / 180. * math.pi) * car_length / 2)
-    return x_in_car_coord, y_in_car_coord, deal_with_phi(a_in_car_coord)
-
-
-def deal_with_phi(phi):
-    while phi > 180:
-        phi -= 360
-    while phi <= -180:
-        phi += 360
-    return phi
-
+from endtoend_env_utils import _convert_car_coord_to_sumo_coord, _convert_sumo_coord_to_car_coord, xy2_edgeID_lane
 
 SUMO_BINARY = checkBinary('sumo')
 SIM_PERIOD = 1.0 / 10
@@ -74,6 +52,7 @@ class Traffic(object):
 
         self.mode = mode
         self.training_light_phase = 0
+        self.training_task = training_task
         if training_task == 'right':
             if random.random() > 0.5:
                 self.training_light_phase = 2
@@ -146,7 +125,9 @@ class Traffic(object):
             traci.vehicle.setWidth(egoID, ego_dict['w'])
             ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi,
                                                                                            ego_l)
-            traci.vehicle.moveToXY(egoID, '1o', 0, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
+
+            edgeID, lane = xy2_edgeID_lane(ego_x, ego_y)
+            traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
             traci.vehicle.setSpeed(egoID, math.sqrt(ego_v_x ** 2 + ego_v_y ** 2))
             traci.vehicle.subscribeContext(egoID,
                                            traci.constants.CMD_GET_VEHICLE_VARIABLE,
@@ -196,6 +177,20 @@ class Traffic(object):
         random_traffic = self.generate_random_traffic()
 
         self.add_self_car(init_n_ego_dict)
+        if self.training_task == 'left':
+
+            if 'left_assi' not in random_traffic:
+                traci.vehicle.addLegacy(vehID='left_assi', routeID='dl',
+                                        depart=0, pos=20, lane=1, speed=init_n_ego_dict['ego']['v_x']+2,
+                                        typeID='self_car')
+                x, y = 1.875, min(-19, init_n_ego_dict['ego']['y']-8)
+                edgeID, lane = xy2_edgeID_lane(x, y)
+                traci.vehicle.moveToXY('left_assi', '1o', 1, x, y)
+            else:
+                x, y = 1.875, min(-19, init_n_ego_dict['ego']['y'] - 8)
+                edgeID, lane = xy2_edgeID_lane(x, y)
+                traci.vehicle.moveToXY('left_assi', '1o', 1, x, y)
+                # traci.vehicle.moveToXY('left_assi', '1o', 1, 1.875, min(-18, init_n_ego_dict['ego']['y']-8))
 
         # move ego to the given position and remove conflict cars
         for egoID, ego_dict in self.n_ego_dict.items():
@@ -216,11 +211,19 @@ class Traffic(object):
                                                                                                            x_in_ego_coord,
                                                                                                            y_in_ego_coord,
                                                                                                            a_in_ego_coord)
-                if (-5 < x_in_ego_coord < 1 * (ego_v_x) + ego_l/2. + veh_l/2. and abs(y_in_ego_coord) < 3) or \
+                if (-12 < x_in_ego_coord < 1 * (ego_v_x) + ego_l/2. + veh_l/2. and abs(y_in_ego_coord) < 3) or \
                         (-5 < ego_x_in_veh_coord < 1 * (veh_v) + ego_l/2. + veh_l/2. and abs(ego_y_in_veh_coord) <3) or \
                         (-3.75 < ego_x < 1 and -3.75 < x < 0 and y < 10):
+                    if veh == 'left_assi':
+                        continue
                     traci.vehicle.remove(vehID=veh)
                     veh_to_pop.append(veh)
+                if self.training_task == 'left':
+                    if 0 < x < 3.75 and y > ego_y - 16:
+                        if veh == 'left_assi' or (veh in veh_to_pop):
+                            continue
+                        traci.vehicle.remove(vehID=veh)
+                        veh_to_pop.append(veh)
             for veh in veh_to_pop:
                 random_traffic.pop(veh)
 
@@ -285,7 +288,8 @@ class Traffic(object):
 
             ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi,
                                                                                            self.n_ego_dict[egoID]['l'])
-            traci.vehicle.moveToXY(egoID, '1o', 0, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
+            egdeID, lane = xy2_edgeID_lane(ego_x, ego_y)
+            traci.vehicle.moveToXY(egoID, egdeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
             traci.vehicle.setSpeed(egoID, math.sqrt(ego_v_x**2+ego_v_y**2))
 
     def collision_check(self):  # True: collision

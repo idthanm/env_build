@@ -33,14 +33,17 @@ traci.start(
      # "--quit-on-end",
      "--no-warnings",
      "--no-step-log",
-     "--collision.check-junctions",
-     "--collision.action", "remove",
+     # "--collision.check-junctions",
+     # "--collision.action", "remove",
      # '--seed', str(int(seed))
      ], numRetries=5)  # '--seed', str(int(seed))
 #
-# traci.vehicle.addLegacy(vehID='ego', routeID='wn',
-#                         depart=0, pos=0, lane=1, speed=0,
-#                         typeID='self_car')
+traci.vehicle.addLegacy(vehID='ego1', routeID='dl',
+                        depart=0, pos=0, lane=1, speed=0,
+                        typeID='self_car')
+traci.vehicle.addLegacy(vehID='ego2', routeID='ud',
+                        depart=0, pos=0, lane=1, speed=0,
+                        typeID='self_car')
 # traci.vehicle.addLegacy(vehID='car2', routeID='wn',
 #                         depart=0, pos=0, lane=1, speed=0,
 #                         typeID='car_1')
@@ -56,7 +59,7 @@ traci.start(
 # traci.vehicle.moveToXY('car3', '1o', 1, 1.875, -30)
 
 traci.vehicle.addLegacy(vehID='ego', routeID='dl',
-                        depart=0, pos=0, lane=1, speed=0,
+                        depart=0, pos=0, lane=1, speed=8,
                         typeID='self_car')
 
 traci.vehicle.subscribeContext('ego',
@@ -127,14 +130,33 @@ def test_MSLCM_bug():
 
 
 def test_other_car_collision():
+    # first of all, moveToXY, the lane matters (should be assigned to the right lane)!
+    # the keeproute matters! better be 1
+    # the collision related to veh speed, veh dist to ego, and whether rear veh recognize the ego
+    from dynamics_and_models import ReferencePath
+    from endtoend_env_utils import _convert_car_coord_to_sumo_coord
+    from math import pi, cos, sin
+    ref_path = ReferencePath('left')
     for i in range(10000):
-        if 500<i <= 10000:
-            traci.vehicle.moveToXY(vehID='ego', edgeID='1o', lane=0, x=-15, y=5, angle=-50.)
-            # traci.vehicle.setSpeed('ego', 0.)
+        if 0 < i <= 10000:
+            if i < 2:
+                traci.vehicle.moveToXY(vehID='ego2', edgeID='4o', lane=1, x=-1.875, y=5, angle=-180)
+
+            # traci.vehicle.setLength('ego', 5)
+            # traci.vehicle.setWidth('ego', 2)
+            traci.trafficlight.setPhase('0', 0)
+            ego_x, ego_y, ego_phi = ref_path.indexs2points(1500)
+            ego_x_sumo, ego_y_sumo, ego_phi_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi, 4.8)
+
+            traci.vehicle.setSpeed('ego', 0)
+
+            traci.vehicle.moveToXY(vehID='ego', edgeID='0', lane=0, x=ego_x_sumo, y=ego_y_sumo, angle=ego_phi_sumo)
+            if i < 5:
+               traci.vehicle.moveToXY(vehID='ego1', edgeID='1o', lane=1, x=1.875, y=min(-19, ego_y-8), angle=0)
+
             traci.simulationStep()
         else:
             traci.simulationStep()
-
 
 
 if __name__ == '__main__':
