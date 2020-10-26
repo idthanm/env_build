@@ -197,7 +197,7 @@ class EnvironmentModel(object):  # all tensors
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
-        steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm
+        steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm-1
         return tf.stack([steer_scale, a_xs_scale], 1)
 
     def compute_rewards(self, obses, actions):

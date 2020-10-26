@@ -80,7 +80,7 @@ class VehicleDynamics(object):
     def f_xu(self, x, u, tau):
         v_x, v_y, r, x, y, phi = x[0], x[1], x[2], x[3], x[4], x[5]
         phi = phi * np.pi / 180.
-        steer, a_x = u[0]*0.4, u[1]*3-1.
+        steer, a_x = u[0]*0.4, u[1]*3-1
         C_f = self.vehicle_params['C_f']
         C_r = self.vehicle_params['C_r']
         a = self.vehicle_params['a']
@@ -446,7 +446,7 @@ def run_mpc():
             state_all = np.array((list(obs[:9]) + [0, 0])*horizon + list(obs[:9])).reshape((-1, 1))
             for _ in range(100):
                 with mpc_timer:
-                    state, control, state_all, g_all = mpc.mpc_solver(list(obs), state_all)
+                    state, control, state_all, g_all = mpc.mpc_solver(list(obs), 0)
                 if any(g_all < -1):
                     print('optimization fail')
                     mpc_action = np.array([0., -1.])

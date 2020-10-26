@@ -303,7 +303,7 @@ class CrossroadEnd2end(gym.Env):
 
     def _action_transformation_for_end2end(self, action):  # [-1, 1]
         action = np.clip(action, -1.05, 1.05)
-        steer_norm, a_x_norm = action[0], action[1]
+        steer_norm, a_x_norm = action[0], action[1] - 1
         scaled_steer = 0.4 * steer_norm
         scaled_a_x = 3.*a_x_norm
         # if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
