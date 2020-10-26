@@ -91,7 +91,7 @@ class VehicleDynamics(object):
         g = self.vehicle_params['g']
         next_v = v_x + tau * (a_x + v_y * r)
 
-        next_state = [if_else(next_v<0, 0, next_v),
+        next_state = [v_x + tau * (a_x + v_y * r),
                       (mass * v_y * v_x + tau * (
                                   a * C_f - b * C_r) * r - tau * C_f * steer * v_x - tau * mass * power(
                           v_x, 2) * r) / (mass * v_x - tau * (C_f + C_r)),
@@ -114,6 +114,7 @@ class Dynamics(object):
         self.vd = VehicleDynamics()
         self.veh_mode_list = veh_mode_list
         self.vehs = x_init[9:]
+        self.x_init = x_init
         # self.path = ReferencePath(task, ref_index)
 
     def tracking_error_pred(self, x, u):
@@ -132,7 +133,12 @@ class Dynamics(object):
         self.vehs = predictions
 
     def predict_for_a_mode(self, vehs, mode):
+        ego_x, ego_y = self.x_init[3], self.x_init[4]
         veh_x, veh_y, veh_v, veh_phi = vehs[0], vehs[1], vehs[2], vehs[3]
+        if self.task == 'left':
+            if -3.75<ego_x<1.3 and -18<ego_y<veh_y and mode == 'ud':
+                veh_v = max(veh_v - self.tau * 4, 0)
+
         veh_phis_rad = veh_phi * np.pi / 180.
         veh_x_delta = veh_v * self.tau * math.cos(veh_phis_rad)
         veh_y_delta = veh_v * self.tau * math.sin(veh_phis_rad)
@@ -147,6 +153,7 @@ class Dynamics(object):
             veh_x + veh_x_delta, veh_y + veh_y_delta, veh_v, veh_phis_rad + veh_phi_rad_delta
         next_veh_phi = next_veh_phi_rad * 180 / np.pi
         next_veh_phi = deal_with_phi(next_veh_phi)
+
         return [next_veh_x, next_veh_y, next_veh_v, next_veh_phi]
 
     def f_xu(self, x, u):
@@ -184,13 +191,18 @@ class Dynamics(object):
                                veh_y + veh_lws * math.sin(veh_phi * np.pi / 180.)
             veh_rear_points = veh_x - veh_lws * math.cos(veh_phi * np.pi / 180.), \
                               veh_y - veh_lws * math.sin(veh_phi * np.pi / 180.)
-            for ego_point in [ego_front_points, ego_rear_points]:
+            for ego_point in [ego_front_points]:
                 for veh_point in [veh_front_points, veh_rear_points]:
-                    veh2veh_dist = sqrt(power(ego_point[0] - veh_point[0],4) + power(ego_point[1] - veh_point[1],4))-5.
+                    veh2veh_dist = sqrt(power(ego_point[0] - veh_point[0], 2) + power(ego_point[1] - veh_point[1], 2))-3.5
                     g_list.append(veh2veh_dist)
 
-        g_list.append(if_else(logic_and(ego_y<-18, ego_x<1), ego_x-1, 1))
-        g_list.append(if_else(logic_and(ego_y<-18, 3.75-ego_x<1), 3.75-ego_x-1, 1))
+        # for ego_point in [ego_front_points, ego_rear_points]:
+        #     g_list.append(if_else(logic_and(ego_point[1]<-18, ego_point[0]<1), ego_point[0]-1, 1))
+        #     g_list.append(if_else(logic_and(ego_point[1]<-18, 3.75-ego_point[0]<1), 3.75-ego_point[0]-1, 1))
+        #     g_list.append(if_else(logic_and(ego_point[0]>0, -5-ego_point[1]<0), -5-ego_point[1], 1))
+        #     g_list.append(if_else(logic_and(ego_point[1]>-18, 3.75-ego_point[0]<1), 3.75-ego_point[0]-1, 1))
+        #     g_list.append(if_else(logic_and(ego_point[0]<0, 7.5-ego_point[1]<1), 7.5-ego_point[1]-1, 1))
+        #     g_list.append(if_else(logic_and(ego_point[0]<-18, ego_point[1]-0<1), ego_point[1]-0-1, 1))
 
         return g_list
 
@@ -214,7 +226,7 @@ class ModelPredictiveControl(object):
         self.ACTION_DIM = 2
         self.dynamics = None
         self._sol_dic = {'ipopt.print_level': 0,
-                         # 'ipopt.max_iter': 10000,
+                         'ipopt.max_iter': 10000,
                          'ipopt.sb': 'yes',
                          'print_time': 0}
 
@@ -263,11 +275,11 @@ class ModelPredictiveControl(object):
             lbg += [0.0] * self.DYNAMICS_DIM
             ubg += [0.0] * self.DYNAMICS_DIM
             G += [Gk]
-            lbg += [0.0] * (len(self.veh_mode_list)*4+2)
-            ubg += [inf] * (len(self.veh_mode_list)*4+2)
+            lbg += [0.0] * (len(self.veh_mode_list)*2)
+            ubg += [inf] * (len(self.veh_mode_list)*2)
             w += [Xk]
-            lbw += [-inf] * self.DYNAMICS_DIM
-            ubw += [inf] * self.DYNAMICS_DIM
+            lbw += [0.] + [-inf] * (self.DYNAMICS_DIM-1)
+            ubw += [10.] + [inf] * (self.DYNAMICS_DIM-1)
 
             # Cost function
             F_cost = Function('F_cost', [x, u], [0.01 * power(x[8], 2)
@@ -446,7 +458,7 @@ def run_mpc():
             state_all = np.array((list(obs[:9]) + [0, 0])*horizon + list(obs[:9])).reshape((-1, 1))
             for _ in range(100):
                 with mpc_timer:
-                    state, control, state_all, g_all = mpc.mpc_solver(list(obs), 0)
+                    state, control, state_all, g_all = mpc.mpc_solver(list(obs), state_all)
                 if any(g_all < -1):
                     print('optimization fail')
                     mpc_action = np.array([0., -1.])

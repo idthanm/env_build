@@ -249,7 +249,7 @@ class EnvironmentModel(object):  # all tensors
                 for ego_point in [ego_front_points, ego_rear_points]:
                     for veh_point in [veh_front_points, veh_rear_points]:
                         veh2veh_dist = tf.sqrt(
-                            tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - 5.
+                            tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - 3.5
                         veh2veh += tf.where(veh2veh_dist < 0, tf.square(veh2veh_dist), tf.zeros_like(veh_infos[:, 0]))
 
             veh2road = tf.zeros_like(veh_infos[:, 0])
