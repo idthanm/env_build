@@ -208,7 +208,7 @@ class EnvironmentModel(object):  # all tensors
         steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm
         return tf.stack([steer_scale, a_xs_scale], 1)
 
-    def compute_rewards3(self, obses, actions):
+    def compute_rewards(self, obses, actions):
         with tf.name_scope('compute_reward') as scope:
             ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
                                                    obses[:,

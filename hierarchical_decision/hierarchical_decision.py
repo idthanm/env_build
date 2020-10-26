@@ -40,7 +40,7 @@ class HierarchicalDecision(object):
             for step in range(10):
                 action = self.policy.run(obs)
                 self.model.reset(obs, self.env.training_task, trajectory, mode='selecting')
-                obs, rewards = self.model.rollout_out(action)
+                obs, rewards, punishment = self.model.rollout_out(action)
                 obs = np.squeeze(obs)
                 return_ += rewards
             traj_return.append(return_.numpy().tolist())
