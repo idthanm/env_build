@@ -14,7 +14,6 @@ import sys
 from collections import defaultdict
 from math import fabs, cos, sin, pi
 
-from endtoend_env_utils import shift_and_rotate_coordination
 
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
@@ -26,7 +25,8 @@ import sumolib
 from sumolib import checkBinary
 import traci
 from traci.exceptions import FatalTraCIError
-from endtoend_env_utils import _convert_car_coord_to_sumo_coord, _convert_sumo_coord_to_car_coord, xy2_edgeID_lane
+from endtoend_env_utils import shift_and_rotate_coordination, _convert_car_coord_to_sumo_coord, \
+    _convert_sumo_coord_to_car_coord, xy2_edgeID_lane
 
 SUMO_BINARY = checkBinary('sumo')
 SIM_PERIOD = 1.0 / 10
