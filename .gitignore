@@ -203,3 +203,6 @@ dmypy.json
 .pyre/
 
 .idea/
+mpc/mpc_rl.npy
+test.py
+test_sumo.py

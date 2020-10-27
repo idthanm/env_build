@@ -19,8 +19,8 @@ from gym.utils import seeding
 
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath
-from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination
-from traffic import Traffic, deal_with_phi
+from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination, deal_with_phi
+from traffic import Traffic
 
 warnings.filterwarnings("ignore")
 
@@ -115,7 +115,7 @@ class CrossroadEnd2end(gym.Env):
         self.init_state = {}
         self.action_number = 2
         self.exp_v = 8.
-        self.ego_l, self.ego_w = 4.3, 1.9
+        self.ego_l, self.ego_w = L, W
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(self.action_number,), dtype=np.float32)
 
         self.seed()
@@ -173,7 +173,7 @@ class CrossroadEnd2end(gym.Env):
 
     def step(self, action):
         self.action = self._action_transformation_for_end2end(action)
-        reward, self.reward_info = self.compute_reward3(self.obs, self.action)
+        reward, self.reward_info = self.compute_reward(self.obs, self.action)
         next_ego_state, next_ego_params = self._get_next_ego_state(self.action)
         ego_dynamics = self._get_ego_dynamics(next_ego_state, next_ego_params)
         self.traffic.set_own_car(dict(ego=ego_dynamics))
@@ -209,7 +209,7 @@ class CrossroadEnd2end(gym.Env):
         F_zf, F_zr = self.dynamics.vehicle_params['F_zf'], self.dynamics.vehicle_params['F_zr']
         C_f, C_r = self.dynamics.vehicle_params['C_f'], self.dynamics.vehicle_params['C_r']
         alpha_f_bound, alpha_r_bound = 3 * miu_f * F_zf / C_f, 3 * miu_r * F_zr / C_r
-        r_bound = miu_r * self.dynamics.vehicle_params['g'] / abs(out['v_x'])
+        r_bound = miu_r * self.dynamics.vehicle_params['g'] / (abs(out['v_x'])+1e-8)
 
         l, w, x, y, phi = out['l'], out['w'], out['x'], out['y'], out['phi']
 
@@ -256,8 +256,8 @@ class CrossroadEnd2end(gym.Env):
             return 'break_road_constrain', 1
         elif self._deviate_too_much():
             return 'deviate_too_much', 1
-        elif self._break_stability():
-            return 'break_stability', 1
+        # elif self._break_stability():
+        #     return 'break_stability', 1
         elif self._break_red_light():
             return 'break_red_light', 1
         elif self._is_achieve_goal():
@@ -266,9 +266,8 @@ class CrossroadEnd2end(gym.Env):
             return 'not_done_yet', 0
 
     def _deviate_too_much(self):
-        delta_x, delta_y, delta_phi = self.obs[self.ego_info_dim:self.ego_info_dim+3]
-        dist = np.sqrt(np.square(delta_x) + np.square(delta_y))
-        return True if dist > 15 or abs(delta_phi) > 60 else False
+        delta_y, delta_phi, delta_v = self.obs[self.ego_info_dim:self.ego_info_dim+3]
+        return True if abs(delta_y) > 15 else False
 
     def _break_road_constrain(self):
         results = list(map(lambda x: judge_feasible(*x, self.training_task), self.ego_dynamics['Corner_point']))
@@ -294,18 +293,18 @@ class CrossroadEnd2end(gym.Env):
         x = self.ego_dynamics['x']
         y = self.ego_dynamics['y']
         if self.training_task == 'left':
-            return True if x < -18 - 2 and 0 < y < 7.5 else False
+            return True if x < -18 - 5 and 0 < y < 7.5 else False
         elif self.training_task == 'right':
-            return True if x > 18 + 2 and -7.5 < y < 0 else False
+            return True if x > 18 + 5 and -7.5 < y < 0 else False
         else:
             assert self.training_task == 'straight'
-            return True if y > 18 + 2 and 0 < x < 7.5 else False
+            return True if y > 18 + 5 and 0 < x < 7.5 else False
 
     def _action_transformation_for_end2end(self, action):  # [-1, 1]
         action = np.clip(action, -1.05, 1.05)
         steer_norm, a_x_norm = action[0], action[1]
         scaled_steer = 0.4 * steer_norm
-        scaled_a_x = 3.*a_x_norm-1.
+        scaled_a_x = 3.*a_x_norm - 1
         # if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
         #     scaled_steer = 0.
         #     scaled_a_x = -3.
@@ -409,7 +408,7 @@ class CrossroadEnd2end(gym.Env):
                 du.append(dict(x=1.875, y=-18, v=0, phi=90, l=5, w=2.5, route=None))
             # fetch veh in range
             dl = list(filter(lambda v: v['x'] > -28 and v['y'] > ego_y, dl))  # interest of left straight
-            du = list(filter(lambda v: ego_y < v['y'] < 28, du))  # interest of left straight
+            du = list(filter(lambda v: ego_y < v['y'] < 28 and v['x'] < ego_x+2, du))  # interest of left straight
 
             dr = list(filter(lambda v: v['x'] < 28 and v['y'] > ego_y, dr))  # interest of right
 
@@ -419,7 +418,7 @@ class CrossroadEnd2end(gym.Env):
 
             ur_straight = list(filter(lambda v: v['x'] < ego_x + 7 and ego_y < v['y'] < 28, ur))  # interest of straight
             ur_right = list(filter(lambda v: v['x'] < 28 and v['y'] < 18, ur))  # interest of right
-            ud = list(filter(lambda v: ego_y-2 < v['y'] < 18 and ego_x > v['x'], ud))  # interest of left
+            ud = list(filter(lambda v: max(ego_y-2, -18) < v['y'] < 18 and ego_x > v['x'] and ego_x>0., ud))  # interest of left
             ul = list(filter(lambda v: -28 < v['x'] < ego_x and v['y'] < 18, ul))  # interest of left
 
             lu = lu  # not interest in case of traffic light
@@ -534,7 +533,7 @@ class CrossroadEnd2end(gym.Env):
                              routeID=routeID,
                              ))
 
-    def compute_reward3(self, obs, action):
+    def compute_reward(self, obs, action):
         ego_infos, tracking_infos, veh_infos = obs[:self.ego_info_dim], obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
                                                obs[self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1):]
         steers, a_xs = action[0], action[1]
@@ -934,11 +933,14 @@ def test_end2end():
     i = 0
     done = 0
     while i < 100000:
-        for j in range(50):
+        for j in range(80):
             # print(i)
             i += 1
             # action=2*np.random.random(2)-1
-            action = np.array([0, 1], dtype=np.float32)
+            if obs[4]<-18:
+                action = np.array([0, 1], dtype=np.float32)
+            else:
+                action = np.array([0.5, 0.33], dtype=np.float32)
             obs, reward, done, info = env.step(action)
             env.render()
         done = 0
