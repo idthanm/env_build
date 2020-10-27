@@ -211,8 +211,8 @@ class Traffic(object):
                                                                                                            x_in_ego_coord,
                                                                                                            y_in_ego_coord,
                                                                                                            a_in_ego_coord)
-                if (-5 < x_in_ego_coord < 1 * (ego_v_x) + ego_l/2. + veh_l/2. and abs(y_in_ego_coord) < 3) or \
-                        (-5 < ego_x_in_veh_coord < 1 * (veh_v) + ego_l/2. + veh_l/2. and abs(ego_y_in_veh_coord) <3) or \
+                if (-5 < x_in_ego_coord < 1 * (ego_v_x) + ego_l/2. + veh_l/2. + 2 and abs(y_in_ego_coord) < 3) or \
+                        (-5 < ego_x_in_veh_coord < 1 * (veh_v) + ego_l/2. + veh_l/2. + 2 and abs(ego_y_in_veh_coord) <3) or \
                         (-3.75 < ego_x < 1 and -3.75 < x < 0 and y < 10):
                     # if veh == 'left_assi':
                     #     continue
@@ -289,7 +289,10 @@ class Traffic(object):
             ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi,
                                                                                            self.n_ego_dict[egoID]['l'])
             egdeID, lane = xy2_edgeID_lane(ego_x, ego_y)
-            traci.vehicle.moveToXY(egoID, egdeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
+            keeproute = 1
+            if self.training_task == 'left':
+                keeproute = 2 if ego_x > 0 and ego_y > -7 else 1
+            traci.vehicle.moveToXY(egoID, egdeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keeproute)
             traci.vehicle.setSpeed(egoID, math.sqrt(ego_v_x**2+ego_v_y**2))
 
     def collision_check(self):  # True: collision
