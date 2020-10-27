@@ -419,7 +419,7 @@ class CrossroadEnd2end(gym.Env):
 
             ur_straight = list(filter(lambda v: v['x'] < ego_x + 7 and ego_y < v['y'] < 28, ur))  # interest of straight
             ur_right = list(filter(lambda v: v['x'] < 28 and v['y'] < 18, ur))  # interest of right
-            ud = list(filter(lambda v: max(ego_y-2, -18) < v['y'] < 18 and ego_x > v['x'] and ego_x>0.7, ud))  # interest of left
+            ud = list(filter(lambda v: max(ego_y-2, -18) < v['y'] < 18 and ego_x > v['x'] and ego_x>0., ud))  # interest of left
             ul = list(filter(lambda v: -28 < v['x'] < ego_x and v['y'] < 18, ul))  # interest of left
 
             lu = lu  # not interest in case of traffic light
@@ -593,7 +593,7 @@ class CrossroadEnd2end(gym.Env):
                 veh2road += tf.square(7.5 - ego_point[1] - 1) if ego_point[0] < 0 and 7.5 - ego_point[1] < 1 else 0
                 veh2road += tf.square(ego_point[1] - 0 - 1) if ego_point[0] < -18 and ego_point[1] - 0 < 1 else 0
 
-        reward = 0.01 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
+        reward = 0.1 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
                  5 * punish_steer + 0.05 * punish_a_x
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),

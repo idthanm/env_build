@@ -268,7 +268,7 @@ class EnvironmentModel(object):  # all tensors
                     veh2road += tf.where(logical_and(ego_point[0] < -18, ego_point[1] - 0 < 1),
                                          tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
 
-            rewards = 0.01 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
+            rewards = 0.1 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
                       5 * punish_steer + 0.05 * punish_a_x
             punish_term = veh2veh + veh2road
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
