@@ -177,20 +177,20 @@ class Traffic(object):
         random_traffic = self.generate_random_traffic()
 
         self.add_self_car(init_n_ego_dict)
-        if self.training_task == 'left':
-
-            if 'left_assi' not in random_traffic:
-                traci.vehicle.addLegacy(vehID='left_assi', routeID='dl',
-                                        depart=0, pos=20, lane=1, speed=2,
-                                        typeID='self_car')
-                x, y = 1.875, min(-19, init_n_ego_dict['ego']['y']-8)
-                edgeID, lane = xy2_edgeID_lane(x, y)
-                traci.vehicle.moveToXY('left_assi', '1o', 1, x, y)
-            else:
-                x, y = 1.875, min(-19, init_n_ego_dict['ego']['y'] - 8)
-                edgeID, lane = xy2_edgeID_lane(x, y)
-                traci.vehicle.moveToXY('left_assi', '1o', 1, x, y)
-                # traci.vehicle.moveToXY('left_assi', '1o', 1, 1.875, min(-18, init_n_ego_dict['ego']['y']-8))
+        # if self.training_task == 'left':
+        #
+        #     if 'left_assi' not in random_traffic:
+        #         traci.vehicle.addLegacy(vehID='left_assi', routeID='dl',
+        #                                 depart=0, pos=20, lane=1, speed=2,
+        #                                 typeID='self_car')
+        #         x, y = 1.875, min(-19, init_n_ego_dict['ego']['y']-8)
+        #         edgeID, lane = xy2_edgeID_lane(x, y)
+        #         traci.vehicle.moveToXY('left_assi', '1o', 1, x, y)
+        #     else:
+        #         x, y = 1.875, min(-19, init_n_ego_dict['ego']['y'] - 8)
+        #         edgeID, lane = xy2_edgeID_lane(x, y)
+        #         traci.vehicle.moveToXY('left_assi', '1o', 1, x, y)
+        #         # traci.vehicle.moveToXY('left_assi', '1o', 1, 1.875, min(-18, init_n_ego_dict['ego']['y']-8))
 
         # move ego to the given position and remove conflict cars
         for egoID, ego_dict in self.n_ego_dict.items():
@@ -211,19 +211,19 @@ class Traffic(object):
                                                                                                            x_in_ego_coord,
                                                                                                            y_in_ego_coord,
                                                                                                            a_in_ego_coord)
-                if (-12 < x_in_ego_coord < 1 * (ego_v_x) + ego_l/2. + veh_l/2. and abs(y_in_ego_coord) < 3) or \
+                if (-5 < x_in_ego_coord < 1 * (ego_v_x) + ego_l/2. + veh_l/2. and abs(y_in_ego_coord) < 3) or \
                         (-5 < ego_x_in_veh_coord < 1 * (veh_v) + ego_l/2. + veh_l/2. and abs(ego_y_in_veh_coord) <3) or \
                         (-3.75 < ego_x < 1 and -3.75 < x < 0 and y < 10):
-                    if veh == 'left_assi':
-                        continue
+                    # if veh == 'left_assi':
+                    #     continue
                     traci.vehicle.remove(vehID=veh)
                     veh_to_pop.append(veh)
-                if self.training_task == 'left':
-                    if 0 < x < 3.75 and y > ego_y - 16:
-                        if veh == 'left_assi' or (veh in veh_to_pop):
-                            continue
-                        traci.vehicle.remove(vehID=veh)
-                        veh_to_pop.append(veh)
+                # if self.training_task == 'left':
+                #     if 0 < x < 3.75 and y > ego_y:
+                #         if veh == 'left_assi' or (veh in veh_to_pop):
+                #             continue
+                #         traci.vehicle.remove(vehID=veh)
+                #         veh_to_pop.append(veh)
             for veh in veh_to_pop:
                 random_traffic.pop(veh)
 

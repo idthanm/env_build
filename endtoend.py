@@ -173,7 +173,7 @@ class CrossroadEnd2end(gym.Env):
 
     def step(self, action):
         self.action = self._action_transformation_for_end2end(action)
-        reward, self.reward_info = self.compute_reward3(self.obs, self.action)
+        reward, self.reward_info = self.compute_reward(self.obs, self.action)
         next_ego_state, next_ego_params = self._get_next_ego_state(self.action)
         ego_dynamics = self._get_ego_dynamics(next_ego_state, next_ego_params)
         self.traffic.set_own_car(dict(ego=ego_dynamics))
@@ -256,8 +256,8 @@ class CrossroadEnd2end(gym.Env):
             return 'break_road_constrain', 1
         elif self._deviate_too_much():
             return 'deviate_too_much', 1
-        elif self._break_stability():
-            return 'break_stability', 1
+        # elif self._break_stability():
+        #     return 'break_stability', 1
         elif self._break_red_light():
             return 'break_red_light', 1
         elif self._is_achieve_goal():
@@ -266,9 +266,8 @@ class CrossroadEnd2end(gym.Env):
             return 'not_done_yet', 0
 
     def _deviate_too_much(self):
-        delta_x, delta_y, delta_phi = self.obs[self.ego_info_dim:self.ego_info_dim+3]
-        dist = np.sqrt(np.square(delta_x) + np.square(delta_y))
-        return True if dist > 15 or abs(delta_phi) > 60 else False
+        delta_y, delta_phi, delta_v = self.obs[self.ego_info_dim:self.ego_info_dim+3]
+        return True if abs(delta_y) > 15 else False
 
     def _break_road_constrain(self):
         results = list(map(lambda x: judge_feasible(*x, self.training_task), self.ego_dynamics['Corner_point']))
@@ -294,12 +293,12 @@ class CrossroadEnd2end(gym.Env):
         x = self.ego_dynamics['x']
         y = self.ego_dynamics['y']
         if self.training_task == 'left':
-            return True if x < -18 - 2 and 0 < y < 7.5 else False
+            return True if x < -18 - 5 and 0 < y < 7.5 else False
         elif self.training_task == 'right':
-            return True if x > 18 + 2 and -7.5 < y < 0 else False
+            return True if x > 18 + 5 and -7.5 < y < 0 else False
         else:
             assert self.training_task == 'straight'
-            return True if y > 18 + 2 and 0 < x < 7.5 else False
+            return True if y > 18 + 5 and 0 < x < 7.5 else False
 
     def _action_transformation_for_end2end(self, action):  # [-1, 1]
         action = np.clip(action, -1.05, 1.05)
@@ -409,7 +408,7 @@ class CrossroadEnd2end(gym.Env):
                 du.append(dict(x=1.875, y=-18, v=0, phi=90, l=5, w=2.5, route=None))
             # fetch veh in range
             dl = list(filter(lambda v: v['x'] > -28 and v['y'] > ego_y, dl))  # interest of left straight
-            du = list(filter(lambda v: ego_y < v['y'] < 28, du))  # interest of left straight
+            du = list(filter(lambda v: ego_y < v['y'] < 28 and v['x'] < ego_x+2, du))  # interest of left straight
 
             dr = list(filter(lambda v: v['x'] < 28 and v['y'] > ego_y, dr))  # interest of right
 
@@ -534,7 +533,7 @@ class CrossroadEnd2end(gym.Env):
                              routeID=routeID,
                              ))
 
-    def compute_reward3(self, obs, action):
+    def compute_reward(self, obs, action):
         ego_infos, tracking_infos, veh_infos = obs[:self.ego_info_dim], obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
                                                obs[self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1):]
         steers, a_xs = action[0], action[1]
@@ -604,7 +603,7 @@ class CrossroadEnd2end(gym.Env):
                            scaled_punish_steer=5 * punish_steer.numpy(),
                            scaled_punish_a_x=0.05 * punish_a_x.numpy(),
                            scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
-                           scaled_devi_v=0.01 * devi_v.numpy(),
+                           scaled_devi_v=0.1 * devi_v.numpy(),
                            scaled_devi_y=0.8 * devi_y.numpy(),
                            scaled_devi_phi=0.8 * devi_phi.numpy(),
                            veh2veh=veh2veh.numpy(),
@@ -934,11 +933,14 @@ def test_end2end():
     i = 0
     done = 0
     while i < 100000:
-        for j in range(200):
+        for j in range(80):
             # print(i)
             i += 1
             # action=2*np.random.random(2)-1
-            action = np.array([0, -1], dtype=np.float32)
+            if obs[4]<-18:
+                action = np.array([0, 1], dtype=np.float32)
+            else:
+                action = np.array([0.5, 0.33], dtype=np.float32)
             obs, reward, done, info = env.step(action)
             env.render()
         done = 0

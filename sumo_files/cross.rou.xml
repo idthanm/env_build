@@ -16,9 +16,9 @@
 
 
     <flow id="carflow_1.1" type="car_1" beg="0" from="1o" to="4i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="500"/>
+          departPos="random" departSpeed="random" vehsPerHour="1000"/>
     <flow id="carflow_2.1" type="car_2" beg="0" from="1o" to="3i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="500"/>
+          departPos="random" departSpeed="random" vehsPerHour="1000"/>
     <flow id="carflow_3.1" type="car_3" beg="0" from="1o" to="2i" departLane="best"
           departPos="random" departSpeed="random" vehsPerHour="600"/>
 
