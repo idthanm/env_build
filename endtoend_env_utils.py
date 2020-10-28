@@ -104,6 +104,47 @@ def cal_ego_info_in_transform_coordination(ego_dynamics, x, y, rotate_d):
     return ego_dynamics
 
 
+def xy2_edgeID_lane(x, y):
+    if y < -18:
+        edgeID = '1o'
+        lane = 1 if x < 3.75 else 0
+    elif x < -18:
+        edgeID = '4i'
+        lane = 1 if y < 3.75 else 0
+    elif y > 18:
+        edgeID = '3i'
+        lane = 1 if x < 3.75 else 0
+    elif x > 18:
+        edgeID = '2i'
+        lane = 1 if y > -3.75 else 0
+    else:
+        edgeID = '0'
+        lane = 0
+    return edgeID, lane
+
+
+def _convert_car_coord_to_sumo_coord(x_in_car_coord, y_in_car_coord, a_in_car_coord, car_length):  # a in deg
+    x_in_sumo_coord = x_in_car_coord + car_length / 2 * math.cos(math.radians(a_in_car_coord))
+    y_in_sumo_coord = y_in_car_coord + car_length / 2 * math.sin(math.radians(a_in_car_coord))
+    a_in_sumo_coord = -a_in_car_coord + 90.
+    return x_in_sumo_coord, y_in_sumo_coord, a_in_sumo_coord
+
+
+def _convert_sumo_coord_to_car_coord(x_in_sumo_coord, y_in_sumo_coord, a_in_sumo_coord, car_length):
+    a_in_car_coord = -a_in_sumo_coord + 90.
+    x_in_car_coord = x_in_sumo_coord - (math.cos(a_in_car_coord / 180. * math.pi) * car_length / 2)
+    y_in_car_coord = y_in_sumo_coord - (math.sin(a_in_car_coord / 180. * math.pi) * car_length / 2)
+    return x_in_car_coord, y_in_car_coord, deal_with_phi(a_in_car_coord)
+
+
+def deal_with_phi(phi):
+    while phi > 180:
+        phi -= 360
+    while phi <= -180:
+        phi += 360
+    return phi
+
+
 
 
 class Path(object):

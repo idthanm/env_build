@@ -57,8 +57,8 @@ class VehicleDynamics(object):
         F_xr = tf.where(a_x < 0, mass * a_x / 2, mass * a_x)
         miu_f = tf.sqrt(tf.square(miu * F_zf) - tf.square(F_xf)) / F_zf
         miu_r = tf.sqrt(tf.square(miu * F_zr) - tf.square(F_xr)) / F_zr
-        alpha_f = tf.atan((v_y + a * r) / v_x) - steer
-        alpha_r = tf.atan((v_y - b * r) / v_x)
+        alpha_f = tf.atan((v_y + a * r) / (v_x+1e-8)) - steer
+        alpha_r = tf.atan((v_y - b * r) / (v_x+1e-8))
 
         next_state = [v_x + tau * (a_x + v_y * r),
                       (mass * v_y * v_x + tau * (
@@ -205,7 +205,7 @@ class EnvironmentModel(object):  # all tensors
         actions = tf.clip_by_value(actions, -1.05, 1.05)
         actions = tf.reshape(actions, [1, -1])
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
-        steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm
+        steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm-1
         return tf.stack([steer_scale, a_xs_scale], 1)
 
     def compute_rewards(self, obses, actions):
@@ -257,7 +257,7 @@ class EnvironmentModel(object):  # all tensors
                 for ego_point in [ego_front_points, ego_rear_points]:
                     for veh_point in [veh_front_points, veh_rear_points]:
                         veh2veh_dist = tf.sqrt(
-                            tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - 5.
+                            tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) - 3.5
                         veh2veh += tf.where(veh2veh_dist < 0, tf.square(veh2veh_dist), tf.zeros_like(veh_infos[:, 0]))
 
             veh2road = tf.zeros_like(veh_infos[:, 0])
@@ -276,7 +276,7 @@ class EnvironmentModel(object):  # all tensors
                     veh2road += tf.where(logical_and(ego_point[0] < -18, ego_point[1] - 0 < 1),
                                          tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
 
-            rewards = 0.01 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
+            rewards = 0.1 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
                       5 * punish_steer + 0.05 * punish_a_x
             punish_term = veh2veh + veh2road
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
@@ -530,6 +530,7 @@ class EnvironmentModel(object):  # all tensors
             # ego_alpha_f, ego_alpha_r, ego_miu_f, ego_miu_r,\
             # up1, down1, left1, right1, point11x, point11y, point12x, point12y, \
             # up2, down2, left2, right2, point21x, point21y, point22x, point22y= ego_info
+            delta_y, delta_phi = tracing_info[0], tracing_info[1]
             ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi = ego_info
 
             plot_phi_line(ego_x, ego_y, ego_phi, 'red')
