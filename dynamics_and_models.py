@@ -541,7 +541,7 @@ class EnvironmentModel(object):  # all tensors
                                                               np.array([ego_y], np.float32))
             path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
             delta_x, delta_y, delta_phi, delta_v = tracing_info[:4]
-            # delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
+            delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
             plt.plot(path_x, path_y, 'go')
             plot_phi_line(path_x, path_y, path_phi, 'g')
 
@@ -594,23 +594,29 @@ def deal_with_phi_diff(phi_diff):
 
 
 class ReferencePath(object):
-    def __init__(self, task, mode=None, path=None):
+    def __init__(self, task, mode=None, path=None, path_index=None):
         self.mode = mode
+        self.path_index = path_index
         self.exp_v = 8.
         self.task = task
         self.mode = mode
         self._set_path(path)
 
     def _set_path(self, path):
-        if self.mode == 'selecting':
+        if self.mode == 'dyna_traj':
             self.path = path
+        elif self.mode == 'static_traj':
+            self.path_list = []
+            self._construct_ref_path(self.task)
+            self.ref_index = self.path_index
+            self.path = self.path_list[self.ref_index]
+            return self.path
 
         else:                         # 训练时：只考虑一条全局的轨迹
             self.path_list = []
             self._construct_ref_path(self.task)
             self.ref_index = np.random.choice([0, 1])
             self.path = self.path_list[self.ref_index]
-
 
     def _construct_ref_path(self, task):
         sl = 40
@@ -743,7 +749,7 @@ class ReferencePath(object):
 
         return tf.cast(points[0], dtype=tf.float32), tf.cast(points[1], dtype=tf.float32), tf.cast(points[2], dtype=tf.float32)
 
-    def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n):
+    def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n, mode=None):
         def two2one(ref_xs, ref_ys):
             if self.task == 'left':
                 delta_ = tf.sqrt(tf.square(ego_xs - (-18)) + tf.square(ego_ys - (-18))) - \
@@ -762,21 +768,32 @@ class ReferencePath(object):
                 delta_ = tf.where(ego_xs > 18, -(ego_ys - ref_ys), delta_)
                 return -delta_
 
-        if self.mode == 'tracking':
-            indexs = tf.constant([1], dtype=tf.int64)
-            current_points = self.indexs2points(indexs)
-            n_future_data = self.future_n_data(indexs, n)
-            all_ref = [current_points] + n_future_data
-            print(current_points)
+        if self.mode == 'dyna_traj':
+            if mode == 'tracking':
+                indexs = tf.constant([1], dtype=tf.int64)
+                current_points = self.indexs2points(indexs)
+                n_future_data = self.future_n_data(indexs, n)
+                all_ref = [current_points] + n_future_data
+                print(current_points)
 
-            tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
-                                                  deal_with_phi_diff(ego_phis - ref_point[2]),
-                                                  ego_vs - self.exp_v], 1)
-                                        for ref_point in all_ref], 1)
+                tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
+                                                      deal_with_phi_diff(ego_phis - ref_point[2]),
+                                                      ego_vs - self.exp_v], 1)
+                                            for ref_point in all_ref], 1)
 
+            else:
+                indexs, current_points = self.find_closest_point(ego_xs, ego_ys)
+                # print('Index:', indexs.numpy(), 'points:', current_points[:])
+                n_future_data = self.future_n_data(indexs, n)
+                all_ref = [current_points] + n_future_data
+
+                tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
+                                                      deal_with_phi_diff(ego_phis - ref_point[2]),
+                                                      ego_vs - self.exp_v], 1)
+                                            for ref_point in all_ref], 1)
         else:
             indexs, current_points = self.find_closest_point(ego_xs, ego_ys)
-            print('Index:', indexs.numpy(), 'points:', current_points[:])
+            # print('Index:', indexs.numpy(), 'points:', current_points[:])
             n_future_data = self.future_n_data(indexs, n)
             all_ref = [current_points] + n_future_data
 

@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 
 class StaticTrajectoryGenerator(object):
-    def __init__(self, task, state, v_light, mode='selecting', model=None, policy=None):
+    def __init__(self, task, state, v_light, mode, model=None, policy=None):
         # state: [v_x, v_y, r, x, y, phi(°)]
         # 去掉mode，直接传入
         self.mode = mode
@@ -28,16 +28,14 @@ class StaticTrajectoryGenerator(object):
         self._future_point_choice(self.state)
         self.construct_ref_path(self.task, self.state, v_light)
 
-        # for trajectory select
-        self.model = model
-        self.policy = policy
-
-    def generate_and_select_traj(self, task, obs):
-        pass
-
     def generate_traj(self, task, state, v_light):
         """"generate two reference trajectory in real time"""
-        self.construct_ref_path(task, state, v_light)
+        if self.mode == 'static_traj':
+            self.path_list = []
+            for path_index in range(self.path_num):
+                self.path_list.append(ReferencePath(self.task, self.mode, path_index=path_index))
+        else:
+            self.construct_ref_path(task, state, v_light)
         return self.path_list
 
     def _future_points_init(self, task):
@@ -101,7 +99,7 @@ class StaticTrajectoryGenerator(object):
     def construct_ref_path(self, task, state, v_light):
         x, y, v, phi = state['x'], state['y'], state['v_x'], state['phi'] / 180 * pi
         state = [x, y, v, phi]
-        plt.clf()
+        # plt.clf()
 
         # todo:随机选择轨迹
         self.ref_index = 1
@@ -154,7 +152,7 @@ class StaticTrajectoryGenerator(object):
                 planed_trj[1:, 2] = self.exp_v * np.ones(len(planed_trj[1:, 2]))
 
                 current_path = planed_trj[:, 0], planed_trj[:, 1], planed_trj[:, 3]
-                self.path_list.append(ReferencePath(self.task, self.mode, current_path))
+                self.path_list.append(ReferencePath(self.task, self.mode, current_path, path_index))
 
         self.path = self.path_list[self.ref_index].path
 
