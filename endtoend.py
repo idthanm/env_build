@@ -19,7 +19,7 @@ from gym.utils import seeding
 
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath
-from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination
+from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination, deal_with_phi
 from traffic import Traffic
 
 warnings.filterwarnings("ignore")
@@ -296,7 +296,6 @@ class CrossroadEnd2end(gym.Env):
         x = self.ego_dynamics['x']
         y = self.ego_dynamics['y']
         if self.training_task == 'left':
-            return True if x < -18 - 5 and 0 < y < 7.5 else False
             return True if x < -18 - 6 and 0 < y < 7.5 else False
         elif self.training_task == 'right':
             return True if x > 18 + 5 and -7.5 < y < 0 else False
@@ -885,7 +884,7 @@ class CrossroadEnd2end(gym.Env):
 
             # plot real time traj
             try:
-                color = ['b', 'coral']
+                color = ['b', 'lime']
                 for i, item in enumerate(real_time_traj):
                     if i == path_index:
                         plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
@@ -954,7 +953,10 @@ class CrossroadEnd2end(gym.Env):
             ge = iter(range(0, 1000, 6))
             if traj_return is not None:
                 for i, value in enumerate(traj_return):
-                    plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=12, color=color[i], fontstyle='italic')
+                    if i==path_index:
+                        plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=14, color=color[i], fontstyle='italic')
+                    else:
+                        plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=12, color=color[i], fontstyle='italic')
 
             plt.pause(0.001)
 

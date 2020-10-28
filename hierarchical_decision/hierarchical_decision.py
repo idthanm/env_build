@@ -16,7 +16,7 @@ import time
 
 class HierarchicalDecision(object):
     def __init__(self):
-        self.policy = LoadPolicy('C:\\Users\\Yangang REN\\Desktop\\env_build\\mpc\\rl_experiments\\experiment-2020-10-20-14-52-58', 150000)
+        self.policy = LoadPolicy('C:\\Users\\Yangang REN\\Desktop\\env_build\\mpc\\rl_experiments\\experiment-2020-10-20-14-52-58', 145000)
         self.env = CrossroadEnd2end(training_task='left')
         self.model = EnvironmentModel('left')
         self.stg = StaticTrajectoryGenerator(self.env.training_task, self.env.init_state['ego'], self.env.v_light, mode='static_traj') # mode: static_traj or dyna_traj
