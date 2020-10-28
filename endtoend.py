@@ -20,7 +20,7 @@ from gym.utils import seeding
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath
 from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination
-from traffic import Traffic, deal_with_phi
+from traffic import Traffic
 
 warnings.filterwarnings("ignore")
 
