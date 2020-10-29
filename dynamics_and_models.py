@@ -278,6 +278,8 @@ class EnvironmentModel(object):  # all tensors
 
             rewards = 0.1 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
                       5 * punish_steer + 0.05 * punish_a_x
+            # todo:
+            veh2road = 0.
             punish_term = veh2veh + veh2road
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
             #                         punish_a_x=punish_a_x.numpy()[0],
