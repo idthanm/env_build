@@ -240,6 +240,13 @@ class EnvironmentModel(object):  # all tensors
             #         logical_and(cos_values > 0., dists * tf.abs(sin_values) < (L + W) / 2),
             #         dists < 7), dists<3.)
             #     veh2veh += tf.where(punish_cond, tf.square(7 - dists), tf.zeros_like(veh_infos[:, 0]))
+            for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
+                vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
+                vehs_x, vehs_y = vehs[:, 0], vehs[:, 1]
+                egos_x, egos_y = ego_infos[:, 3], ego_infos[:, 4]
+                dists = tf.sqrt(tf.square(vehs_x - egos_x) + tf.square(vehs_y - egos_y))
+                punish_cond = logical_and(logical_and(egos_x > 0., egos_y < -18), dists < 10)
+                veh2veh4training += tf.where(punish_cond, tf.square(10 - dists), tf.zeros_like(veh_infos[:, 0]))
 
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
