@@ -230,23 +230,16 @@ class EnvironmentModel(object):  # all tensors
                               tf.cast(ego_infos[:, 4] - ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
             veh2veh4real = tf.zeros_like(veh_infos[:, 0])
             veh2veh4training = tf.zeros_like(veh_infos[:, 0])
-            # for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
-            #     vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
-            #     rela_phis_rad = tf.atan2(vehs[:, 1] - ego_infos[:, 4], vehs[:, 0] - ego_infos[:, 3])
-            #     ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
-            #     cos_values, sin_values = tf.cos(rela_phis_rad - ego_phis_rad), tf.sin(rela_phis_rad - ego_phis_rad)
-            #     dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
-            #     punish_cond = logical_or(logical_and(
-            #         logical_and(cos_values > 0., dists * tf.abs(sin_values) < (L + W) / 2),
-            #         dists < 7), dists<3.)
-            #     veh2veh += tf.where(punish_cond, tf.square(7 - dists), tf.zeros_like(veh_infos[:, 0]))
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
-                vehs_x, vehs_y = vehs[:, 0], vehs[:, 1]
-                egos_x, egos_y = ego_infos[:, 3], ego_infos[:, 4]
-                dists = tf.sqrt(tf.square(vehs_x - egos_x) + tf.square(vehs_y - egos_y))
-                punish_cond = logical_and(logical_and(egos_x > 0., egos_y < -18), logical_and(vehs_x > 0, dists < 10))
-                veh2veh4training += tf.where(punish_cond, tf.square(10 - dists), tf.zeros_like(veh_infos[:, 0]))
+                rela_phis_rad = tf.atan2(vehs[:, 1] - ego_infos[:, 4], vehs[:, 0] - ego_infos[:, 3])
+                ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
+                cos_values, sin_values = tf.cos(rela_phis_rad - ego_phis_rad), tf.sin(rela_phis_rad - ego_phis_rad)
+                dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
+                punish_cond = logical_or(logical_and(
+                    logical_and(cos_values > 0., dists * tf.abs(sin_values) < (L + W) / 2),
+                    dists < 7), dists<3.)
+                veh2veh4training += tf.where(punish_cond, tf.square(7 - dists), tf.zeros_like(veh_infos[:, 0]))
 
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
@@ -258,25 +251,25 @@ class EnvironmentModel(object):  # all tensors
                 for ego_point in [ego_front_points, ego_rear_points]:
                     for veh_point in [veh_front_points, veh_rear_points]:
                         veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
-                        veh2veh4training += tf.where(veh2veh_dist-3.5 < 0, tf.square(veh2veh_dist-3.5), tf.zeros_like(veh_infos[:, 0]))
+                        # veh2veh4training += tf.where(veh2veh_dist-3.5 < 0, tf.square(veh2veh_dist-3.5), tf.zeros_like(veh_infos[:, 0]))
                         veh2veh4real += tf.where(veh2veh_dist-2.5 < 0, tf.square(veh2veh_dist-2.5), tf.zeros_like(veh_infos[:, 0]))
 
             veh2road4real = tf.zeros_like(veh_infos[:, 0])
             veh2road4training = tf.zeros_like(veh_infos[:, 0])
             if self.task == 'left':
                 for ego_point in [ego_front_points, ego_rear_points]:
-                    veh2road4training += tf.where(logical_and(ego_point[1] < -18, ego_point[0] < 1),
-                                         tf.square(ego_point[0]-1), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4training += tf.where(logical_and(ego_point[1] < -18, 3.75-ego_point[0] < 1),
-                                         tf.square(3.75-ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4training += tf.where(logical_and(ego_point[0] > 0, ego_point[1] > 0),
-                                         tf.square(ego_point[1]-0), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4training += tf.where(logical_and(ego_point[1] > -18, 3.75 - ego_point[0] < 1),
-                                         tf.square(3.75 - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4training += tf.where(logical_and(ego_point[0] < 0, 7.5 - ego_point[1] < 1),
-                                         tf.square(7.5 - ego_point[1] - 1), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4training += tf.where(logical_and(ego_point[0] < -18, ego_point[1] - 0 < 1),
-                                         tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
+                    # veh2road4training += tf.where(logical_and(ego_point[1] < -18, ego_point[0] < 1),
+                    #                      tf.square(ego_point[0]-1), tf.zeros_like(veh_infos[:, 0]))
+                    # veh2road4training += tf.where(logical_and(ego_point[1] < -18, 3.75-ego_point[0] < 1),
+                    #                      tf.square(3.75-ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
+                    # veh2road4training += tf.where(logical_and(ego_point[0] > 0, ego_point[1] > 0),
+                    #                      tf.square(ego_point[1]-0), tf.zeros_like(veh_infos[:, 0]))
+                    # veh2road4training += tf.where(logical_and(ego_point[1] > -18, 3.75 - ego_point[0] < 1),
+                    #                      tf.square(3.75 - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
+                    # veh2road4training += tf.where(logical_and(ego_point[0] < 0, 7.5 - ego_point[1] < 1),
+                    #                      tf.square(7.5 - ego_point[1] - 1), tf.zeros_like(veh_infos[:, 0]))
+                    # veh2road4training += tf.where(logical_and(ego_point[0] < -18, ego_point[1] - 0 < 1),
+                    #                      tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
 
                     veh2road4real += tf.where(logical_and(ego_point[1] < -18, ego_point[0] < 1),
                                          tf.square(ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
