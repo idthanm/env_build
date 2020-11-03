@@ -182,7 +182,7 @@ class EnvironmentModel(object):  # all tensors
     def reset(self, obses, task, trajectory=None, mode=None):
         if mode=='selecting':
             self.ref_path = trajectory
-            self.obses = obses[np.newaxis, :]
+            self.obses = obses
         else:
             self.ref_path = ReferencePath(task, mode='training')
             self.obses = obses
@@ -248,6 +248,7 @@ class EnvironmentModel(object):  # all tensors
             #     veh2veh += tf.where(punish_cond, tf.square(7 - dists), tf.zeros_like(veh_infos[:, 0]))
 
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
+                print(veh_index * self.per_veh_info_dim)
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
                 veh_lws = (L - W) / 2.
                 veh_front_points = tf.cast(vehs[:, 0] + veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \

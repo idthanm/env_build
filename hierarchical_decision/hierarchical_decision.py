@@ -12,6 +12,7 @@ from dynamics_and_models import EnvironmentModel
 from static_traj_generator import StaticTrajectoryGenerator
 from mpc.mpc_ipopt import LoadPolicy
 import time
+import tensorflow as tf
 
 
 class HierarchicalDecision(object):
@@ -28,6 +29,16 @@ class HierarchicalDecision(object):
         self.stg._future_point_choice(self.env.init_state['ego'])
         return self.obs
 
+    @tf.function
+    def virtual_rollout(self, obs):
+        tracking, collision = tf.constant(0., dtype=tf.float32), tf.constant(0., dtype=tf.float32)
+        for step in range(25):
+            action = self.policy.run(obs)
+            obs, rewards, punishment = self.model.rollout_out(action)
+            tracking += -rewards
+            collision += punishment
+        return tracking, collision
+
     def step(self,):
         start_time = time.time()
         traj_list = self.stg.generate_traj(self.env.training_task, self.env.ego_dynamics, self.env.v_light)
@@ -40,19 +51,11 @@ class HierarchicalDecision(object):
             self.env.set_traj(trajectory)
             # initial state
             obs = self.env._get_obs()
-            for step in range(10):
-                start_time = time.time()
-                action = self.policy.run(obs)
-                end_time1 = time.time()
-                self.model.reset(obs, self.env.training_task, trajectory, mode='selecting')
-                end_time2 = time.time()
-                obs, rewards, punishment = self.model.rollout_out(action)
-                end_time3 = time.time()
-                print('rollout time:', end_time3 - end_time2)
-                obs = np.squeeze(obs)
-                tracking += -rewards
-                collision += punishment
-
+            self.model.reset(tf.convert_to_tensor(obs[np.newaxis, :]), self.env.training_task, trajectory, mode='selecting')
+            start_time = time.time()
+            tracking, collision = self.virtual_rollout(tf.convert_to_tensor(obs[np.newaxis, :]))
+            end_time = time.time()
+            print('rollout time:', end_time-start_time)
             traj_return.append([tracking.numpy().squeeze().tolist(), collision.numpy().squeeze().tolist()])
 
         for i, value in enumerate(traj_return):
