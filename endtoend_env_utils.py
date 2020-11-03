@@ -145,8 +145,6 @@ def deal_with_phi(phi):
     return phi
 
 
-
-
 class Path(object):
     """
     manage generated path
