@@ -146,9 +146,6 @@ class Traffic(object):
                                            0, 2147483647)
 
     def generate_random_traffic(self):
-        """
-        generate initial random traffic
-        """
         # to delete ego car of the last episode
         random_traffic = traci.vehicle.getContextSubscriptionResults('collector')
         for ego_id in self.n_ego_dict.keys():
@@ -228,10 +225,6 @@ class Traffic(object):
                 random_traffic.pop(veh)
 
     def _get_vehicles(self):
-        """Get other vehicles' information not including ego vehicle.
-
-        Get other vehicles' information in car coordination not including ego vehicle.
-        """
         self.n_ego_vehicles = defaultdict(list)
         for egoID in self.n_ego_dict.keys():
             veh_info_dict = traci.vehicle.getContextSubscriptionResults(egoID)
@@ -267,16 +260,6 @@ class Traffic(object):
                 self.collision_ego_id = egoID
 
     def set_own_car(self, n_ego_dict_):
-        """Insert ego vehicle into sumo's traffic modal.
-
-        Args:
-            x: Ego vehicle's current x coordination of it's shape center, m.
-            y: Ego vehicle's current y coordination of it's shape center, m.
-            v: Ego vehicle's current velocity, m/s.
-            a: Ego vehicle's current heading angle under car coordinate, deg.
-
-        Raises:
-        """
         assert len(self.n_ego_dict) == len(n_ego_dict_)
         for egoID in self.n_ego_dict.keys():
             self.n_ego_dict[egoID]['v_x'] = ego_v_x = n_ego_dict_[egoID]['v_x']
