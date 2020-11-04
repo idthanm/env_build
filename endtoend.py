@@ -624,7 +624,7 @@ class CrossroadEnd2end(gym.Env):
                 veh2road4real += tf.square(7.5 - ego_point[1] - 1) if ego_point[0] < 0 and 7.5 - ego_point[1] < 1 else 0
                 veh2road4real += tf.square(ego_point[1] - 0 - 1) if ego_point[0] < -18 and ego_point[1] - 0 < 1 else 0
 
-        reward = 0.05 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
+        reward = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
                  5 * punish_steer + 0.05 * punish_a_x
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
@@ -637,7 +637,7 @@ class CrossroadEnd2end(gym.Env):
                            scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
                            scaled_devi_v=0.05 * devi_v.numpy(),
                            scaled_devi_y=0.8 * devi_y.numpy(),
-                           scaled_devi_phi=0.8 * devi_phi.numpy(),
+                           scaled_devi_phi=30 * devi_phi.numpy(),
                            veh2veh4training=veh2veh4training.numpy(),
                            veh2road4training=veh2road4training.numpy(),
                            veh2veh4real=veh2veh4real.numpy(),

@@ -188,11 +188,11 @@ class EnvironmentModel(object):  # all tensors
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
             self.actions = self._action_transformation_for_end2end(actions)
-            rewards, punish_term_for_training, real_punish_term = self.compute_rewards(self.obses, self.actions)
+            rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real = self.compute_rewards(self.obses, self.actions)
             self.obses = self.compute_next_obses(self.obses, self.actions)
             # self.reward_info.update({'final_rew': rewards.numpy()[0]})
 
-        return self.obses, rewards, punish_term_for_training, real_punish_term
+        return self.obses, rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
@@ -280,7 +280,7 @@ class EnvironmentModel(object):  # all tensors
                     veh2road4real += tf.where(logical_and(ego_point[0] < -18, ego_point[1] - 0 < 1),
                                          tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
 
-            rewards = 0.05 * devi_v + 0.8 * devi_y + 0.8 * devi_phi + 0.02 * punish_yaw_rate + \
+            rewards = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
                       5 * punish_steer + 0.05 * punish_a_x
             punish_term_for_training = veh2veh4training + veh2road4training
             real_punish_term = veh2veh4real + veh2road4real
@@ -299,7 +299,7 @@ class EnvironmentModel(object):  # all tensors
             #                         scaled_devi_phi=0.1 * devi_phi.numpy()[0],
             #                         scaled_veh2veh=0.5 * veh2veh.numpy()[0],
             #                         reward=rewards.numpy()[0])
-            return rewards, punish_term_for_training, real_punish_term
+            return rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real
 
     def compute_next_obses(self, obses, actions):
         obses = self.convert_vehs_to_abso(obses)
