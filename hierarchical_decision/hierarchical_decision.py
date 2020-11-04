@@ -43,15 +43,14 @@ class HierarchicalDecision(object):
 
     def step(self,):
         traj_list = self.stg.generate_traj(self.task, self.obs)
-
         traj_return = []
         for i, trajectory in enumerate(traj_list):
             self.env.set_traj(trajectory)
             # initial state
-            obs = self.env._get_obs()
-            self.model.reset(tf.convert_to_tensor(obs[np.newaxis, :]), self.env.training_task, trajectory, mode='selecting')
+            obs = tf.convert_to_tensor(self.env._get_obs()[np.newaxis, :])
+            self.model.add_traj(obs, trajectory, mode='selecting')
             start_time = time.time()
-            tracking, collision = self.virtual_rollout(tf.convert_to_tensor(obs[np.newaxis, :]))
+            tracking, collision = self.virtual_rollout(obs)
             end_time = time.time()
             # print('rollout time:', end_time-start_time)
             traj_return.append([tracking.numpy().squeeze().tolist(), collision.numpy().squeeze().tolist()])

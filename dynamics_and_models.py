@@ -164,12 +164,13 @@ class VehicleDynamics(object):
 class EnvironmentModel(object):  # all tensors
     def __init__(self, task, num_future_data=0):
         self.task = task
+        self.mode = None
         self.vehicle_dynamics = VehicleDynamics()
         self.base_frequency = 10.
         self.obses = None
         self.ego_params = None
         self.actions = None
-        # self.ref_path = None
+        self.ref_path = None
         self.num_future_data = num_future_data
         self.exp_v = 8.
         self.reward_info = None
@@ -177,18 +178,17 @@ class EnvironmentModel(object):  # all tensors
         self.per_veh_info_dim = 4
         self.per_tracking_info_dim = 3
 
-    def reset(self, obses, task, trajectory=None, mode=None):
-        if mode=='selecting':
-            self.ref_path = trajectory
-            self.obses = obses
-        else:
-            self.ref_path = ReferencePath(task, mode='training')
-            self.obses = obses
-    # todo: 增加一个新的函数
+    def reset(self, obses, task):
+        self.obses = obses
         self.actions = None
         self.task = task
         # self.ref_path = ReferencePath(task, mode='training')
         self.reward_info = None
+
+    def add_traj(self, obses, trajectory, mode=None):
+        self.obses = obses
+        self.ref_path = trajectory
+        self.mode = mode
 
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
@@ -317,13 +317,15 @@ class EnvironmentModel(object):  # all tensors
                                                            self.num_future_data + 1):]
 
         next_ego_infos = self.ego_predict(ego_infos, actions)
-        # todo:增加条件，训练和选择时不同
-        next_tracking_infos = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
-                                                                  next_ego_infos[:, 4],
-                                                                  next_ego_infos[:, 5],
-                                                                  next_ego_infos[:, 0],
-                                                                  self.num_future_data)
-        # next_tracking_infos = self.tracking_error_predict(ego_infos, tracking_infos, actions)
+        # different for training and selecting
+        if self.mode == 'selecting':
+            next_tracking_infos = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
+                                                                      next_ego_infos[:, 4],
+                                                                      next_ego_infos[:, 5],
+                                                                      next_ego_infos[:, 0],
+                                                                      self.num_future_data)
+        else:
+            next_tracking_infos = self.tracking_error_predict(ego_infos, tracking_infos, actions)
         next_veh_infos = self.veh_predict(veh_infos)
         next_obses = tf.concat([next_ego_infos, next_tracking_infos, next_veh_infos], 1)
         next_obses = self.convert_vehs_to_rela(next_obses)
@@ -637,34 +639,23 @@ def deal_with_phi_diff(phi_diff):
 
 
 class ReferencePath(object):
-    def __init__(self, task, mode=None, path=None, path_index=None):
+    def __init__(self, task, mode=None):
         self.mode = mode
-        self.path_index = path_index
+        self.traj_mode = None
         self.exp_v = 8.
         self.task = task
-        self.mode = mode
-        self._set_path(path)
+        self.path_list = []
+        self._construct_ref_path(self.task)
+        self.ref_index = np.random.choice([0, 1])
+        self.path = self.path_list[self.ref_index]
 
-    def _set_path(self, path):
-        if self.mode == 'dyna_traj':
+    def set_path(self, traj_mode, path_index=None, path=None):
+        self.traj_mode = traj_mode
+        if traj_mode == 'dyna_traj':
             self.path = path
-        elif self.mode == 'static_traj':
-            self.path_list = []
-            self._construct_ref_path(self.task)
-            self.ref_index = self.path_index
+        elif traj_mode == 'static_traj':
+            self.ref_index = path_index
             self.path = self.path_list[self.ref_index]
-            return self.path
-
-        else:                         # 训练时：只考虑一条全局的轨迹
-            self.path_list = []
-            self._construct_ref_path(self.task)
-            self.ref_index = np.random.choice([0, 1])
-            self.path = self.path_list[self.ref_index]
-
-    # todo:设置此函数，使得选择时直接使用
-    def set_path(self, mode, ref_index=None, path=None):
-        pass
-        # self.path = shengcheng的轨迹
 
     def _construct_ref_path(self, task):
         sl = 40
@@ -794,8 +785,7 @@ class ReferencePath(object):
 
         return points[0], points[1], points[2]
 
-    def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n, mode=None):
-        # todo：mode能不能去掉，或者换其他的名字
+    def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n, func=None):
         def two2one(ref_xs, ref_ys):
             if self.task == 'left':
                 delta_ = tf.sqrt(tf.square(ego_xs - (-18)) + tf.square(ego_ys - (-18))) - \
@@ -814,8 +804,8 @@ class ReferencePath(object):
                 delta_ = tf.where(ego_xs > 18, -(ego_ys - ref_ys), delta_)
                 return -delta_
 
-        if self.mode == 'dyna_traj':
-            if mode == 'tracking':
+        if self.traj_mode == 'dyna_traj':
+            if func == 'tracking':
                 indexs = tf.constant([1], dtype=tf.int64)
                 current_points = self.indexs2points(indexs)
                 n_future_data = self.future_n_data(indexs, n)

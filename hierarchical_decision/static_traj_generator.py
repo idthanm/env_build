@@ -33,7 +33,9 @@ class StaticTrajectoryGenerator(object):
         if self.mode == 'static_traj':
             self.path_list = []
             for path_index in range(self.path_num):
-                self.path_list.append(ReferencePath(self.task, self.mode, path_index=path_index))
+                ref = ReferencePath(self.task)
+                ref.set_path(self.mode, path_index)
+                self.path_list.append(ref)
         else:
             self.construct_ref_path(task, state, v_light)
         return self.path_list
@@ -152,7 +154,9 @@ class StaticTrajectoryGenerator(object):
                 planed_trj[1:, 2] = self.exp_v * np.ones(len(planed_trj[1:, 2]))
 
                 current_path = planed_trj[:, 0], planed_trj[:, 1], planed_trj[:, 3]
-                self.path_list.append(ReferencePath(self.task, self.mode, current_path, path_index))
+                ref = ReferencePath(self.task)
+                ref.set_path(self.mode, path_index=path_index, path=current_path)
+                self.path_list.append(ref)
 
         self.path = self.path_list[self.ref_index].path
 
@@ -263,7 +267,3 @@ class StaticTrajectoryGenerator(object):
                             t - 1) ** 3
         return X_t, Y_t
 
-    def select_traj(self):
-        pass
-        # for i in traj_list():
-        #   pass
