@@ -264,8 +264,8 @@ class EnvironmentModel(object):  # all tensors
                                          tf.square(3.75-ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
                     # veh2road4training += tf.where(logical_and(ego_point[0] > 0, ego_point[1] > 0),
                     #                      tf.square(ego_point[1]-0), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4training += tf.where(logical_and(ego_point[1] > -18, 3.75 - ego_point[0] < 1),
-                                         tf.square(3.75 - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
+                    # veh2road4training += tf.where(logical_and(ego_point[1] > -18, 3.75 - ego_point[0] < 1),
+                    #                      tf.square(3.75 - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
                     veh2road4training += tf.where(logical_and(ego_point[0] < 0, 7.5 - ego_point[1] < 1),
                                          tf.square(7.5 - ego_point[1] - 1), tf.zeros_like(veh_infos[:, 0]))
                     veh2road4training += tf.where(logical_and(ego_point[0] < -18, ego_point[1] - 0 < 1),

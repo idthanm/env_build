@@ -615,7 +615,7 @@ class CrossroadEnd2end(gym.Env):
                 veh2road4training += tf.square(ego_point[0] - 1) if ego_point[1] < -18 and ego_point[0] < 1 else 0
                 veh2road4training += tf.square(3.75 - ego_point[0] - 1) if ego_point[1] < -18 and 3.75 - ego_point[0] < 1 else 0
                 # veh2road4training += tf.square(ego_point[1]) if ego_point[0] > 0 and ego_point[1] > 0 else 0
-                veh2road4training += tf.square(5.625 - ego_point[0] - 1) if ego_point[1] > -18 and 5.625 - ego_point[0] < 1 else 0
+                # veh2road4training += tf.square(5.625 - ego_point[0] - 1) if ego_point[1] > -18 and 5.625 - ego_point[0] < 1 else 0
                 veh2road4training += tf.square(7.5 - ego_point[1] - 1) if ego_point[0] < 0 and 7.5 - ego_point[1] < 1 else 0
                 veh2road4training += tf.square(ego_point[1] - 0 - 1) if ego_point[0] < -18 and ego_point[1] - 0 < 1 else 0
 
