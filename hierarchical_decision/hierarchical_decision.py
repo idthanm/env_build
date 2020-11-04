@@ -16,17 +16,18 @@ import tensorflow as tf
 
 
 class HierarchicalDecision(object):
-    def __init__(self):
-        self.policy = LoadPolicy('C:\\Users\\Yangang REN\\Desktop\\env_build\\mpc\\rl_experiments\\experiment-2020-10-20-14-52-58', 140000)
-        self.env = CrossroadEnd2end(training_task='left')
-        self.model = EnvironmentModel('left')
-        self.stg = StaticTrajectoryGenerator(self.env.training_task, self.env.init_state['ego'], self.env.v_light, mode='static_traj') # mode: static_traj or dyna_traj
-        self.obs = self.reset()
+    def __init__(self, task):
+        self.task = task
+        self.policy = LoadPolicy('C:\\Users\\Yangang REN\\Desktop\\env_build\\mpc\\rl_experiments\\experiment-2020-10-20-14-52-58', 120000)
+        self.env = CrossroadEnd2end(training_task=self.task)
+        self.model = EnvironmentModel(self.task)
+        self.obs = self.env.reset()
+        self.stg = StaticTrajectoryGenerator(self.task, self.obs, mode='static_traj')  # mode: static_traj or dyna_traj
 
     def reset(self):
         self.obs = self.env.reset()
         # Reselect the feature point according to the inital state
-        self.stg._future_point_choice(self.env.init_state['ego'])
+        self.stg._future_point_choice(self.obs)
         return self.obs
 
     @tf.function
@@ -34,20 +35,17 @@ class HierarchicalDecision(object):
         tracking, collision = tf.constant(0., dtype=tf.float32), tf.constant(0., dtype=tf.float32)
         for step in range(25):
             action = self.policy.run(obs)
-            obs, rewards, punishment = self.model.rollout_out(action)
-            tracking += -rewards
+            obs, rewards, _, punishment = self.model.rollout_out(action)
+            tf.print(rewards)
+            tracking = tracking - rewards
             collision += punishment
         return tracking, collision
 
     def step(self,):
-        start_time = time.time()
-        traj_list = self.stg.generate_traj(self.env.training_task, self.env.ego_dynamics, self.env.v_light)
-        end_time = time.time()
-        # print('time of generating:', end_time-start_time)
+        traj_list = self.stg.generate_traj(self.task, self.obs)
 
         traj_return = []
         for i, trajectory in enumerate(traj_list):
-            tracking, collision = 0, 0
             self.env.set_traj(trajectory)
             # initial state
             obs = self.env._get_obs()
@@ -55,7 +53,7 @@ class HierarchicalDecision(object):
             start_time = time.time()
             tracking, collision = self.virtual_rollout(tf.convert_to_tensor(obs[np.newaxis, :]))
             end_time = time.time()
-            print('rollout time:', end_time-start_time)
+            # print('rollout time:', end_time-start_time)
             traj_return.append([tracking.numpy().squeeze().tolist(), collision.numpy().squeeze().tolist()])
 
         for i, value in enumerate(traj_return):
@@ -68,8 +66,6 @@ class HierarchicalDecision(object):
             index = np.argmin([traj_return[0][0], traj_return[1][0]])
 
         self.env.render(traj_list, traj_return, index)
-
-
         self.env.set_traj(traj_list[index])
         self.obs_real = self.env._get_obs()
         action = self.policy.run(self.obs_real)
@@ -78,7 +74,7 @@ class HierarchicalDecision(object):
 
 
 if __name__ == '__main__':
-    hier_decision = HierarchicalDecision()
+    hier_decision = HierarchicalDecision('left')
     done = 0
     for i in range(30):
         done = 0

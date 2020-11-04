@@ -253,9 +253,9 @@ class CrossroadEnd2end(gym.Env):
          3: good done: task succeed
          4: not done
         """
-        if self.traffic.collision_flag:
-            return 'collision', 1
-        elif self._break_road_constrain():
+        # if self.traffic.collision_flag:
+        #     return 'collision', 0
+        if self._break_road_constrain():
             return 'break_road_constrain', 1
         # elif self._deviate_too_much():
         #     return 'deviate_too_much', 1

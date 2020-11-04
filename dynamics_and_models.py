@@ -184,7 +184,7 @@ class EnvironmentModel(object):  # all tensors
         else:
             self.ref_path = ReferencePath(task, mode='training')
             self.obses = obses
-
+    # todo: 增加一个新的函数
         self.actions = None
         self.task = task
         # self.ref_path = ReferencePath(task, mode='training')
@@ -194,6 +194,7 @@ class EnvironmentModel(object):  # all tensors
         with tf.name_scope('model_step') as scope:
             self.actions = self._action_transformation_for_end2end(actions)
             rewards, punish_term_for_training, real_punish_term = self.compute_rewards(self.obses, self.actions)
+
             self.obses = self.compute_next_obses(self.obses, self.actions)
             # self.reward_info.update({'final_rew': rewards.numpy()[0]})
 
@@ -201,6 +202,7 @@ class EnvironmentModel(object):  # all tensors
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
+        actions = tf.reshape(actions, [1, -1])
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
         steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm-1
         return tf.stack([steer_scale, a_xs_scale], 1)
@@ -315,7 +317,7 @@ class EnvironmentModel(object):  # all tensors
                                                            self.num_future_data + 1):]
 
         next_ego_infos = self.ego_predict(ego_infos, actions)
-
+        # todo:增加条件，训练和选择时不同
         next_tracking_infos = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
                                                                   next_ego_infos[:, 4],
                                                                   next_ego_infos[:, 5],
@@ -659,6 +661,7 @@ class ReferencePath(object):
             self.ref_index = np.random.choice([0, 1])
             self.path = self.path_list[self.ref_index]
 
+    # todo:设置此函数，使得选择时直接使用
     def set_path(self, mode, ref_index=None, path=None):
         pass
         # self.path = shengcheng的轨迹
@@ -792,6 +795,7 @@ class ReferencePath(object):
         return points[0], points[1], points[2]
 
     def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n, mode=None):
+        # todo：mode能不能去掉，或者换其他的名字
         def two2one(ref_xs, ref_ys):
             if self.task == 'left':
                 delta_ = tf.sqrt(tf.square(ego_xs - (-18)) + tf.square(ego_ys - (-18))) - \

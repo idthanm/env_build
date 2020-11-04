@@ -13,22 +13,22 @@ import matplotlib.pyplot as plt
 
 
 class StaticTrajectoryGenerator(object):
-    def __init__(self, task, state, v_light, mode, model=None, policy=None):
+    def __init__(self, task, state, mode, v_light=0):
         # state: [v_x, v_y, r, x, y, phi(°)]
-        # 去掉mode，直接传入
         self.mode = mode
         self.path_num = 2  # the number of static trajectories
         self.exp_v = 8.
         self.N = 20
         self.order = [0 for _ in range(self.path_num)]
         self.task = task
+        self.ego_info_dim = 6
         self.feature_points_all = self._future_points_init(self.task)
-        self.state = state
+        self.state = state[:self.ego_info_dim]
         self.ref_index = np.random.choice(list(range(self.path_num)))
         self._future_point_choice(self.state)
         self.construct_ref_path(self.task, self.state, v_light)
 
-    def generate_traj(self, task, state, v_light):
+    def generate_traj(self, task, state, v_light=0):
         """"generate two reference trajectory in real time"""
         if self.mode == 'static_traj':
             self.path_list = []
@@ -72,7 +72,7 @@ class StaticTrajectoryGenerator(object):
         # choose the forward feature points according to the current state
 
         self.feature_points = []
-        x, y, v, phi = state['x'], state['y'], state['v_x'], state['phi'] / 180 * pi
+        x, y, v, phi = state[3], state[4], state[0], state[5] / 180 * pi
         for i, item in enumerate(self.feature_points_all):
             if -18 <= y < -8:
                 self.feature_points.append(list(item[1:]))
@@ -97,7 +97,7 @@ class StaticTrajectoryGenerator(object):
             self.L3[path_index] = sqrt((x - feature_point[0])**2 + (y - feature_point[1])**2) / 4.0
 
     def construct_ref_path(self, task, state, v_light):
-        x, y, v, phi = state['x'], state['y'], state['v_x'], state['phi'] / 180 * pi
+        x, y, v, phi = state[3], state[4], state[0], state[5] / 180 * pi
         state = [x, y, v, phi]
         # plt.clf()
 
