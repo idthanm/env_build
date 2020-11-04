@@ -783,7 +783,7 @@ class ReferencePath(object):
                  tf.gather(self.path[1], indexs), \
                  tf.gather(self.path[2], indexs)
 
-        return points[0], points[1], points[2]
+        return tf.cast(points[0], dtype=tf.float32), tf.cast(points[1], dtype=tf.float32), tf.cast(points[2], dtype=tf.float32)
 
     def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n, func=None):
         def two2one(ref_xs, ref_ys):
@@ -806,7 +806,7 @@ class ReferencePath(object):
 
         if self.traj_mode == 'dyna_traj':
             if func == 'tracking':
-                indexs = tf.constant([1], dtype=tf.int64)
+                indexs = tf.constant([1], dtype=tf.int32)
                 current_points = self.indexs2points(indexs)
                 n_future_data = self.future_n_data(indexs, n)
                 all_ref = [current_points] + n_future_data

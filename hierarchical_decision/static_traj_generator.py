@@ -18,7 +18,7 @@ class StaticTrajectoryGenerator(object):
         self.mode = mode
         self.path_num = 2  # the number of static trajectories
         self.exp_v = 8.
-        self.N = 20
+        self.N = 25
         self.order = [0 for _ in range(self.path_num)]
         self.task = task
         self.ego_info_dim = 6
@@ -109,6 +109,7 @@ class StaticTrajectoryGenerator(object):
             self.new_point_bound = [0.16, 0.06]
         else:
             self.new_point_bound = [0.06, 0.16]
+
         self.path_list = []
         for path_index in range(0, self.path_num, 1):
             if v_light != 0 and y < -18 and task != 'right':         # red or yellow light and not passing the stop line
@@ -153,7 +154,7 @@ class StaticTrajectoryGenerator(object):
                 planed_trj[1:, 3] = phis_1
                 planed_trj[1:, 2] = self.exp_v * np.ones(len(planed_trj[1:, 2]))
 
-                current_path = planed_trj[:, 0], planed_trj[:, 1], planed_trj[:, 3]
+                current_path = planed_trj[:, 0].astype(np.float32), planed_trj[:, 1].astype(np.float32), planed_trj[:, 3].astype(np.float32)
                 ref = ReferencePath(self.task)
                 ref.set_path(self.mode, path_index=path_index, path=current_path)
                 self.path_list.append(ref)

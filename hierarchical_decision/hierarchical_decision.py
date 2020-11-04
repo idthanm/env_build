@@ -22,7 +22,7 @@ class HierarchicalDecision(object):
         self.env = CrossroadEnd2end(training_task=self.task)
         self.model = EnvironmentModel(self.task)
         self.obs = self.env.reset()
-        self.stg = StaticTrajectoryGenerator(self.task, self.obs, mode='static_traj')  # mode: static_traj or dyna_traj
+        self.stg = StaticTrajectoryGenerator(self.task, self.obs, mode='dyna_traj')  # mode: static_traj or dyna_traj
 
     def reset(self):
         self.obs = self.env.reset()
@@ -36,7 +36,7 @@ class HierarchicalDecision(object):
         for step in range(25):
             action = self.policy.run(obs)
             obs, rewards, _, punishment = self.model.rollout_out(action)
-            tf.print(rewards)
+            # tf.print(rewards)
             tracking = tracking - rewards
             collision += punishment
         return tracking, collision
@@ -47,12 +47,12 @@ class HierarchicalDecision(object):
         for i, trajectory in enumerate(traj_list):
             self.env.set_traj(trajectory)
             # initial state
-            obs = tf.convert_to_tensor(self.env._get_obs()[np.newaxis, :])
+            obs = tf.convert_to_tensor(self.env._get_obs(func='selecting')[np.newaxis, :])
             self.model.add_traj(obs, trajectory, mode='selecting')
             start_time = time.time()
             tracking, collision = self.virtual_rollout(obs)
             end_time = time.time()
-            # print('rollout time:', end_time-start_time)
+            print('rollout time:', end_time-start_time)
             traj_return.append([tracking.numpy().squeeze().tolist(), collision.numpy().squeeze().tolist()])
 
         for i, value in enumerate(traj_return):
@@ -60,13 +60,13 @@ class HierarchicalDecision(object):
 
         # tracking in real env
         if abs(traj_return[0][1]-traj_return[1][1])>0.01:
-            index = np.argmin([traj_return[0][1], traj_return[1][1]])          # todo: the maximum index
+            index = np.argmin([traj_return[0][1], traj_return[1][1]])
         else:
             index = np.argmin([traj_return[0][0], traj_return[1][0]])
 
         self.env.render(traj_list, traj_return, index)
         self.env.set_traj(traj_list[index])
-        self.obs_real = self.env._get_obs()
+        self.obs_real = self.env._get_obs(func='tracking')
         action = self.policy.run(self.obs_real)
         self.obs, r, done, info = self.env.step(action)
         return done
