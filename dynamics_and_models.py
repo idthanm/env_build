@@ -783,7 +783,7 @@ class ReferencePath(object):
                  tf.gather(self.path[1], indexs), \
                  tf.gather(self.path[2], indexs)
 
-        return tf.cast(points[0], dtype=tf.float32), tf.cast(points[1], dtype=tf.float32), tf.cast(points[2], dtype=tf.float32)
+        return points[0], points[1], points[2]
 
     def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n, func=None):
         def two2one(ref_xs, ref_ys):

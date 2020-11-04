@@ -22,7 +22,7 @@ class HierarchicalDecision(object):
         self.env = CrossroadEnd2end(training_task=self.task)
         self.model = EnvironmentModel(self.task)
         self.obs = self.env.reset()
-        self.stg = StaticTrajectoryGenerator(self.task, self.obs, mode='dyna_traj')  # mode: static_traj or dyna_traj
+        self.stg = StaticTrajectoryGenerator(self.task, self.obs, mode='static_traj')  # mode: static_traj or dyna_traj
 
     def reset(self):
         self.obs = self.env.reset()
@@ -36,7 +36,6 @@ class HierarchicalDecision(object):
         for step in range(25):
             action = self.policy.run(obs)
             obs, rewards, _, punishment = self.model.rollout_out(action)
-            # tf.print(rewards)
             tracking = tracking - rewards
             collision += punishment
         return tracking, collision
