@@ -229,19 +229,21 @@ class Traffic(object):
         for egoID in self.n_ego_dict.keys():
             veh_info_dict = traci.vehicle.getContextSubscriptionResults(egoID)
             for egosid in self.n_ego_dict.keys():
-                assert egosid in veh_info_dict
-            veh_info_dict.pop(egoID)
+                if egosid != egoID and egosid not in veh_info_dict:
+                    print(egosid, veh_info_dict)
+                    raise ValueError
             for i, veh in enumerate(veh_info_dict):
-                length = veh_info_dict[veh][traci.constants.VAR_LENGTH]
-                width = veh_info_dict[veh][traci.constants.VAR_WIDTH]
-                route = veh_info_dict[veh][traci.constants.VAR_EDGES]
-                x_in_sumo, y_in_sumo = veh_info_dict[veh][traci.constants.VAR_POSITION]
-                a_in_sumo = veh_info_dict[veh][traci.constants.VAR_ANGLE]
-                # transfer x,y,a in car coord
-                x, y, a = _convert_sumo_coord_to_car_coord(x_in_sumo, y_in_sumo, a_in_sumo, length)
-                v = veh_info_dict[veh][traci.constants.VAR_SPEED]
-                self.n_ego_vehicles[egoID].append(dict(x=x, y=y, v=v, phi=a, l=length,
-                                                       w=width, route=route))
+                if veh != egoID:
+                    length = veh_info_dict[veh][traci.constants.VAR_LENGTH]
+                    width = veh_info_dict[veh][traci.constants.VAR_WIDTH]
+                    route = veh_info_dict[veh][traci.constants.VAR_EDGES]
+                    x_in_sumo, y_in_sumo = veh_info_dict[veh][traci.constants.VAR_POSITION]
+                    a_in_sumo = veh_info_dict[veh][traci.constants.VAR_ANGLE]
+                    # transfer x,y,a in car coord
+                    x, y, a = _convert_sumo_coord_to_car_coord(x_in_sumo, y_in_sumo, a_in_sumo, length)
+                    v = veh_info_dict[veh][traci.constants.VAR_SPEED]
+                    self.n_ego_vehicles[egoID].append(dict(x=x, y=y, v=v, phi=a, l=length,
+                                                           w=width, route=route))
 
     def _get_traffic_light(self):
         self.v_light = traci.trafficlight.getPhase('0')
