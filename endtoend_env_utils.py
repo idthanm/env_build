@@ -9,8 +9,6 @@
 
 import math
 
-import numpy as np
-
 
 def shift_coordination(orig_x, orig_y, coordi_shift_x, coordi_shift_y):
     '''
