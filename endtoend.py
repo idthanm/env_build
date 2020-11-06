@@ -171,6 +171,9 @@ class CrossroadEnd2end(gym.Env):
         self.done_type = 'not_done_yet'
         return self.obs
 
+    def close(self):
+        del self.traffic
+
     def step(self, action):
         self.action = self._action_transformation_for_end2end(action)
         reward, self.reward_info = self.compute_reward(self.obs, self.action)
@@ -250,12 +253,12 @@ class CrossroadEnd2end(gym.Env):
          3: good done: task succeed
          4: not done
         """
-        if self.traffic.collision_flag:
-            return 'collision', 1
-        elif self._break_road_constrain():
+        # if self.traffic.collision_flag:
+        #     return 'collision', 0
+        if self._break_road_constrain():
             return 'break_road_constrain', 1
-        elif self._deviate_too_much():
-            return 'deviate_too_much', 1
+        # elif self._deviate_too_much():
+        #     return 'deviate_too_much', 1
         # elif self._break_stability():
         #     return 'break_stability', 1
         elif self._break_red_light():
@@ -293,7 +296,7 @@ class CrossroadEnd2end(gym.Env):
         x = self.ego_dynamics['x']
         y = self.ego_dynamics['y']
         if self.training_task == 'left':
-            return True if x < -18 - 5 and 0 < y < 7.5 else False
+            return True if x < -18 - 6 and 0 < y < 7.5 else False
         elif self.training_task == 'right':
             return True if x > 18 + 5 and -7.5 < y < 0 else False
         else:
@@ -328,7 +331,7 @@ class CrossroadEnd2end(gym.Env):
         next_ego_state[-1] = deal_with_phi(next_ego_state[-1])
         return next_ego_state, next_ego_params
 
-    def _get_obs(self, exit_='D'):
+    def _get_obs(self, exit_='D', func='tracking'):
         ego_x = self.ego_dynamics['x']
         ego_y = self.ego_dynamics['y']
         ego_phi = self.ego_dynamics['phi']
@@ -340,7 +343,7 @@ class CrossroadEnd2end(gym.Env):
                                                              np.array([ego_y], dtype=np.float32),
                                                              np.array([ego_phi], dtype=np.float32),
                                                              np.array([ego_v_x], dtype=np.float32),
-                                                             self.num_future_data).numpy()[0]
+                                                             self.num_future_data, func=func).numpy()[0]
         self.per_tracking_info_dim = 3
 
         vector = np.concatenate((ego_vector, tracking_error, vehs_vector), axis=0)
@@ -536,7 +539,7 @@ class CrossroadEnd2end(gym.Env):
         else:
             random_index = int(np.random.random()*(390+500)) + 700
 
-        # random_index = 1200
+        random_index = 1000
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 8 * np.random.random()
@@ -646,7 +649,7 @@ class CrossroadEnd2end(gym.Env):
 
         return reward.numpy(), reward_dict
 
-    def render(self, mode='human'):
+    def render(self, real_time_traj, traj_return, path_index, mode='human'):
         if mode == 'human':
             # plot basic map
             square_length = 36
@@ -906,27 +909,50 @@ class CrossroadEnd2end(gym.Env):
             #     plt.plot(path_x, path_y, 'g.')
             #     plot_phi_line(path_x, path_y, path_phi, 'g')
 
-            tracking_delta_y, tracking_delta_phi, tracking_delta_v = tracking_info[:3]
-            ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
-            indexs, current_point = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
-            tracking_point = self.ref_path.indexs2points(indexs+80)
-            goal_x, goal_y, _ = current_point[0][0], current_point[1][0], current_point[2][0]
-            x2plot, y2plot, goal_phi = tracking_point[0][0], tracking_point[1][0], tracking_point[2][0]
-            plt.plot(x2plot, y2plot, 'g.')
-            plt.plot(goal_x, goal_y, 'g.')
-            # delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
+            delta_, _, _ = tracking_info[:3]
+            # ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
+            indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
+            path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+            # plt.plot(path_x, path_y, 'g.')
+            delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
+
+            # plot real time traj
+            try:
+                color = ['b', 'lime']
+                for i, item in enumerate(real_time_traj):
+                    if i == path_index:
+                        plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
+                    else:
+                        plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
+                    indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
+                    path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+                    plt.plot(path_x, path_y,  color=color[i])
+            except Exception:
+                pass
+
+            # for j, item_point in enumerate(self.real_path.feature_points_all):
+            #     for k in range(len(item_point)):
+            #         plt.scatter(item_point[k][0], item_point[k][1], c='g')
 
             # plot ego dynamics
             text_x, text_y_start = -110, 60
             ge = iter(range(0, 1000, 4))
             plt.text(text_x, text_y_start - next(ge), 'ego_x: {:.2f}m'.format(ego_x))
             plt.text(text_x, text_y_start - next(ge), 'ego_y: {:.2f}m'.format(ego_y))
-            plt.text(text_x, text_y_start - next(ge), 'goal_x: {:.2f}m'.format(goal_x))
-            plt.text(text_x, text_y_start - next(ge), 'goal_y: {:.2f}m'.format(goal_y))
+            # plt.text(text_x, text_y_start - next(ge), 'UDLR: {:.2f} {:.2f} {:.2f} {:.2f}'.format(min([up1, up2]),
+            #                                                                                          min([down1, down2]),
+            #                                                                                          min([left1, left2]),
+            #                                                                                          min([right1, right2])))
+            # plt.text(text_x, text_y_start - next(ge), '1deltas {:.2f} {:.2f}'.format(point11x, point11y))
+            # plt.text(text_x, text_y_start - next(ge), '2deltas {:.2f} {:.2f}'.format(point12x, point12y))
+            plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
+            plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
+            plt.text(text_x, text_y_start - next(ge), 'delta_: {:.2f}m'.format(delta_))
+            plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
+            plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
             plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
-            plt.text(text_x, text_y_start - next(ge), r'goal_phi: ${:.2f}\degree$'.format(goal_phi))
-            plt.text(text_x, text_y_start - next(ge), 'tracking_delta_y: {:.2f}m'.format(tracking_delta_y))
-            plt.text(text_x, text_y_start - next(ge), r'tracking_delta_phi: ${:.2f}\degree$'.format(tracking_delta_phi))
+            plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
+            plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
 
             plt.text(text_x, text_y_start - next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
             plt.text(text_x, text_y_start - next(ge), 'exp_v: {:.2f}m/s'.format(self.exp_v))
@@ -956,8 +982,21 @@ class CrossroadEnd2end(gym.Env):
                 for key, val in self.reward_info.items():
                     plt.text(text_x, text_y_start - next(ge), '{}: {:.4f}'.format(key, val))
 
-            plt.show()
-            plt.pause(0.1)
+            # indicator for trajectory selection
+            text_x, text_y_start = -25, -65
+            ge = iter(range(0, 1000, 6))
+            if traj_return is not None:
+                for i, value in enumerate(traj_return):
+                    if i==path_index:
+                        plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=14, color=color[i], fontstyle='italic')
+                    else:
+                        plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=12, color=color[i], fontstyle='italic')
+
+            plt.pause(0.001)
+
+    def set_traj(self, trajectory):
+        """set the real trajectory to reconstruct observation"""
+        self.ref_path = trajectory
 
 
 def test_end2end():

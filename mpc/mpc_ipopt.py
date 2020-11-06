@@ -51,8 +51,11 @@ class LoadPolicy(object):
                                          self.args.obs_scale_factor, self.args.reward_scale_factor,
                                          gamma=self.args.gamma)
         # self.preprocessor.load_params(load_dir)
-        self.run(env.reset())
-        env.close()
+        init_obs = env.reset()
+        # print(init_obs)
+        # init_obs = init_obs[np.newaxis, :]
+        self.run(init_obs)
+
 
     @tf.function
     def run(self, obs):
@@ -507,5 +510,6 @@ def run_mpc():
 
 
 if __name__ == '__main__':
-    run_mpc()
+    test = LoadPolicy('./mpc/rl_experiments/experiment-2020-10-20-14-52-58', 95000)
+    # run_mpc()
     # plot_mpc_rl('./mpc_rl.npy', 'IPOPT')
