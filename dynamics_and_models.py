@@ -201,7 +201,6 @@ class EnvironmentModel(object):  # all tensors
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
-        actions = tf.reshape(actions, [1, -1])
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
         steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm-1
         return tf.stack([steer_scale, a_xs_scale], 1)
@@ -661,10 +660,7 @@ class ReferencePath(object):
         planed_trj = None
         meter_pointnum_ratio = 30
         if task == 'left':
-            if self.mode == 'training':
-                end_offsets = [3.75, 3.75]
-            else:
-                end_offsets = [1.875, 5.625]
+            end_offsets = [1.875, 5.625]
             for i, end_offset in enumerate(end_offsets):
                 control_point1 = 1.875, -18
                 control_point2 = 1.875, -18 + 10
@@ -693,10 +689,7 @@ class ReferencePath(object):
                 self.path_list.append(planed_trj)
 
         elif task == 'straight':
-            if self.mode == 'training':
-                end_offsets = [3.75, 3.75]
-            else:
-                end_offsets = [1.875, 5.625]
+            end_offsets = [1.875, 5.625]
 
             for end_offset in end_offsets:
                 control_point1 = 1.875, -18
@@ -725,10 +718,7 @@ class ReferencePath(object):
                 self.path_list.append(planed_trj)
         else:
             assert task == 'right'
-            if self.mode == 'training':
-                end_offsets = [-3.75, -3.75]
-            else:
-                end_offsets = [-1.875, -5.625]
+            end_offsets = [-1.875, -5.625]
 
             for i, end_offset in enumerate(end_offsets):
                 control_point1 = 5.625, -18
