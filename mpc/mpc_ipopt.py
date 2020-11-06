@@ -26,12 +26,12 @@ from mpc.preprocessor import Preprocessor
 
 
 def deal_with_phi_casa(phi):
-    phi = if_else(phi > 180, phi-360, if_else(phi<-180, phi+360, phi))
+    phi = if_else(phi > 180, phi - 360, if_else(phi < -180, phi + 360, phi))
     return phi
 
 
 def deal_with_phi(phi):
-    phi = if_else(phi > 180, phi-360, if_else(phi<-180, phi+360, phi))
+    phi = if_else(phi > 180, phi - 360, if_else(phi < -180, phi + 360, phi))
     return phi
 
 
@@ -46,7 +46,8 @@ class LoadPolicy(object):
         env = CrossroadEnd2end('left')
         self.policy = PolicyWithQs(env.observation_space, env.action_space, self.args)
         self.policy.load_weights(model_dir, iter)
-        self.preprocessor = Preprocessor(env.observation_space, self.args.obs_preprocess_type, self.args.reward_preprocess_type,
+        self.preprocessor = Preprocessor(env.observation_space, self.args.obs_preprocess_type,
+                                         self.args.reward_preprocess_type,
                                          self.args.obs_scale_factor, self.args.reward_scale_factor,
                                          gamma=self.args.gamma)
         # self.preprocessor.load_params(load_dir)
@@ -83,7 +84,7 @@ class VehicleDynamics(object):
     def f_xu(self, x, u, tau):
         v_x, v_y, r, x, y, phi = x[0], x[1], x[2], x[3], x[4], x[5]
         phi = phi * np.pi / 180.
-        steer, a_x = u[0]*0.4, u[1]*3-1
+        steer, a_x = u[0] * 0.4, u[1] * 3 - 1
         C_f = self.vehicle_params['C_f']
         C_r = self.vehicle_params['C_r']
         a = self.vehicle_params['a']
@@ -96,10 +97,10 @@ class VehicleDynamics(object):
 
         next_state = [v_x + tau * (a_x + v_y * r),
                       (mass * v_y * v_x + tau * (
-                                  a * C_f - b * C_r) * r - tau * C_f * steer * v_x - tau * mass * power(
+                              a * C_f - b * C_r) * r - tau * C_f * steer * v_x - tau * mass * power(
                           v_x, 2) * r) / (mass * v_x - tau * (C_f + C_r)),
                       (-I_z * r * v_x - tau * (a * C_f - b * C_r) * v_y + tau * a * C_f * steer * v_x) / (
-                                  tau * (power(a, 2) * C_f + power(b, 2) * C_r) - I_z * v_x),
+                              tau * (power(a, 2) * C_f + power(b, 2) * C_r) - I_z * v_x),
                       x + tau * (v_x * cos(phi) - v_y * sin(phi)),
                       y + tau * (v_x * sin(phi) + v_y * cos(phi)),
                       (phi + tau * r) * 180 / np.pi,
@@ -131,7 +132,8 @@ class Dynamics(object):
         predictions = []
         for vehs_index in range(len(self.veh_mode_list)):
             predictions += \
-                    self.predict_for_a_mode(self.vehs[vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim],
+                self.predict_for_a_mode(
+                    self.vehs[vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim],
                     self.veh_mode_list[vehs_index])
         self.vehs = predictions
 
@@ -147,9 +149,9 @@ class Dynamics(object):
         veh_y_delta = veh_v * self.tau * math.sin(veh_phis_rad)
 
         if mode in ['dl', 'rd', 'ur', 'lu']:
-            veh_phi_rad_delta = veh_v / 19.875 * self.tau if -18<veh_x<18 and -18<veh_y<18 else 0
+            veh_phi_rad_delta = veh_v / 19.875 * self.tau if -18 < veh_x < 18 and -18 < veh_y < 18 else 0
         elif mode in ['dr', 'ru', 'ul', 'ld']:
-            veh_phi_rad_delta = -(veh_v / 12.375) * self.tau if -18<veh_x<18 and -18<veh_y<18 else 0
+            veh_phi_rad_delta = -(veh_v / 12.375) * self.tau if -18 < veh_x < 18 and -18 < veh_y < 18 else 0
         else:
             veh_phi_rad_delta = 0
         next_veh_x, next_veh_y, next_veh_v, next_veh_phi_rad = \
@@ -167,7 +169,7 @@ class Dynamics(object):
     def g_x(self, x):
         ego_x, ego_y, ego_phi = x[3], x[4], x[5]
         g_list = []
-        ego_lws = (4.8-2.2) / 2.
+        ego_lws = (4.8 - 2.2) / 2.
         coeff = 1.
         rho_ego = 2.2 / 2. * coeff
         ego_front_points = ego_x + ego_lws * cos(ego_phi * np.pi / 180.), \
@@ -194,9 +196,10 @@ class Dynamics(object):
                                veh_y + veh_lws * math.sin(veh_phi * np.pi / 180.)
             veh_rear_points = veh_x - veh_lws * math.cos(veh_phi * np.pi / 180.), \
                               veh_y - veh_lws * math.sin(veh_phi * np.pi / 180.)
-            for ego_point in [ego_front_points]:
+            for ego_point in [ego_front_points, ego_rear_points]:
                 for veh_point in [veh_front_points, veh_rear_points]:
-                    veh2veh_dist = sqrt(power(ego_point[0] - veh_point[0], 2) + power(ego_point[1] - veh_point[1], 2))-3.5
+                    veh2veh_dist = sqrt(
+                        power(ego_point[0] - veh_point[0], 2) + power(ego_point[1] - veh_point[1], 2)) - 3.5
                     g_list.append(veh2veh_dist)
 
         # for ego_point in [ego_front_points]:
@@ -234,7 +237,7 @@ class ModelPredictiveControl(object):
                          'print_time': 0}
 
     def mpc_solver(self, x_init, XO):
-        self.dynamics = Dynamics(x_init, self.task, self.exp_v, 1/self.base_frequency, self.veh_mode_list)
+        self.dynamics = Dynamics(x_init, self.task, self.exp_v, 1 / self.base_frequency, self.veh_mode_list)
 
         x = SX.sym('x', self.DYNAMICS_DIM)
         u = SX.sym('u', self.ACTION_DIM)
@@ -278,17 +281,16 @@ class ModelPredictiveControl(object):
             lbg += [0.0] * self.DYNAMICS_DIM
             ubg += [0.0] * self.DYNAMICS_DIM
             G += [Gk]
-            lbg += [0.0] * (len(self.veh_mode_list)*2)
-            ubg += [inf] * (len(self.veh_mode_list)*2)
+            lbg += [0.0] * (len(self.veh_mode_list) * 4)
+            ubg += [inf] * (len(self.veh_mode_list) * 4)
             w += [Xk]
-            lbw += [0.] + [-inf] * (self.DYNAMICS_DIM-1)
-            ubw += [10.] + [inf] * (self.DYNAMICS_DIM-1)
-
+            lbw += [0.] + [-inf] * (self.DYNAMICS_DIM - 1)
+            ubw += [10.] + [inf] * (self.DYNAMICS_DIM - 1)
 
             # Cost function
-            F_cost = Function('F_cost', [x, u], [0.5 * power(x[8], 2)
+            F_cost = Function('F_cost', [x, u], [0.05 * power(x[8], 2)
                                                  + 0.8 * power(x[6], 2)
-                                                 + 0.8 * power(x[7]*np.pi/180., 2)
+                                                 + 30 * power(x[7] * np.pi / 180., 2)
                                                  + 0.02 * power(x[2], 2)
                                                  + 5 * power(u[0], 2)
                                                  + 0.05 * power(u[1], 2)
@@ -309,22 +311,22 @@ class ModelPredictiveControl(object):
 
         # save trajectories
         for i in range(self.horizon):
-            state[i] = state_all[nt * i: nt * (i+1) - self.ACTION_DIM].reshape(-1)
-            control[i] = state_all[nt * (i+1) - self.ACTION_DIM: nt * (i+1)].reshape(-1)
+            state[i] = state_all[nt * i: nt * (i + 1) - self.ACTION_DIM].reshape(-1)
+            control[i] = state_all[nt * (i + 1) - self.ACTION_DIM: nt * (i + 1)].reshape(-1)
         return state, control, state_all, g_all
 
 
 def plot_mpc_rl(file_dir, mpc_name):
     data = np.load(file_dir, allow_pickle=True)
     iteration = np.array([i for i in range(len(data))])
-    mpc_delta_v = np.array([trunk['mpc_obs'][0][0]-20. for trunk in data])
-    rl_delta_v = np.array([trunk['rl_obs'][0][0]-20. for trunk in data])
+    mpc_delta_v = np.array([trunk['mpc_obs'][0][0] - 20. for trunk in data])
+    rl_delta_v = np.array([trunk['rl_obs'][0][0] - 20. for trunk in data])
     mpc_delta_y = np.array([trunk['mpc_obs'][0][3] for trunk in data])
     rl_delta_y = np.array([trunk['rl_obs'][0][3] for trunk in data])
     mpc_delta_phi = np.array([trunk['mpc_obs'][0][4] for trunk in data])
     rl_delta_phi = np.array([trunk['rl_obs'][0][4] for trunk in data])
-    mpc_steer = np.array([0.4*trunk['mpc_action'][0] for trunk in data])
-    mpc_acc = np.array([3*trunk['mpc_action'][1] for trunk in data])
+    mpc_steer = np.array([0.4 * trunk['mpc_action'][0] for trunk in data])
+    mpc_acc = np.array([3 * trunk['mpc_action'][1] for trunk in data])
     mpc_time = np.array([trunk['mpc_time'] for trunk in data])
     mpc_rew = np.array([trunk['mpc_rew'] for trunk in data])
     rl_steer = np.array([0.4 * trunk['rl_action'][0] for trunk in data])
@@ -374,7 +376,7 @@ def plot_mpc_rl(file_dir, mpc_name):
     total_df = df_mpc.append([df_rl, df_rl_same_obs_as_mpc], ignore_index=True)
     f1 = plt.figure(1)
     ax1 = f1.add_axes([0.155, 0.12, 0.82, 0.86])
-    sns.lineplot(x="iteration", y="steer", hue="algorithms", data=total_df, linewidth=2, palette="bright",)
+    sns.lineplot(x="iteration", y="steer", hue="algorithms", data=total_df, linewidth=2, palette="bright", )
     # ax1.set_ylabel('Average Q-value Estimation Bias', fontsize=15)
     # ax1.set_xlabel("Million iterations", fontsize=15)
     # plt.xlim(0, 3)
@@ -453,6 +455,14 @@ def run_mpc():
 
     # rl_policy = LoadPolicy(rl_load_dir, rl_ite)
 
+    def convert_vehs_to_abso(obs_rela):
+        ego_infos, tracking_infos, veh_rela = obs_rela[:6], obs_rela[6:9], obs_rela[9:]
+        ego_vx, ego_vy, ego_r, ego_x, ego_y, ego_phi = ego_infos
+        ego = np.array([ego_x, ego_y, 0, 0]*int(len(veh_rela)/4), dtype=np.float32)
+        vehs_abso = veh_rela + ego
+        out = np.concatenate((ego_infos, tracking_infos, vehs_abso), axis=0)
+        return out
+
     for horizon in horizon_list:
         for i in range(1):
             data2plot = []
@@ -460,16 +470,17 @@ def run_mpc():
             # obs4rl = env4rl.reset(init_obs=obs)
             mpc = ModelPredictiveControl(horizon)
             rew, rew4rl = 0., 0.
-            state_all = np.array((list(obs[:9]) + [0, 0])*horizon + list(obs[:9])).reshape((-1, 1))
+            state_all = np.array((list(obs[:9]) + [0, 0]) * horizon + list(obs[:9])).reshape((-1, 1))
             for _ in range(100):
                 with mpc_timer:
-                    state, control, state_all, g_all = mpc.mpc_solver(list(obs), state_all)
+                    state, control, state_all, g_all = mpc.mpc_solver(list(convert_vehs_to_abso(obs)), state_all)
                 if any(g_all < -1):
                     print('optimization fail')
                     mpc_action = np.array([0., -1.])
                     state_all = np.array((list(obs[:9]) + [0, 0]) * horizon + list(obs[:9])).reshape((-1, 1))
                 else:
-                    state_all = np.zeros(shape=(11*horizon+9, 1))
+                    state_all = np.array((list(obs[:9]) + [0, 0]) * horizon + list(obs[:9])).reshape((-1, 1))
+                    # np.zeros(shape=(11*horizon+9, 1))
                     mpc_action = control[0]
                 # with rl_timer:
                 #     rl_action_mpc = rl_policy.run(obs).numpy()[0]
@@ -484,15 +495,15 @@ def run_mpc():
                                       # rl_time=rl_timer.mean,
                                       mpc_rew=rew,
                                       # rl_rew=rew4rl[0],
-                                     )
+                                      )
                                  )
 
                 mpc_action = mpc_action.astype(np.float32)
                 obs, rew, _, _ = env4mpc.step(mpc_action)
-                print(obs, mpc_action)
                 # obs4rl, rew4rl, _, _ = env4rl.step(np.array([rl_action]))
                 env4mpc.render()
-                plt.plot([state[i][3] for i in range(1, horizon-1)], [state[i][4] for i in range(1, horizon-1)], 'r*')
+                plt.plot([state[i][3] for i in range(1, horizon - 1)], [state[i][4] for i in range(1, horizon - 1)],
+                         'r*')
                 plt.show()
                 plt.pause(0.1)
             np.save('mpc_rl.npy', np.array(data2plot))
@@ -502,5 +513,3 @@ if __name__ == '__main__':
     test = LoadPolicy('./mpc/rl_experiments/experiment-2020-10-20-14-52-58', 95000)
     # run_mpc()
     # plot_mpc_rl('./mpc_rl.npy', 'IPOPT')
-
-
