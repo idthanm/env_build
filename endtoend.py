@@ -663,8 +663,6 @@ class CrossroadEnd2end(gym.Env):
             plt.axis("equal")
             plt.axis('off')
 
-            # ax.add_patch(plt.Rectangle((-square_length / 2, -square_length / 2),
-            #                            square_length, square_length, edgecolor='black', facecolor='none'))
             ax.add_patch(plt.Rectangle((-square_length / 2 - extension, -square_length / 2 - extension),
                                        square_length + 2 * extension, square_length + 2 * extension, edgecolor='black',
                                        facecolor='none'))
@@ -840,20 +838,6 @@ class CrossroadEnd2end(gym.Env):
                         color = task2color[task]
                         draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
 
-            # plot own car
-            # dict(v_x=ego_dict['v_x'],
-            #      v_y=ego_dict['v_y'],
-            #      r=ego_dict['r'],
-            #      x=ego_dict['x'],
-            #      y=ego_dict['y'],
-            #      phi=ego_dict['phi'],
-            #      l=ego_dict['l'],
-            #      w=ego_dict['w'],
-            #      Corner_point=self.cal_corner_point_of_ego_car(ego_dict)
-            #      alpha_f_bound=alpha_f_bound,
-            #      alpha_r_bound=alpha_r_bound,
-            #      r_bound=r_bound)
-
             ego_v_x = self.ego_dynamics['v_x']
             ego_v_y = self.ego_dynamics['v_y']
             ego_r = self.ego_dynamics['r']
@@ -864,37 +848,9 @@ class CrossroadEnd2end(gym.Env):
             ego_w = self.ego_dynamics['w']
             ego_alpha_f = self.ego_dynamics['alpha_f']
             ego_alpha_r = self.ego_dynamics['alpha_r']
-            ego_miu_f = self.ego_dynamics['miu_f']
-            ego_miu_r = self.ego_dynamics['miu_r']
             alpha_f_bound = self.ego_dynamics['alpha_f_bound']
             alpha_r_bound = self.ego_dynamics['alpha_r_bound']
             r_bound = self.ego_dynamics['r_bound']
-
-            #===================================
-            # ego_info, tracing_info, vehs_info = self.obs[:28], self.obs[28:28 + 4 * (self.num_future_data+1)], \
-            #                                     self.obs[28 + 4 * (self.num_future_data+1):]
-            # ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi, ego_l, ego_w, \
-            # ego_alpha_f, ego_alpha_r, ego_miu_f, ego_miu_r, \
-            # up1, down1, left1, right1, point11x, point11y, point12x, point12y, \
-            # up2, down2, left2, right2, point21x, point21y, point22x, point22y= ego_info
-            # delta_x, delta_y, delta_phi, delta_v = tracing_info[:4]
-            #
-            # start = 0
-            # for mode, num in self.veh_mode_list:
-            #     for _ in range(num):
-            #         veh = vehs_info[start*10:(start+1)*10]
-            #         veh_x, veh_y, veh_v, veh_phi, veh_l, veh_w, \
-            #         dist1, dist2, dist3, dist4 = veh
-            #         start += 1
-            #         task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
-            #         if is_in_plot_area(veh_x, veh_y):
-            #             plot_phi_line(veh_x, veh_y, veh_phi, 'black')
-            #             plt.text(veh_x, veh_y, '{:.1f}'.format(min([dist1, dist2, dist3, dist4])))
-            #             task = MODE2TASK[mode]
-            #             color = task2color[task]
-            #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
-
-            #===================================
 
             plot_phi_line(ego_x, ego_y, ego_phi, 'red')
             draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'red')
@@ -937,12 +893,6 @@ class CrossroadEnd2end(gym.Env):
             ge = iter(range(0, 1000, 4))
             plt.text(text_x, text_y_start - next(ge), 'ego_x: {:.2f}m'.format(ego_x))
             plt.text(text_x, text_y_start - next(ge), 'ego_y: {:.2f}m'.format(ego_y))
-            # plt.text(text_x, text_y_start - next(ge), 'UDLR: {:.2f} {:.2f} {:.2f} {:.2f}'.format(min([up1, up2]),
-            #                                                                                          min([down1, down2]),
-            #                                                                                          min([left1, left2]),
-            #                                                                                          min([right1, right2])))
-            # plt.text(text_x, text_y_start - next(ge), '1deltas {:.2f} {:.2f}'.format(point11x, point11y))
-            # plt.text(text_x, text_y_start - next(ge), '2deltas {:.2f} {:.2f}'.format(point12x, point12y))
             plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
             plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
             plt.text(text_x, text_y_start - next(ge), 'delta_: {:.2f}m'.format(delta_))
