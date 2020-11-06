@@ -253,8 +253,8 @@ class CrossroadEnd2end(gym.Env):
          3: good done: task succeed
          4: not done
         """
-        # if self.traffic.collision_flag:
-        #     return 'collision', 0
+        if self.traffic.collision_flag:
+            return 'collision', 0
         if self._break_road_constrain():
             return 'break_road_constrain', 1
         # elif self._deviate_too_much():
@@ -296,7 +296,7 @@ class CrossroadEnd2end(gym.Env):
         x = self.ego_dynamics['x']
         y = self.ego_dynamics['y']
         if self.training_task == 'left':
-            return True if x < -18 - 6 and 0 < y < 7.5 else False
+            return True if x < -18 - 5 and 0 < y < 7.5 else False
         elif self.training_task == 'right':
             return True if x > 18 + 5 and -7.5 < y < 0 else False
         else:
@@ -539,9 +539,7 @@ class CrossroadEnd2end(gym.Env):
         else:
             random_index = int(np.random.random()*(390+500)) + 700
 
-        random_index = 1000
         x, y, phi = self.ref_path.indexs2points(random_index)
-        # v = 7 + 6 * np.random.random()
         v = 8 * np.random.random()
         if self.training_task == 'left':
             routeID = 'dl'
@@ -649,7 +647,7 @@ class CrossroadEnd2end(gym.Env):
 
         return reward.numpy(), reward_dict
 
-    def render(self, real_time_traj, traj_return, path_index, mode='human'):
+    def render(self, mode='human'):
         if mode == 'human':
             # plot basic map
             square_length = 36
@@ -917,18 +915,18 @@ class CrossroadEnd2end(gym.Env):
             delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
 
             # plot real time traj
-            try:
-                color = ['b', 'lime']
-                for i, item in enumerate(real_time_traj):
-                    if i == path_index:
-                        plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
-                    else:
-                        plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
-                    indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
-                    path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-                    plt.plot(path_x, path_y,  color=color[i])
-            except Exception:
-                pass
+            # try:
+            #     color = ['b', 'lime']
+            #     for i, item in enumerate(real_time_traj):
+            #         if i == path_index:
+            #             plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
+            #         else:
+            #             plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
+            #         indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
+            #         path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+            #         plt.plot(path_x, path_y,  color=color[i])
+            # except Exception:
+            #     pass
 
             # for j, item_point in enumerate(self.real_path.feature_points_all):
             #     for k in range(len(item_point)):
@@ -985,12 +983,12 @@ class CrossroadEnd2end(gym.Env):
             # indicator for trajectory selection
             text_x, text_y_start = -25, -65
             ge = iter(range(0, 1000, 6))
-            if traj_return is not None:
-                for i, value in enumerate(traj_return):
-                    if i==path_index:
-                        plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=14, color=color[i], fontstyle='italic')
-                    else:
-                        plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=12, color=color[i], fontstyle='italic')
+            # if traj_return is not None:
+            #     for i, value in enumerate(traj_return):
+            #         if i==path_index:
+            #             plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=14, color=color[i], fontstyle='italic')
+            #         else:
+            #             plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=12, color=color[i], fontstyle='italic')
 
             plt.pause(0.001)
 
