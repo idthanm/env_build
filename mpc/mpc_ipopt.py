@@ -20,6 +20,7 @@ from casadi import *
 import casadi as ca
 
 from endtoend import CrossroadEnd2end
+from endtoend_env_utils import CROSSROAD_SIZE, LANE_NUMBER, LANE_WIDTH, L, W
 from mpc.main import TimerStat, ReferencePath
 from mpc.policy import PolicyWithQs
 from mpc.preprocessor import Preprocessor
@@ -52,10 +53,7 @@ class LoadPolicy(object):
                                          gamma=self.args.gamma)
         # self.preprocessor.load_params(load_dir)
         init_obs = env.reset()
-        # print(init_obs)
-        # init_obs = init_obs[np.newaxis, :]
         self.run(init_obs)
-
 
     @tf.function
     def run(self, obs):
@@ -149,9 +147,11 @@ class Dynamics(object):
         veh_y_delta = veh_v * self.tau * math.sin(veh_phis_rad)
 
         if mode in ['dl', 'rd', 'ur', 'lu']:
-            veh_phi_rad_delta = veh_v / 19.875 * self.tau if -18 < veh_x < 18 and -18 < veh_y < 18 else 0
+            veh_phi_rad_delta = (veh_v / (CROSSROAD_SIZE/2+LANE_WIDTH/2)) * self.tau if -CROSSROAD_SIZE/2 < veh_x < CROSSROAD_SIZE/2 \
+                                                             and -CROSSROAD_SIZE/2 < veh_y < CROSSROAD_SIZE/2 else 0
         elif mode in ['dr', 'ru', 'ul', 'ld']:
-            veh_phi_rad_delta = -(veh_v / 12.375) * self.tau if -18 < veh_x < 18 and -18 < veh_y < 18 else 0
+            veh_phi_rad_delta = -(veh_v / (CROSSROAD_SIZE/2-2.5*LANE_WIDTH/2)) * self.tau if -CROSSROAD_SIZE/2 < veh_x < CROSSROAD_SIZE/2 \
+                                                                and -CROSSROAD_SIZE/2 < veh_y < CROSSROAD_SIZE/2 else 0
         else:
             veh_phi_rad_delta = 0
         next_veh_x, next_veh_y, next_veh_v, next_veh_phi_rad = \
@@ -169,9 +169,9 @@ class Dynamics(object):
     def g_x(self, x):
         ego_x, ego_y, ego_phi = x[3], x[4], x[5]
         g_list = []
-        ego_lws = (4.8 - 2.2) / 2.
+        ego_lws = (L - W) / 2.
         coeff = 1.
-        rho_ego = 2.2 / 2. * coeff
+        rho_ego = W / 2. * coeff
         ego_front_points = ego_x + ego_lws * cos(ego_phi * np.pi / 180.), \
                            ego_y + ego_lws * sin(ego_phi * np.pi / 180.)
         ego_rear_points = ego_x - ego_lws * cos(ego_phi * np.pi / 180.), \
@@ -190,8 +190,8 @@ class Dynamics(object):
         for vehs_index in range(len(self.veh_mode_list)):
             veh = self.vehs[vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim]
             veh_x, veh_y, veh_phi = veh[0], veh[1], veh[3]
-            veh_lws = (4.8 - 2.2) / 2.
-            rho_vehs = 2.2 / 2. * coeff
+            veh_lws = (L - W) / 2.
+            rho_vehs = W / 2. * coeff
             veh_front_points = veh_x + veh_lws * math.cos(veh_phi * np.pi / 180.), \
                                veh_y + veh_lws * math.sin(veh_phi * np.pi / 180.)
             veh_rear_points = veh_x - veh_lws * math.cos(veh_phi * np.pi / 180.), \
@@ -199,7 +199,7 @@ class Dynamics(object):
             for ego_point in [ego_front_points, ego_rear_points]:
                 for veh_point in [veh_front_points, veh_rear_points]:
                     veh2veh_dist = sqrt(
-                        power(ego_point[0] - veh_point[0], 2) + power(ego_point[1] - veh_point[1], 2)) - 3.5
+                        power(ego_point[0] - veh_point[0], 2) + power(ego_point[1] - veh_point[1], 2)) - 2.5
                     g_list.append(veh2veh_dist)
 
         # for ego_point in [ego_front_points]:
@@ -221,13 +221,12 @@ class ModelPredictiveControl(object):
         self.exp_v = 8.
         self.task = 'left'
         if self.task == 'left':
-            self.veh_mode_list = ['dl'] * 1 + ['du'] * 1 + ['ud'] * 2 + ['ul'] * 2
+            self.veh_mode_list = ['dl'] * 1 + ['du'] * 2 + ['ud'] * 4 + ['ul'] * 2
         elif self.task == 'straight':
-            self.veh_mode_list = ['dl'] * 1 + ['du'] * 1 + ['ud'] * 1 + ['ru'] * 2 + ['ur'] * 2
+            self.veh_mode_list = ['dl'] * 1 + ['du'] * 2 + ['ud'] * 1 + ['ru'] * 2 + ['ur'] * 2
         else:
             assert self.task == 'right'
             self.veh_mode_list = ['dr'] * 1 + ['ur'] * 2 + ['lr'] * 2
-        task2dynadim = {'left': 33, 'straight': 37, 'right': 29}
         self.DYNAMICS_DIM = 9
         self.ACTION_DIM = 2
         self.dynamics = None
@@ -510,6 +509,6 @@ def run_mpc():
 
 
 if __name__ == '__main__':
-    test = LoadPolicy('./mpc/rl_experiments/experiment-2020-10-20-14-52-58', 95000)
-    # run_mpc()
+    # test = LoadPolicy('./mpc/rl_experiments/experiment-2020-10-20-14-52-58', 95000)
+    run_mpc()
     # plot_mpc_rl('./mpc_rl.npy', 'IPOPT')

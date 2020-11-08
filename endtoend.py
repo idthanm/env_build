@@ -440,11 +440,11 @@ class CrossroadEnd2end(gym.Env):
             tmp = OrderedDict()
             veh_mode_list = []
             if task == 'left':
-                tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, 1)
+                tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, 2)
                 tmp['du'] = slice_or_fill(du, fill_value_for_du, 2)
                 tmp['ud'] = slice_or_fill(ud, fill_value_for_ud, 4)
                 tmp['ul'] = slice_or_fill(ul, fill_value_for_ul, 2)
-                veh_mode_list = [('dl', 1), ('du', 2), ('ud', 4), ('ul', 2)]
+                veh_mode_list = [('dl', 2), ('du', 2), ('ud', 4), ('ul', 2)]
             elif task == 'straight':
                 tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, 1)
                 tmp['du'] = slice_or_fill(du, fill_value_for_du, 2)
@@ -795,10 +795,10 @@ class CrossroadEnd2end(gym.Env):
             #     plot_phi_line(path_x, path_y, path_phi, 'g')
 
             delta_, _, _ = tracking_info[:3]
-            # ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
+            ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
             indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
             path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-            # plt.plot(path_x, path_y, 'g.')
+            plt.plot(path_x, path_y, 'g.')
             delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
 
             # plot real time traj

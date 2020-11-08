@@ -275,7 +275,7 @@ class EnvironmentModel(object):  # all tensors
 
     def veh_predict(self, veh_infos):
         if self.task == 'left':
-            veh_mode_list = ['dl'] * 1 + ['du'] * 2 + ['ud'] * 4 + ['ul'] * 2
+            veh_mode_list = ['dl'] * 2 + ['du'] * 2 + ['ud'] * 4 + ['ul'] * 2
         elif self.task == 'straight':
             veh_mode_list = ['dl'] * 1 + ['du'] * 2 + ['ud'] * 1 + ['ru'] * 2 + ['ur'] * 2
         else:
