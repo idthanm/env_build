@@ -2,14 +2,63 @@
 # -*- coding: utf-8 -*-
 
 # =====================================
-# @Time    : 2020/6/10
+# @Time    : 2020/11/08
 # @Author  : Yang Guan (Tsinghua Univ.)
 # @FileName: endtoend_env_utils.py
 # =====================================
 
 import math
 
-import numpy as np
+L, W = 4.8, 2.0
+LANE_WIDTH = 3.75
+LANE_NUMBER = 3
+CROSSROAD_SIZE = 50
+
+ROUTE2MODE = {('1o', '2i'): 'dr', ('1o', '3i'): 'du', ('1o', '4i'): 'dl',
+              ('2o', '1i'): 'rd', ('2o', '3i'): 'ru', ('2o', '4i'): 'rl',
+              ('3o', '1i'): 'ud', ('3o', '2i'): 'ur', ('3o', '4i'): 'ul',
+              ('4o', '1i'): 'ld', ('4o', '2i'): 'lr', ('4o', '3i'): 'lu'}
+
+MODE2TASK = {'dr': 'right', 'du': 'straight', 'dl': 'left',
+             'rd': 'left', 'ru': 'right', 'rl': ' straight',
+             'ud': 'straight', 'ur': 'left', 'ul': 'right',
+             'ld': 'right', 'lr': 'straight', 'lu': 'left'}
+
+
+def judge_feasible(orig_x, orig_y, task):  # map dependant
+    def is_in_straight_before1(orig_x, orig_y):
+        return 0 < orig_x < LANE_WIDTH and orig_y <= -CROSSROAD_SIZE / 2
+
+    def is_in_straight_before2(orig_x, orig_y):
+        return LANE_WIDTH < orig_x < LANE_WIDTH * 2 and orig_y <= -CROSSROAD_SIZE / 2
+
+    def is_in_straight_before3(orig_x, orig_y):
+        return LANE_WIDTH * 2 < orig_x < LANE_WIDTH * 3 and orig_y <= -CROSSROAD_SIZE / 2
+
+    def is_in_straight_after(orig_x, orig_y):
+        return 0 < orig_x < LANE_WIDTH * LANE_NUMBER and orig_y >= CROSSROAD_SIZE / 2
+
+    def is_in_left(orig_x, orig_y):
+        return 0 < orig_y < LANE_WIDTH * LANE_NUMBER and orig_x < -CROSSROAD_SIZE / 2
+
+    def is_in_right(orig_x, orig_y):
+        return -LANE_WIDTH * LANE_NUMBER < orig_y < 0 and orig_x > CROSSROAD_SIZE / 2
+
+    def is_in_middle(orig_x, orig_y):
+        return True if -CROSSROAD_SIZE / 2 < orig_y < CROSSROAD_SIZE / 2 and -CROSSROAD_SIZE / 2 < orig_x < CROSSROAD_SIZE / 2 else False
+
+    if task == 'left':
+        return True if is_in_straight_before1(orig_x, orig_y) or is_in_left(orig_x, orig_y) \
+                       or is_in_middle(orig_x, orig_y) else False
+    elif task == 'straight':
+        return True if is_in_straight_before1(orig_x, orig_y) or is_in_straight_before2(orig_x,
+                                                                                        orig_y) or is_in_straight_after(
+            orig_x, orig_y) \
+                       or is_in_middle(orig_x, orig_y) else False
+    else:
+        assert task == 'right'
+        return True if is_in_straight_before3(orig_x, orig_y) or is_in_right(orig_x, orig_y) \
+                       or is_in_middle(orig_x, orig_y) else False
 
 
 def shift_coordination(orig_x, orig_y, coordi_shift_x, coordi_shift_y):
@@ -105,18 +154,18 @@ def cal_ego_info_in_transform_coordination(ego_dynamics, x, y, rotate_d):
 
 
 def xy2_edgeID_lane(x, y):
-    if y < -18:
+    if y < -CROSSROAD_SIZE/2:
         edgeID = '1o'
-        lane = 1 if x < 3.75 else 0
-    elif x < -18:
+        lane = int((LANE_NUMBER-1)-int(x/LANE_WIDTH))
+    elif x < -CROSSROAD_SIZE/2:
         edgeID = '4i'
-        lane = 1 if y < 3.75 else 0
-    elif y > 18:
+        lane = int((LANE_NUMBER-1)-int(y/LANE_WIDTH))
+    elif y > CROSSROAD_SIZE/2:
         edgeID = '3i'
-        lane = 1 if x < 3.75 else 0
-    elif x > 18:
+        lane = int((LANE_NUMBER-1)-int(x/LANE_WIDTH))
+    elif x > CROSSROAD_SIZE/2:
         edgeID = '2i'
-        lane = 1 if y > -3.75 else 0
+        lane = int((LANE_NUMBER-1)-int(-y/LANE_WIDTH))
     else:
         edgeID = '0'
         lane = 0
@@ -145,81 +194,5 @@ def deal_with_phi(phi):
     return phi
 
 
-class Path(object):
-    """
-    manage generated path
-    """
-
-    def __init__(self, percision=0.001):
-        self.path = None
-        self.current_step = 0
-        self.total_step = None
-        self.percision = percision
-
-    def reset_path(self, dist_before_start_point, start_point_info, end_point_info, dist_after_end_point):
-        self.current_step = 0
-        self.path_generation(dist_before_start_point, start_point_info, end_point_info, dist_after_end_point)
-        self.total_step = len(self.path)
-
-    def path_generation(self, dist_before_start_point, start_point_info, end_point_info, dist_after_end_point):
-        """
-        :param dist_before_start_point:
-        :param start_point_info: list, [x, y, heading(deg)]
-        :param end_point_info: list, [x, y, heading(deg)]
-        :param pecision: distance between points
-        :return: ndarray, [[x0, y0, a0(deg)], [x1, y1, a1(deg)], ...]
-        """
-        # start_x, start_y, start_a = start_point_info
-        # end_x, end_y, end_a = end_point_info
-        # assert -180 < start_a < 180, 'start heading should be in [-180, 180](deg)'
-        # assert -180 < end_a < 180, 'end heading should be in [-180, 180](deg)'
-        # # transform coordination to start point
-        # path = np.zeros((100, 4), dtype=np.float32)
-
-        before_y = np.linspace(-dist_before_start_point, 0, int(dist_before_start_point / self.percision)) - 18
-        before_x = 3.75 / 2 * np.ones(before_y.shape)
-        before_a = 90 * np.ones(before_y.shape)
-        before_points = np.array(list(zip(before_x, before_y, before_a)))
-
-        middle_angle = np.linspace(0, np.pi / 2, int(np.pi / 2 * (18 + 3.75 / 2) / self.percision))
-        middle_points = np.array(
-            [[(18 + 3.75 / 2) * np.cos(a) - 18, (18 + 3.75 / 2) * np.sin(a) - 18, 90 + a * 180 / np.pi] for a in
-             middle_angle[1:]])
-
-        after_x = np.linspace(0, -dist_after_end_point, int(dist_after_end_point / self.percision)) - 18
-        after_y = 3.75 / 2 * np.ones(before_y.shape)
-        after_a = 180 * np.ones(before_y.shape)
-        after_points = np.array(list(zip(after_x[1:], after_y[1:], after_a[1:])))
-
-        self.path = np.vstack((before_points, middle_points, after_points))
-
-    def get_init_state(self):
-        return self.path[0]
-
-    def get_next_info(self, delta_dist):
-        delta_steps = int(np.floor(delta_dist / self.percision))
-        next_index = delta_steps + self.current_step
-        self.current_step = next_index if next_index < self.total_step else self.total_step - 1
-        return self.path[self.current_step]
-
-    def is_path_finished(self):
-        return True if self.current_step == self.total_step - 1 else False
-
-
-def test_path():
-    path = Path(0.01)
-    path.reset_path(5, 1, 1, 5)
-    print(path.get_init_state())
-    x = path.path[:, 0]
-    y = path.path[:, 1]
-    print(path.get_next_info(5))
-    print(path.get_next_info((18 + 3.75 / 2) * np.pi / 2))
-    print(path.is_path_finished())
-    print(path.get_next_info(3))
-    print(path.is_path_finished())
-    print(path.get_next_info(3))
-    print(path.is_path_finished())
-
-
 if __name__ == '__main__':
-    test_path()
+    pass

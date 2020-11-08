@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # =====================================
-# @Time    : 2020/6/10
+# @Time    : 2020/11/08
 # @Author  : Yang Guan (Tsinghua Univ.)
 # @FileName: dynamics_and_models.py
 # =====================================
@@ -16,9 +16,7 @@ import tensorflow as tf
 from tensorflow import logical_and, logical_or
 
 # gym.envs.user_defined.toyota_env.
-from endtoend_env_utils import rotate_coordination
-
-L, W = 4.8, 2.
+from endtoend_env_utils import rotate_coordination, L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER
 
 
 class VehicleDynamics(object):
@@ -76,91 +74,6 @@ class VehicleDynamics(object):
         return x_next, next_params
 
 
-# class VehicleDynamics(object):
-#     def __init__(self, ):
-#         self.vehicle_params = OrderedDict(C_f=88000.,  # front wheel cornering stiffness [N/rad]
-#                                           C_r=94000.,  # rear wheel cornering stiffness [N/rad]
-#                                           a=1.14,  # distance from CG to front axle [m]
-#                                           b=1.40,  # distance from CG to rear axle [m]
-#                                           mass=1500.,  # mass [kg]
-#                                           I_z=2420.,  # Polar moment of inertia at CG [kg*m^2]
-#                                           miu=1.0,  # tire-road friction coefficient
-#                                           g=9.81,  # acceleration of gravity [m/s^2]
-#                                           )
-#         a, b, mass, g = self.vehicle_params['a'], self.vehicle_params['b'], \
-#                         self.vehicle_params['mass'], self.vehicle_params['g']
-#         F_zf, F_zr = b * mass * g / (a + b), a * mass * g / (a + b)
-#         self.vehicle_params.update(dict(F_zf=F_zf,
-#                                         F_zr=F_zr))
-#
-#     def f_xu(self, states, actions):  # states and actions are tensors, [[], [], ...]
-#         with tf.name_scope('f_xu') as scope:
-#             # veh_state = obs: v_xs, v_ys, rs, delta_ys, delta_phis, steers, a_xs
-#             # 1, 2, 0.2, 2.4, 1, 2, 0.4
-#
-#             # 0.2 * torch.tensor([1, 5, 10, 12, 5, 10, 2]
-#             # vx, vy, r, delta_phi, delta_y
-#             # veh_full_state: v_ys, rs, v_xs, phis, ys, xs
-#             v_x, v_y, r, x, y, phi = states[:, 0], states[:, 1], states[:, 2], \
-#                                      states[:, 3], states[:, 4], states[:, 5]
-#             phi = phi * np.pi / 180.
-#             steer, a_x = actions[:, 0], actions[:, 1]
-#
-#             C_f = tf.convert_to_tensor(self.vehicle_params['C_f'], dtype=tf.float32)
-#             C_r = tf.convert_to_tensor(self.vehicle_params['C_r'], dtype=tf.float32)
-#             a = tf.convert_to_tensor(self.vehicle_params['a'], dtype=tf.float32)
-#             b = tf.convert_to_tensor(self.vehicle_params['b'], dtype=tf.float32)
-#             mass = tf.convert_to_tensor(self.vehicle_params['mass'], dtype=tf.float32)
-#             I_z = tf.convert_to_tensor(self.vehicle_params['I_z'], dtype=tf.float32)
-#             miu = tf.convert_to_tensor(self.vehicle_params['miu'], dtype=tf.float32)
-#             g = tf.convert_to_tensor(self.vehicle_params['g'], dtype=tf.float32)
-#
-#             F_zf, F_zr = b * mass * g / (a + b), a * mass * g / (a + b)
-#             F_xf = tf.where(a_x < 0, mass * a_x / 2, tf.zeros_like(a_x, dtype=tf.float32))
-#             F_xr = tf.where(a_x < 0, mass * a_x / 2, mass * a_x)
-#             miu_f = tf.sqrt(tf.square(miu * F_zf) - tf.square(F_xf)) / F_zf
-#             miu_r = tf.sqrt(tf.square(miu * F_zr) - tf.square(F_xr)) / F_zr
-#             alpha_f = tf.atan((v_y + a * r) / v_x) - steer
-#             alpha_r = tf.atan((v_y - b * r) / v_x)
-#
-#             Ff_w1 = tf.square(C_f) / (3 * F_zf * miu_f)
-#             Ff_w2 = tf.pow(C_f, 3) / (27 * tf.pow(F_zf * miu_f, 2))
-#             F_yf_max = F_zf * miu_f
-#
-#             Fr_w1 = tf.square(C_r) / (3 * F_zr * miu_r)
-#             Fr_w2 = tf.pow(C_r, 3) / (27 * tf.pow(F_zr * miu_r, 2))
-#             F_yr_max = F_zr * miu_r
-#
-#             F_yf = - C_f * tf.tan(alpha_f) + Ff_w1 * tf.tan(alpha_f) * tf.abs(
-#                 tf.tan(alpha_f)) - Ff_w2 * tf.pow(tf.tan(alpha_f), 3)
-#             F_yr = - C_r * tf.tan(alpha_r) + Fr_w1 * tf.tan(alpha_r) * tf.abs(
-#                 tf.tan(alpha_r)) - Fr_w2 * tf.pow(tf.tan(alpha_r), 3)
-#
-#             F_yf = tf.minimum(F_yf, F_yf_max)
-#             F_yf = tf.maximum(F_yf, -F_yf_max)
-#
-#             F_yr = tf.minimum(F_yr, F_yr_max)
-#             F_yr = tf.maximum(F_yr, -F_yr_max)
-#
-#             state_deriv = [a_x + v_y * r,
-#                            (F_yf * tf.cos(steer) + F_yr) / mass - v_x * r,
-#                            (a * F_yf * tf.cos(steer) - b * F_yr) / I_z,
-#                            v_x * tf.cos(phi) - v_y * tf.sin(phi),
-#                            v_x * tf.sin(phi) + v_y * tf.cos(phi),
-#                            r * 180 / np.pi,
-#                            ]
-#
-#             state_deriv_stack = tf.stack(state_deriv, axis=1)
-#             ego_params = tf.stack([alpha_f, alpha_r, miu_f, miu_r], axis=1)
-#         return state_deriv_stack, ego_params
-#
-#     def prediction(self, x_1, u_1, frequency):
-#         f_xu_1, params = self.f_xu(x_1, u_1)
-#         x_next = f_xu_1 / frequency + x_1
-#
-#         return x_next, params
-
-
 class EnvironmentModel(object):  # all tensors
     def __init__(self, task, num_future_data=0):
         self.task = task
@@ -201,7 +114,6 @@ class EnvironmentModel(object):  # all tensors
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
-        actions = tf.reshape(actions, [1, -1])
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
         steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm-1
         return tf.stack([steer_scale, a_xs_scale], 1)
@@ -236,16 +148,6 @@ class EnvironmentModel(object):  # all tensors
                               tf.cast(ego_infos[:, 4] - ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
             veh2veh4real = tf.zeros_like(veh_infos[:, 0])
             veh2veh4training = tf.zeros_like(veh_infos[:, 0])
-            # for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
-            #     vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
-            #     rela_phis_rad = tf.atan2(vehs[:, 1] - ego_infos[:, 4], vehs[:, 0] - ego_infos[:, 3])
-            #     ego_phis_rad = ego_infos[:, 5] * np.pi / 180.
-            #     cos_values, sin_values = tf.cos(rela_phis_rad - ego_phis_rad), tf.sin(rela_phis_rad - ego_phis_rad)
-            #     dists = tf.sqrt(tf.square(vehs[:, 0] - ego_infos[:, 3]) + tf.square(vehs[:, 1] - ego_infos[:, 4]))
-            #     punish_cond = logical_or(logical_and(
-            #         logical_and(cos_values > 0., dists * tf.abs(sin_values) < (L + W) / 2),
-            #         dists < 7), dists<3.)
-            #     veh2veh4training += tf.where(punish_cond, tf.square(7 - dists), tf.zeros_like(veh_infos[:, 0]))
 
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
@@ -264,26 +166,22 @@ class EnvironmentModel(object):  # all tensors
             veh2road4training = tf.zeros_like(veh_infos[:, 0])
             if self.task == 'left':
                 for ego_point in [ego_front_points, ego_rear_points]:
-                    veh2road4training += tf.where(logical_and(ego_point[1] < -18, ego_point[0] < 1),
+                    veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, ego_point[0] < 1),
                                          tf.square(ego_point[0]-1), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4training += tf.where(logical_and(ego_point[1] < -18, 3.75-ego_point[0] < 1),
-                                         tf.square(3.75-ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
-                    # veh2road4training += tf.where(logical_and(ego_point[0] > 0, ego_point[1] > 0),
-                    #                      tf.square(ego_point[1]-0), tf.zeros_like(veh_infos[:, 0]))
-                    # veh2road4training += tf.where(logical_and(ego_point[1] > -18, 3.75 - ego_point[0] < 1),
-                    #                      tf.square(3.75 - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4training += tf.where(logical_and(ego_point[0] < 0, 7.5 - ego_point[1] < 1),
-                                         tf.square(7.5 - ego_point[1] - 1), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4training += tf.where(logical_and(ego_point[0] < -18, ego_point[1] - 0 < 1),
+                    veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, LANE_WIDTH-ego_point[0] < 1),
+                                         tf.square(LANE_WIDTH-ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
+                    veh2road4training += tf.where(logical_and(ego_point[0] < 0, LANE_WIDTH*LANE_NUMBER - ego_point[1] < 1),
+                                         tf.square(LANE_WIDTH*LANE_NUMBER - ego_point[1] - 1), tf.zeros_like(veh_infos[:, 0]))
+                    veh2road4training += tf.where(logical_and(ego_point[0] < -CROSSROAD_SIZE/2, ego_point[1] - 0 < 1),
                                          tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
 
-                    veh2road4real += tf.where(logical_and(ego_point[1] < -18, ego_point[0] < 1),
+                    veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, ego_point[0] < 1),
                                          tf.square(ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4real += tf.where(logical_and(ego_point[1] < -18, 3.75 - ego_point[0] < 1),
-                                         tf.square(3.75 - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4real += tf.where(logical_and(ego_point[0] < 0, 7.5 - ego_point[1] < 1),
-                                         tf.square(7.5 - ego_point[1] - 1), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4real += tf.where(logical_and(ego_point[0] < -18, ego_point[1] - 0 < 1),
+                    veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, LANE_WIDTH - ego_point[0] < 1),
+                                         tf.square(LANE_WIDTH - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
+                    veh2road4real += tf.where(logical_and(ego_point[0] < -CROSSROAD_SIZE/2, LANE_WIDTH*LANE_NUMBER - ego_point[1] < 1),
+                                         tf.square(LANE_WIDTH*LANE_NUMBER - ego_point[1] - 1), tf.zeros_like(veh_infos[:, 0]))
+                    veh2road4real += tf.where(logical_and(ego_point[0] < -CROSSROAD_SIZE/2, ego_point[1] - 0 < 1),
                                          tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
 
             rewards = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
@@ -377,9 +275,9 @@ class EnvironmentModel(object):  # all tensors
 
     def veh_predict(self, veh_infos):
         if self.task == 'left':
-            veh_mode_list = ['dl'] * 1 + ['du'] * 1 + ['ud'] * 2 + ['ul'] * 2
+            veh_mode_list = ['dl'] * 1 + ['du'] * 2 + ['ud'] * 4 + ['ul'] * 2
         elif self.task == 'straight':
-            veh_mode_list = ['dl'] * 1 + ['du'] * 1 + ['ud'] * 1 + ['ru'] * 2 + ['ur'] * 2
+            veh_mode_list = ['dl'] * 1 + ['du'] * 2 + ['ud'] * 1 + ['ru'] * 2 + ['ur'] * 2
         else:
             assert self.task == 'right'
             veh_mode_list = ['dr'] * 1 + ['ur'] * 2 + ['lr'] * 2
@@ -396,17 +294,17 @@ class EnvironmentModel(object):  # all tensors
         veh_xs, veh_ys, veh_vs, veh_phis = vehs[:, 0], vehs[:, 1], vehs[:, 2], vehs[:, 3]
         veh_phis_rad = veh_phis * np.pi / 180.
 
-        middle_cond = logical_and(logical_and(veh_xs > -18, veh_xs < 18),
-                                  logical_and(veh_ys > -18, veh_ys < 18))
+        middle_cond = logical_and(logical_and(veh_xs > -CROSSROAD_SIZE/2, veh_xs < CROSSROAD_SIZE/2),
+                                  logical_and(veh_ys > -CROSSROAD_SIZE/2, veh_ys < CROSSROAD_SIZE/2))
         zeros = tf.zeros_like(veh_xs)
 
         veh_xs_delta = veh_vs / self.base_frequency * tf.cos(veh_phis_rad)
         veh_ys_delta = veh_vs / self.base_frequency * tf.sin(veh_phis_rad)
 
         if mode in ['dl', 'rd', 'ur', 'lu']:
-            veh_phis_rad_delta = tf.where(middle_cond, (veh_vs / 19.875) / self.base_frequency, zeros)
+            veh_phis_rad_delta = tf.where(middle_cond, (veh_vs / (CROSSROAD_SIZE/2+LANE_WIDTH/2)) / self.base_frequency, zeros)
         elif mode in ['dr', 'ru', 'ul', 'ld']:
-            veh_phis_rad_delta = tf.where(middle_cond, -(veh_vs / 12.375) / self.base_frequency, zeros)
+            veh_phis_rad_delta = tf.where(middle_cond, -(veh_vs / (CROSSROAD_SIZE/2-2.5*LANE_WIDTH/2)) / self.base_frequency, zeros)
         else:
             veh_phis_rad_delta = zeros
         next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis_rad = \
@@ -419,10 +317,11 @@ class EnvironmentModel(object):  # all tensors
     def render(self, mode='human'):
         if mode == 'human':
             # plot basic map
-            square_length = 36
+            square_length = CROSSROAD_SIZE
             extension = 40
-            lane_width = 3.75
+            lane_width = LANE_WIDTH
             dotted_line_style = '--'
+            solid_line_style = '-'
 
             plt.cla()
             plt.title("Crossroad")
@@ -442,91 +341,48 @@ class EnvironmentModel(object):  # all tensors
             plt.plot([square_length / 2 + extension, square_length / 2], [0, 0], color='black')
 
             #
-            plt.plot([-square_length / 2 - extension, -square_length / 2], [lane_width, lane_width],
-                     linestyle=dotted_line_style, color='black')
-            plt.plot([square_length / 2 + extension, square_length / 2], [lane_width, lane_width],
-                     linestyle=dotted_line_style, color='black')
-
-            plt.plot([-square_length / 2 - extension, -square_length / 2], [2 * lane_width, 2 * lane_width],
-                     color='black')
-            plt.plot([square_length / 2 + extension, square_length / 2], [2 * lane_width, 2 * lane_width],
-                     color='black')
-            #
-            plt.plot([-square_length / 2 - extension, -square_length / 2], [-lane_width, -lane_width],
-                     linestyle=dotted_line_style, color='black')
-            plt.plot([square_length / 2 + extension, square_length / 2], [-lane_width, -lane_width],
-                     linestyle=dotted_line_style, color='black')
-
-            plt.plot([-square_length / 2 - extension, -square_length / 2], [-2 * lane_width, -2 * lane_width],
-                     color='black')
-            plt.plot([square_length / 2 + extension, square_length / 2], [-2 * lane_width, -2 * lane_width],
-                     color='black')
-
-            #
-            plt.plot([-square_length / 2, -2 * lane_width], [-square_length / 2, -square_length / 2],
-                     color='black')
-            plt.plot([square_length / 2, 2 * lane_width], [-square_length / 2, -square_length / 2],
-                     color='black')
-            plt.plot([-square_length / 2, -2 * lane_width], [square_length / 2, square_length / 2],
-                     color='black')
-            plt.plot([square_length / 2, 2 * lane_width], [square_length / 2, square_length / 2],
-                     color='black')
+            for i in range(1, LANE_NUMBER+1):
+                linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
+                plt.plot([-square_length / 2 - extension, -square_length / 2], [i*lane_width, i*lane_width],
+                         linestyle=linestyle, color='black')
+                plt.plot([square_length / 2 + extension, square_length / 2], [i*lane_width, i*lane_width],
+                         linestyle=linestyle, color='black')
+                plt.plot([-square_length / 2 - extension, -square_length / 2], [-i * lane_width, -i * lane_width],
+                         linestyle=linestyle, color='black')
+                plt.plot([square_length / 2 + extension, square_length / 2], [-i * lane_width, -i * lane_width],
+                         linestyle=linestyle, color='black')
 
             # ----------vertical----------------
             plt.plot([0, 0], [-square_length / 2 - extension, -square_length / 2], color='black')
             plt.plot([0, 0], [square_length / 2 + extension, square_length / 2], color='black')
 
             #
-            plt.plot([lane_width, lane_width], [-square_length / 2 - extension, -square_length / 2],
-                     linestyle=dotted_line_style, color='black')
-            plt.plot([lane_width, lane_width], [square_length / 2 + extension, square_length / 2],
-                     linestyle=dotted_line_style, color='black')
-
-            plt.plot([2 * lane_width, 2 * lane_width], [-square_length / 2 - extension, -square_length / 2],
-                     color='black')
-            plt.plot([2 * lane_width, 2 * lane_width], [square_length / 2 + extension, square_length / 2],
-                     color='black')
-
-            #
-            plt.plot([-lane_width, -lane_width], [-square_length / 2 - extension, -square_length / 2],
-                     linestyle=dotted_line_style, color='black')
-            plt.plot([-lane_width, -lane_width], [square_length / 2 + extension, square_length / 2],
-                     linestyle=dotted_line_style, color='black')
-
-            plt.plot([-2 * lane_width, -2 * lane_width], [-square_length / 2 - extension, -square_length / 2],
-                     color='black')
-            plt.plot([-2 * lane_width, -2 * lane_width], [square_length / 2 + extension, square_length / 2],
-                     color='black')
-
-            #
-            plt.plot([-square_length / 2, -square_length / 2], [-square_length / 2, -2 * lane_width],
-                     color='black')
-            plt.plot([-square_length / 2, -square_length / 2], [square_length / 2, 2 * lane_width],
-                     color='black')
-            plt.plot([square_length / 2, square_length / 2], [-square_length / 2, -2 * lane_width],
-                     color='black')
-            plt.plot([square_length / 2, square_length / 2], [square_length / 2, 2 * lane_width],
-                     color='black')
+            for i in range(1, LANE_NUMBER+1):
+                linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
+                plt.plot([i*lane_width, i*lane_width], [-square_length / 2 - extension, -square_length / 2],
+                         linestyle=linestyle, color='black')
+                plt.plot([i*lane_width, i*lane_width], [square_length / 2 + extension, square_length / 2],
+                         linestyle=linestyle, color='black')
+                plt.plot([-i * lane_width, -i * lane_width], [-square_length / 2 - extension, -square_length / 2],
+                         linestyle=linestyle, color='black')
+                plt.plot([-i * lane_width, -i * lane_width], [square_length / 2 + extension, square_length / 2],
+                         linestyle=linestyle, color='black')
 
             # ----------stop line--------------
-            plt.plot([0, 2 * lane_width], [-square_length / 2, -square_length / 2],
-                     color='black')
-            plt.plot([-2 * lane_width, 0], [square_length / 2, square_length / 2],
-                     color='black')
-            plt.plot([-square_length / 2, -square_length / 2], [0, -2 * lane_width],
-                     color='black')
-            plt.plot([square_length / 2, square_length / 2], [2 * lane_width, 0],
-                     color='black')
+            plt.plot([0, LANE_NUMBER * lane_width], [-square_length / 2, -square_length / 2], color='black')
+            plt.plot([-LANE_NUMBER * lane_width, 0], [square_length / 2, square_length / 2], color='black')
+            plt.plot([-square_length / 2, -square_length / 2], [0, -LANE_NUMBER * lane_width], color='black')
+            plt.plot([square_length / 2, square_length / 2], [LANE_NUMBER * lane_width, 0], color='black')
 
-            # # ----------Oblique--------------
-            # plt.plot([2 * lane_width, square_length / 2], [-square_length / 2, -2 * lane_width],
-            #          color='black')
-            # plt.plot([2 * lane_width, square_length / 2], [square_length / 2, 2 * lane_width],
-            #          color='black')
-            # plt.plot([-2 * lane_width, -square_length / 2], [-square_length / 2, -2 * lane_width],
-            #          color='black')
-            # plt.plot([-2 * lane_width, -square_length / 2], [square_length / 2, 2 * lane_width],
-            #          color='black')
+            # ----------Oblique--------------
+            plt.plot([LANE_NUMBER * lane_width, square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
+                     color='black')
+            plt.plot([LANE_NUMBER * lane_width, square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
+                     color='black')
+            plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
+                     color='black')
+            plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
+                     color='black')
 
             def is_in_plot_area(x, y, tolerance=5):
                 if -square_length / 2 - extension + tolerance < x < square_length / 2 + extension - tolerance and \
@@ -564,15 +420,10 @@ class EnvironmentModel(object):  # all tensors
                 veh_x, veh_y, veh_v, veh_phi = veh
 
                 if is_in_plot_area(veh_x, veh_y):
-                    # plt.text(veh_x, veh_y, '{:.1f}'.format(min([dist1, dist2, dist3, dist4])))
                     plot_phi_line(veh_x, veh_y, veh_phi, 'black')
                     draw_rotate_rec(veh_x, veh_y, veh_phi, L, W, 'black')
 
             # plot own car
-            # ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi, ego_l, ego_w, \
-            # ego_alpha_f, ego_alpha_r, ego_miu_f, ego_miu_r,\
-            # up1, down1, left1, right1, point11x, point11y, point12x, point12y, \
-            # up2, down2, left2, right2, point21x, point21y, point22x, point22y= ego_info
             delta_y, delta_phi = tracing_info[0], tracing_info[1]
             ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi = ego_info
 
@@ -594,18 +445,8 @@ class EnvironmentModel(object):  # all tensors
             ge = iter(range(0, 1000, 4))
             plt.text(text_x, text_y_start - next(ge), 'ego_x: {:.2f}m'.format(ego_x))
             plt.text(text_x, text_y_start - next(ge), 'ego_y: {:.2f}m'.format(ego_y))
-            # plt.text(text_x, text_y_start - next(ge), 'UDLR: {:.2f} {:.2f} {:.2f} {:.2f}'.format(min([up1, up2]),
-            #                                                                                          min([down1, down2]),
-            #                                                                                          min([left1, left2]),
-            #                                                                                          min([right1, right2])))
-            # plt.text(text_x, text_y_start - next(ge), '1deltas {:.2f} {:.2f}'.format(point11x, point11y))
-            # plt.text(text_x, text_y_start - next(ge), '2deltas {:.2f} {:.2f}'.format(point12x, point12y))
-            # plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
-            # plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
-            # plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
             plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
             plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
-            # plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
             plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
 
             plt.text(text_x, text_y_start - next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
@@ -644,8 +485,9 @@ class ReferencePath(object):
         self.exp_v = 8.
         self.task = task
         self.path_list = []
+        self.path_len_list = []
         self._construct_ref_path(self.task)
-        self.ref_index = np.random.choice([0, 1])
+        self.ref_index = np.random.choice(len(self.path_list))
         self.path = self.path_list[self.ref_index]
 
     def set_path(self, traj_mode, path_index=None, path=None):
@@ -657,104 +499,104 @@ class ReferencePath(object):
             self.path = self.path_list[self.ref_index]
 
     def _construct_ref_path(self, task):
-        sl = 40
-        planed_trj = None
+        sl = 40  # straight length
         meter_pointnum_ratio = 30
+        control_ext = 15
         if task == 'left':
-            if self.mode == 'training':
-                end_offsets = [3.75, 3.75]
-            else:
-                end_offsets = [1.875, 5.625]
-            for i, end_offset in enumerate(end_offsets):
-                control_point1 = 1.875, -18
-                control_point2 = 1.875, -18 + 10
-                control_point3 = -18 + 10, end_offset
-                control_point4 = -18, end_offset
+            end_offsets = [LANE_WIDTH*0.5, LANE_WIDTH*1.5, LANE_WIDTH*2.5]
+            start_offsets = [LANE_WIDTH*0.5]
+            for start_offset in start_offsets:
+                for end_offset in end_offsets:
+                    control_point1 = start_offset, -CROSSROAD_SIZE/2
+                    control_point2 = start_offset, -CROSSROAD_SIZE/2 + control_ext
+                    control_point3 = -CROSSROAD_SIZE/2 + control_ext, end_offset
+                    control_point4 = -CROSSROAD_SIZE/2, end_offset
 
-                node = np.asfortranarray([[control_point1[0], control_point2[0], control_point3[0], control_point4[0]],
-                                          [control_point1[1], control_point2[1], control_point3[1], control_point4[1]]],
-                                         dtype=np.float32)
-                curve = bezier.Curve(node, degree=3)
-                s_vals = np.linspace(0, 1.0, 30 * meter_pointnum_ratio)
-                trj_data = curve.evaluate_multi(s_vals)
-                trj_data = trj_data.astype(np.float32)
-                start_straight_line_x = 1.875 * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[:-1]
-                start_straight_line_y = np.linspace(-18 - sl, -18, sl * meter_pointnum_ratio, dtype=np.float32)[:-1]
-                end_straight_line_x = np.linspace(-18, -18 - sl, sl * meter_pointnum_ratio, dtype=np.float32)[1:]
-                end_straight_line_y = end_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[1:]
-                planed_trj = np.append(np.append(start_straight_line_x, trj_data[0]), end_straight_line_x), \
-                             np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
+                    node = np.asfortranarray([[control_point1[0], control_point2[0], control_point3[0], control_point4[0]],
+                                              [control_point1[1], control_point2[1], control_point3[1], control_point4[1]]],
+                                             dtype=np.float32)
+                    curve = bezier.Curve(node, degree=3)
+                    s_vals = np.linspace(0, 1.0, int(pi/2*(CROSSROAD_SIZE/2+LANE_WIDTH/2)) * meter_pointnum_ratio)
+                    trj_data = curve.evaluate_multi(s_vals)
+                    trj_data = trj_data.astype(np.float32)
+                    start_straight_line_x = LANE_WIDTH/2 * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[:-1]
+                    start_straight_line_y = np.linspace(-CROSSROAD_SIZE/2 - sl, -CROSSROAD_SIZE/2, sl * meter_pointnum_ratio, dtype=np.float32)[:-1]
+                    end_straight_line_x = np.linspace(-CROSSROAD_SIZE/2, -CROSSROAD_SIZE/2 - sl, sl * meter_pointnum_ratio, dtype=np.float32)[1:]
+                    end_straight_line_y = end_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[1:]
+                    planed_trj = np.append(np.append(start_straight_line_x, trj_data[0]), end_straight_line_x), \
+                                 np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
 
-                xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
-                xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
-                phis_1 = np.arctan2(ys_2 - ys_1,
-                                    xs_2 - xs_1) * 180 / pi
-                planed_trj = xs_1, ys_1, phis_1
-                self.path_list.append(planed_trj)
+                    xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
+                    xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
+                    phis_1 = np.arctan2(ys_2 - ys_1,
+                                        xs_2 - xs_1) * 180 / pi
+                    planed_trj = xs_1, ys_1, phis_1
+                    self.path_list.append(planed_trj)
+                    self.path_len_list.append((sl * meter_pointnum_ratio, len(trj_data[0]), len(xs_1)))
 
         elif task == 'straight':
-            if self.mode == 'training':
-                end_offsets = [3.75, 3.75]
-            else:
-                end_offsets = [1.875, 5.625]
+            end_offsets = [LANE_WIDTH*0.5, LANE_WIDTH*1.5, LANE_WIDTH*2.5]
+            start_offsets = [LANE_WIDTH*0.5, LANE_WIDTH*1.5]
+            for start_offset in start_offsets:
+                for end_offset in end_offsets:
+                    control_point1 = start_offset, -CROSSROAD_SIZE/2
+                    control_point2 = start_offset, -CROSSROAD_SIZE/2 + control_ext
+                    control_point3 = end_offset, CROSSROAD_SIZE/2 - control_ext
+                    control_point4 = end_offset, CROSSROAD_SIZE/2
 
-            for end_offset in end_offsets:
-                control_point1 = 1.875, -18
-                control_point2 = 1.875, -18 + 10
-                control_point3 = end_offset, 18 - 10
-                control_point4 = end_offset, 18
+                    node = np.asfortranarray([[control_point1[0], control_point2[0], control_point3[0], control_point4[0]],
+                                              [control_point1[1], control_point2[1], control_point3[1], control_point4[1]]]
+                                             , dtype=np.float32)
+                    curve = bezier.Curve(node, degree=3)
+                    s_vals = np.linspace(0, 1.0, CROSSROAD_SIZE * meter_pointnum_ratio)
+                    trj_data = curve.evaluate_multi(s_vals)
+                    trj_data = trj_data.astype(np.float32)
+                    start_straight_line_x = start_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[:-1]
+                    start_straight_line_y = np.linspace(-CROSSROAD_SIZE/2 - sl, -CROSSROAD_SIZE/2, sl * meter_pointnum_ratio, dtype=np.float32)[:-1]
+                    end_straight_line_x = end_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[1:]
+                    end_straight_line_y = np.linspace(CROSSROAD_SIZE/2, CROSSROAD_SIZE/2 + sl, sl * meter_pointnum_ratio, dtype=np.float32)[1:]
+                    planed_trj = np.append(np.append(start_straight_line_x, trj_data[0]), end_straight_line_x), \
+                                 np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
+                    xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
+                    xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
+                    phis_1 = np.arctan2(ys_2 - ys_1,
+                                        xs_2 - xs_1) * 180 / pi
+                    planed_trj = xs_1, ys_1, phis_1
+                    self.path_list.append(planed_trj)
+                    self.path_len_list.append((sl * meter_pointnum_ratio, len(trj_data[0]), len(xs_1)))
 
-                node = np.asfortranarray([[control_point1[0], control_point2[0], control_point3[0], control_point4[0]],
-                                          [control_point1[1], control_point2[1], control_point3[1], control_point4[1]]]
-                                         , dtype=np.float32)
-                curve = bezier.Curve(node, degree=3)
-                s_vals = np.linspace(0, 1.0, 36 * meter_pointnum_ratio)
-                trj_data = curve.evaluate_multi(s_vals)
-                trj_data = trj_data.astype(np.float32)
-                start_straight_line_x = 1.875 * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[:-1]
-                start_straight_line_y = np.linspace(-18 - sl, -18, sl * meter_pointnum_ratio, dtype=np.float32)[:-1]
-                end_straight_line_x = end_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[1:]
-                end_straight_line_y = np.linspace(18, 18 + sl, sl * meter_pointnum_ratio, dtype=np.float32)[1:]
-                planed_trj = np.append(np.append(start_straight_line_x, trj_data[0]), end_straight_line_x), \
-                             np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
-                xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
-                xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
-                phis_1 = np.arctan2(ys_2 - ys_1,
-                                    xs_2 - xs_1) * 180 / pi
-                planed_trj = xs_1, ys_1, phis_1
-                self.path_list.append(planed_trj)
         else:
             assert task == 'right'
-            if self.mode == 'training':
-                end_offsets = [-3.75, -3.75]
-            else:
-                end_offsets = [-1.875, -5.625]
+            end_offsets = [-LANE_WIDTH*0.5, -LANE_WIDTH*1.5, -LANE_WIDTH*2.5]
+            start_offsets = [LANE_WIDTH*2.5]
 
-            for i, end_offset in enumerate(end_offsets):
-                control_point1 = 5.625, -18
-                control_point2 = 5.625, -18 + 10
-                control_point3 = 18 - 10, end_offset
-                control_point4 = 18, end_offset
+            for start_offset in start_offsets:
+                for end_offset in end_offsets:
+                    control_point1 = start_offset, -CROSSROAD_SIZE/2
+                    control_point2 = start_offset, -CROSSROAD_SIZE/2 + control_ext
+                    control_point3 = CROSSROAD_SIZE/2 - control_ext, end_offset
+                    control_point4 = CROSSROAD_SIZE/2, end_offset
 
-                node = np.asfortranarray([[control_point1[0], control_point2[0], control_point3[0], control_point4[0]],
-                                          [control_point1[1], control_point2[1], control_point3[1], control_point4[1]]],
-                                         dtype=np.float32)
-                curve = bezier.Curve(node, degree=3)
-                s_vals = np.linspace(0, 1.0, 13 * meter_pointnum_ratio)
-                trj_data = curve.evaluate_multi(s_vals)
-                trj_data = trj_data.astype(np.float32)
-                start_straight_line_x = 5.625 * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[:-1]
-                start_straight_line_y = np.linspace(-18 - sl, -18, sl * meter_pointnum_ratio, dtype=np.float32)[:-1]
-                end_straight_line_x = np.linspace(18, 18 + sl, sl * meter_pointnum_ratio, dtype=np.float32)[1:]
-                end_straight_line_y = end_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[1:]
-                planed_trj = np.append(np.append(start_straight_line_x, trj_data[0]), end_straight_line_x), \
-                             np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
-                xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
-                xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
-                phis_1 = np.arctan2(ys_2 - ys_1,
-                                    xs_2 - xs_1) * 180 / pi
-                planed_trj = xs_1, ys_1, phis_1
-                self.path_list.append(planed_trj)
+                    node = np.asfortranarray([[control_point1[0], control_point2[0], control_point3[0], control_point4[0]],
+                                              [control_point1[1], control_point2[1], control_point3[1], control_point4[1]]],
+                                             dtype=np.float32)
+                    curve = bezier.Curve(node, degree=3)
+                    s_vals = np.linspace(0, 1.0, int(pi/2*(CROSSROAD_SIZE/2-LANE_WIDTH*(LANE_NUMBER-0.5))) * meter_pointnum_ratio)
+                    trj_data = curve.evaluate_multi(s_vals)
+                    trj_data = trj_data.astype(np.float32)
+                    start_straight_line_x = start_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[:-1]
+                    start_straight_line_y = np.linspace(-CROSSROAD_SIZE/2 - sl, -CROSSROAD_SIZE/2, sl * meter_pointnum_ratio, dtype=np.float32)[:-1]
+                    end_straight_line_x = np.linspace(CROSSROAD_SIZE/2, CROSSROAD_SIZE/2 + sl, sl * meter_pointnum_ratio, dtype=np.float32)[1:]
+                    end_straight_line_y = end_offset * np.ones(shape=(sl * meter_pointnum_ratio,), dtype=np.float32)[1:]
+                    planed_trj = np.append(np.append(start_straight_line_x, trj_data[0]), end_straight_line_x), \
+                                 np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
+                    xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
+                    xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
+                    phis_1 = np.arctan2(ys_2 - ys_1,
+                                        xs_2 - xs_1) * 180 / pi
+                    planed_trj = xs_1, ys_1, phis_1
+                    self.path_list.append(planed_trj)
+                    self.path_len_list.append((sl * meter_pointnum_ratio, len(trj_data[0]), len(xs_1)))
 
     def find_closest_point(self, xs, ys):
         xs_tile = tf.tile(tf.reshape(xs, (-1, 1)), tf.constant([1, len(self.path[0])]))
@@ -788,20 +630,20 @@ class ReferencePath(object):
     def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n, func=None):
         def two2one(ref_xs, ref_ys):
             if self.task == 'left':
-                delta_ = tf.sqrt(tf.square(ego_xs - (-18)) + tf.square(ego_ys - (-18))) - \
-                         tf.sqrt(tf.square(ref_xs - (-18)) + tf.square(ref_ys - (-18)))
-                delta_ = tf.where(ego_ys < -18, ego_xs - ref_xs, delta_)
-                delta_ = tf.where(ego_xs < -18, ego_ys - ref_ys, delta_)
+                delta_ = tf.sqrt(tf.square(ego_xs - (-CROSSROAD_SIZE/2)) + tf.square(ego_ys - (-CROSSROAD_SIZE/2))) - \
+                         tf.sqrt(tf.square(ref_xs - (-CROSSROAD_SIZE/2)) + tf.square(ref_ys - (-CROSSROAD_SIZE/2)))
+                delta_ = tf.where(ego_ys < -CROSSROAD_SIZE/2, ego_xs - ref_xs, delta_)
+                delta_ = tf.where(ego_xs < -CROSSROAD_SIZE/2, ego_ys - ref_ys, delta_)
                 return -delta_
             elif self.task == 'straight':
                 delta_ = ego_xs - ref_xs
                 return -delta_
             else:
                 assert self.task == 'right'
-                delta_ = -(tf.sqrt(tf.square(ego_xs - (18)) + tf.square(ego_ys - (-18))) -
-                           tf.sqrt(tf.square(ref_xs - (18)) + tf.square(ref_ys - (-18))))
-                delta_ = tf.where(ego_ys < -18, ego_xs - ref_xs, delta_)
-                delta_ = tf.where(ego_xs > 18, -(ego_ys - ref_ys), delta_)
+                delta_ = -(tf.sqrt(tf.square(ego_xs - CROSSROAD_SIZE/2) + tf.square(ego_ys - (-CROSSROAD_SIZE/2))) -
+                           tf.sqrt(tf.square(ref_xs - CROSSROAD_SIZE/2) + tf.square(ref_ys - (-CROSSROAD_SIZE/2))))
+                delta_ = tf.where(ego_ys < -CROSSROAD_SIZE/2, ego_xs - ref_xs, delta_)
+                delta_ = tf.where(ego_xs > CROSSROAD_SIZE/2, -(ego_ys - ref_ys), delta_)
                 return -delta_
 
         if self.traj_mode == 'dyna_traj':
@@ -841,8 +683,11 @@ class ReferencePath(object):
 
     def plot_path(self, x, y):
         plt.axis('equal')
-        plt.plot(self.path_list[0][0], self.path_list[0][1])
+        plt.plot(self.path_list[0][0], self.path_list[0][1], 'b')
         plt.plot(self.path_list[1][0], self.path_list[1][1], 'r')
+        plt.plot(self.path_list[2][0], self.path_list[2][1], 'g')
+        print(self.path_len_list)
+
         index, closest_point = self.find_closest_point(np.array([x], np.float32),
                                                        np.array([y], np.float32))
         plt.plot(x, y, 'b*')
@@ -851,7 +696,7 @@ class ReferencePath(object):
 
 
 def test_ref_path():
-    path = ReferencePath('left')
+    path = ReferencePath('right')
     path.plot_path(1.875, 0)
 
 
@@ -896,7 +741,7 @@ def test_model():
     print(obses.shape)
     for rollout_step in range(100):
         actions = tf.tile(tf.constant([[0.5, 0]], dtype=tf.float32), tf.constant([len(obses), 1]))
-        obses, rewards, punish1, punish2 = model.rollout_out(actions)
+        obses, rewards, punish1, punish2, _, _ = model.rollout_out(actions)
         print(rewards.numpy()[0], punish1.numpy()[0])
         model.render()
 
