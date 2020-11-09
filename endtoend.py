@@ -485,6 +485,7 @@ class CrossroadEnd2end(gym.Env):
         else:
             random_index = int(np.random.random()*(420+500)) + 700
 
+        random_index = 2100
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 8 * np.random.random()
