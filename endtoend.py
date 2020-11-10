@@ -198,11 +198,11 @@ class CrossroadEnd2end(gym.Env):
          4: not done
         """
         if self.traffic.collision_flag:
-            return 'collision', 0
+            return 'collision', 1
         if self._break_road_constrain():
             return 'break_road_constrain', 1
-        # elif self._deviate_too_much():
-        #     return 'deviate_too_much', 1
+        elif self._deviate_too_much():
+            return 'deviate_too_much', 1
         # elif self._break_stability():
         #     return 'break_stability', 1
         elif self._break_red_light():
@@ -485,7 +485,7 @@ class CrossroadEnd2end(gym.Env):
         else:
             random_index = int(np.random.random()*(420+500)) + 700
 
-        random_index = 2100
+        random_index = 800
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 8 * np.random.random()
@@ -594,7 +594,7 @@ class CrossroadEnd2end(gym.Env):
 
         return reward.numpy(), reward_dict
 
-    def render(self, mode='human'):
+    def render(self, real_time_traj=None, feature_points=None, mode='human'):
         if mode == 'human':
             # plot basic map
             square_length = CROSSROAD_SIZE
@@ -796,29 +796,32 @@ class CrossroadEnd2end(gym.Env):
             #     plot_phi_line(path_x, path_y, path_phi, 'g')
 
             delta_, _, _ = tracking_info[:3]
-            ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
+            # ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
             indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
             path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-            plt.plot(path_x, path_y, 'g.')
+            # plt.plot(path_x, path_y, 'g.')
             delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
 
             # plot real time traj
-            # try:
-            #     color = ['b', 'lime']
-            #     for i, item in enumerate(real_time_traj):
-            #         if i == path_index:
-            #             plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
-            #         else:
-            #             plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
-            #         indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
-            #         path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-            #         plt.plot(path_x, path_y,  color=color[i])
-            # except Exception:
-            #     pass
+            try:
+                color = ['b', 'lime', 'g']
+                for i, item in enumerate(real_time_traj):
+                    plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
+                    # if i == path_index:
+                    #     plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
+                    # else:
+                    #     plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
+                    indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
+                    path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+                    plt.plot(path_x, path_y,  color=color[i])
+            except Exception:
+                pass
 
-            # for j, item_point in enumerate(self.real_path.feature_points_all):
-            #     for k in range(len(item_point)):
-            #         plt.scatter(item_point[k][0], item_point[k][1], c='g')
+            plt.scatter([1.875], [-25], c='r')
+
+            for j, item_point in enumerate(feature_points):
+                for k in range(len(item_point)):
+                    plt.scatter(item_point[k][0], item_point[k][1], c='g')
 
             # plot ego dynamics
             text_x, text_y_start = -110, 60

@@ -27,7 +27,7 @@ class HierarchicalDecision(object):
     def reset(self):
         self.obs = self.env.reset()
         # Reselect the feature point according to the inital state
-        self.stg._future_point_choice(self.obs)
+        # self.stg._future_point_choice(self.obs)
         return self.obs
 
     @tf.function
@@ -41,7 +41,10 @@ class HierarchicalDecision(object):
         return tracking, collision
 
     def step(self,):
-        traj_list = self.stg.generate_traj(self.task, self.obs)
+        start_time = time.time()
+        traj_list, feature_points = self.stg.generate_traj(self.task, self.obs)
+        end_time = time.time()
+        # print('generate time:', end_time-start_time)
         traj_return = []
         # for i, trajectory in enumerate(traj_list):
         #     self.env.set_traj(trajectory)
@@ -68,7 +71,7 @@ class HierarchicalDecision(object):
         # self.obs_real = self.env._get_obs(func='tracking')
 
         # action = self.policy.run(self.obs_real)                  #  todo
-        self.env.render()
+        self.env.render(traj_list, feature_points)
         action = [np.random.random() * 2 - 1, 1]
         self.obs, r, done, info = self.env.step(action)
         return done

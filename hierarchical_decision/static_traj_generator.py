@@ -45,7 +45,7 @@ class StaticTrajectoryGenerator(object):
         else:
             self._future_point_choice(state)
             self.construct_ref_path(task, state, v_light)
-        return self.path_list
+        return self.path_list, self.feature_points
 
     def _future_points_init(self, task):
         feature_points = []
@@ -54,15 +54,25 @@ class StaticTrajectoryGenerator(object):
             end_offsets = [LANE_WIDTH * 0.5, LANE_WIDTH * 1.5, LANE_WIDTH * 2.5]
             start_offsets = [LANE_WIDTH * 0.5]
 
+            # for start_offset in start_offsets:
+            #     for end_offset in end_offsets:
+            #         control_point1 = start_offset, -CROSSROAD_SIZE/2,               0.5 * pi
+            #         control_point2 = start_offset, -CROSSROAD_SIZE/2 + control_ext, 0.5 * pi
+            #         control_point3 = -CROSSROAD_SIZE/2 + control_ext, end_offset,   -pi
+            #         control_point4 = -CROSSROAD_SIZE/2, end_offset,                 -pi
+            #         control_point5 = -CROSSROAD_SIZE, end_offset,                   -pi
+            #
+            #         node = [control_point1, control_point2, control_point3, control_point4, control_point5]
+            #         feature_points.append(node)
+
             for start_offset in start_offsets:
                 for end_offset in end_offsets:
                     control_point1 = start_offset, -CROSSROAD_SIZE/2,               0.5 * pi
-                    control_point2 = start_offset, -CROSSROAD_SIZE/2 + control_ext, 0.5 * pi
-                    control_point3 = -CROSSROAD_SIZE/2 + control_ext, end_offset,   -pi
-                    control_point4 = -CROSSROAD_SIZE/2, end_offset,                 -pi
-                    control_point5 = -CROSSROAD_SIZE, end_offset,                   -pi
+                    control_point2 = -CROSSROAD_SIZE/2, end_offset,                 -pi
+                    control_point3 = -CROSSROAD_SIZE/2 - control_ext, end_offset,   -pi
+                    control_point4 = -CROSSROAD_SIZE, end_offset,                   -pi
 
-                    node = [control_point1, control_point2, control_point3, control_point4, control_point5]
+                    node = [control_point1, control_point2, control_point3, control_point4]
                     feature_points.append(node)
 
         elif task == 'right':
@@ -73,33 +83,34 @@ class StaticTrajectoryGenerator(object):
 
         return feature_points
 
-    def _future_point_choice(self, state=None):
+    def _future_point_choice(self, state):
         # choose the forward feature points according to the current state
         self.feature_points = []
         x, y, v, phi = state[3], state[4], state[0], state[5] / 180 * pi
         for i, item in enumerate(self.feature_points_all):
-            if -CROSSROAD_SIZE/2 <= y < -CROSSROAD_SIZE/2 + control_ext:
-                self.feature_points.append(list(item[1:]))
-            elif -CROSSROAD_SIZE/2 + control_ext <= y:
-                if x > -CROSSROAD_SIZE/2 + control_ext:
+            if -CROSSROAD_SIZE/2 <= y:
+                if x > -CROSSROAD_SIZE/2:
+                    self.feature_points.append(list(item[1:]))
+                elif -CROSSROAD_SIZE/2 - control_ext < x <= -CROSSROAD_SIZE/2:
                     self.feature_points.append(list(item[2:]))
-                elif -CROSSROAD_SIZE/2 < x <= -CROSSROAD_SIZE/2 + control_ext:
-                    self.feature_points.append(list(item[3:]))
                 else:
-                    self.feature_points.append(list(item[4:]))
+                    self.feature_points.append(list(item[3:]))
             else:
-                self.feature_points = self.feature_points_all
+                self.feature_points = self._future_points_init(self.task)
 
         # calculate the init flag and L0, L3
         self.flag = np.ones([self.path_num])
-        self.dist_bound = np.ones([self.path_num])
+        self.dist_bound = 2. * np.ones([self.path_num])
+        self.L0 = 2. * np.ones([self.path_num])
+        self.L3 = 5. * np.ones([self.path_num])
 
         # 首先根据当前的state和feature_point的距离计算L0
         for path_index in range(0, self.path_num):
-            feature_point = self.feature_points[path_index][self.order[path_index]]
+            feature_point = self.feature_points[path_index][0]
             dist = sqrt((x - feature_point[0])**2 + (y - feature_point[1])**2)
             if dist < self.dist_bound[path_index]:
                 self.feature_points[path_index] = self.feature_points[path_index][1:]
+                print('Updating feature point…')
 
     def construct_ref_path(self, task, state, v_light):
         x, y, v, phi = state[3], state[4], state[0], state[5] / 180 * pi
@@ -149,16 +160,16 @@ class StaticTrajectoryGenerator(object):
                 #     self.L3[path_index] = sqrt((x - feature_point[0])**2 + (y - feature_point[1])**2) / 4.0
 
                 feature_point1, feature_point2 = self.feature_points[path_index][0], self.feature_points[path_index][1]
-                planed_trj = self.trajectory_planning(state, feature_point1, feature_point2, self.dist_bound[path_index])
+                planed_trj = self.trajectory_planning(state, feature_point1, feature_point2, self.L0[path_index], self.L3[path_index])
                 ref = ReferencePath(self.task)
                 ref.set_path(self.mode, path_index=path_index, path=planed_trj)
                 self.path_list.append(ref)
 
         self.path = self.path_list[self.ref_index].path
 
-    def trajectory_planning(self, state, point1, point2, L):
-        X0 = state[0]; X1 = state[0] + L * cos(state[3]); X2 = point1[0]; X3 = point2[0]
-        Y0 = state[1]; Y1 = state[1] + L * sin(state[3]); Y2 = point1[1]; Y3 = point2[1]
+    def trajectory_planning(self, state, point1, point2, L0, L3):
+        X0 = state[0]; X1 = state[0] + L0 * cos(state[3]); X2 = point1[0] - L3 * cos(point1[2]); X3 = point1[0]
+        Y0 = state[1]; Y1 = state[1] + L0 * sin(state[3]); Y2 = point1[1] - L3 * sin(point1[2]); Y3 = point1[1]
 
         node = np.asfortranarray([[X0, X1, X2, X3], [Y0, Y1, Y2, Y3]], dtype=np.float32)
         curve = bezier.Curve(node, degree=3)
