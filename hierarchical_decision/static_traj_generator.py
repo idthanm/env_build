@@ -53,18 +53,6 @@ class StaticTrajectoryGenerator(object):
         if task == 'left':
             end_offsets = [LANE_WIDTH * 0.5, LANE_WIDTH * 1.5, LANE_WIDTH * 2.5]
             start_offsets = [LANE_WIDTH * 0.5]
-
-            # for start_offset in start_offsets:
-            #     for end_offset in end_offsets:
-            #         control_point1 = start_offset, -CROSSROAD_SIZE/2,               0.5 * pi
-            #         control_point2 = start_offset, -CROSSROAD_SIZE/2 + control_ext, 0.5 * pi
-            #         control_point3 = -CROSSROAD_SIZE/2 + control_ext, end_offset,   -pi
-            #         control_point4 = -CROSSROAD_SIZE/2, end_offset,                 -pi
-            #         control_point5 = -CROSSROAD_SIZE, end_offset,                   -pi
-            #
-            #         node = [control_point1, control_point2, control_point3, control_point4, control_point5]
-            #         feature_points.append(node)
-
             for start_offset in start_offsets:
                 for end_offset in end_offsets:
                     control_point1 = start_offset, -CROSSROAD_SIZE/2,               0.5 * pi
@@ -101,8 +89,8 @@ class StaticTrajectoryGenerator(object):
         # calculate the init flag and L0, L3
         self.flag = np.ones([self.path_num])
         self.dist_bound = 2. * np.ones([self.path_num])
-        self.L0 = 2. * np.ones([self.path_num])
-        self.L3 = 5. * np.ones([self.path_num])
+        self.L0 = 10. * np.ones([self.path_num])
+        self.L3 = 10. * np.ones([self.path_num])
 
         # 首先根据当前的state和feature_point的距离计算L0
         for path_index in range(0, self.path_num):
