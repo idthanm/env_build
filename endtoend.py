@@ -197,8 +197,8 @@ class CrossroadEnd2end(gym.Env):
          3: good done: task succeed
          4: not done
         """
-        if self.traffic.collision_flag:
-            return 'collision', 1
+        # if self.traffic.collision_flag:
+        #     return 'collision', 0
         if self._break_road_constrain():
             return 'break_road_constrain', 1
         elif self._deviate_too_much():
@@ -485,7 +485,7 @@ class CrossroadEnd2end(gym.Env):
         else:
             random_index = int(np.random.random()*(420+500)) + 700
 
-        random_index = 800
+        random_index = 980
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 8 * np.random.random()
@@ -810,13 +810,23 @@ class CrossroadEnd2end(gym.Env):
                     # if i == path_index:
                     #     plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
                     # else:
+                    # else:
                     #     plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
                     indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
                     path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
                     plt.plot(path_x, path_y,  color=color[i])
             except Exception:
                 pass
-
+            # color = ['b', 'lime', 'g']
+            # for i, item in enumerate(real_time_traj):
+            #     plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
+            #     # if i == path_index:
+            #     #     plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
+            #     # else:
+            #     #     plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
+            #     indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
+            #     path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+            #     plt.plot(path_x, path_y,  color=color[i])
             plt.scatter([1.875], [-25], c='r')
 
             for j, item_point in enumerate(feature_points):

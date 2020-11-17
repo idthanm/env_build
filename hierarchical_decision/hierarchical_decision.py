@@ -72,7 +72,7 @@ class HierarchicalDecision(object):
 
         # action = self.policy.run(self.obs_real)                  #  todo
         self.env.render(traj_list, feature_points)
-        action = [np.random.random() * 2 - 1, 1]
+        action = [np.random.uniform(-0.1, 0.5), 1]
         self.obs, r, done, info = self.env.step(action)
         return done
 
