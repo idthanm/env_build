@@ -101,8 +101,8 @@ class StaticTrajectoryGenerator(object):
                 print('Updating feature point…')
             feature_point = self.feature_points[path_index][0]
             dist = sqrt((x - feature_point[0])**2 + (y - feature_point[1])**2)
-            self.L0[path_index] = dist / 2.0
-            self.L3[path_index] = dist / 2.0
+            self.L0[path_index] = dist / 3.0
+            self.L3[path_index] = dist / 3.0
 
     def construct_ref_path(self, task, state, v_light):
         x, y, phi = state[3], state[4], state[5] / 180 * pi
@@ -151,50 +151,23 @@ class StaticTrajectoryGenerator(object):
             self.new_point_bound = [0.06, 0.16]
 
         self.path_list = []
+        for path_index in range(0, self.path_num):
+            start_line_x, start_line_y = traj_start_straight(path_index, state)
+            cross_x, cross_y = traj_cross(path_index, state)
+            end_line_x, end_line_y = traj_end_straight(path_index)
 
-        for path_index in range(0, self.path_num, 1):
-            if v_light != 0 and y < -18 and task != 'right':         # red or yellow light
-                feature_point = self.feature_points[path_index][self.order[path_index]]
-                dist = sqrt((x - feature_point[0]) ** 2 + (y - feature_point[1]) ** 2)         # dist between vehicle and stopline
-                if dist < 3.0:
-                    planed_trj = np.array([[state[0], state[1], state[2], state[3] * 180 / pi]])
-                    planed_trj = np.repeat(planed_trj, 21, axis=0)
-                    current_path = planed_trj[:, 0], planed_trj[:, 1], planed_trj[:, 3]
-                    self.path_list.append(ReferencePath(self.task, self.mode, current_path))
-                else:
-                    self.L0[path_index] = sqrt((x - feature_point[0]) ** 2 + (y - feature_point[1]) ** 2) / 2.0
-                    self.L3[path_index] = sqrt((x - feature_point[0]) ** 2 + (y - feature_point[1]) ** 2) / 4.0
-                    X0 = x; X1 = x + self.L0[path_index] * cos(phi); X2 = feature_point[0] - self.L3[path_index] * cos(feature_point[3]); X3 = feature_point[0];
-                    Y0 = y; Y1 = y + self.L0[path_index] * sin(phi); Y2 = feature_point[1] - self.L3[path_index] * sin(feature_point[3]); Y3 = feature_point[1];
-                    t = np.linspace(0, 1, self.N + 1, endpoint=True)
-                    X_t = X0 * (1 - t) ** 3 + 3 * X1 * t * (1 - t) ** 2 + 3 * X2 * t ** 2 * (1 - t) + X3 * t ** 3
-                    Y_t = Y0 * (1 - t) ** 3 + 3 * Y1 * t * (1 - t) ** 2 + 3 * Y2 * t ** 2 * (1 - t) + Y3 * t ** 3
-                    xs_1, ys_1 = X_t[:-1], Y_t[:-1]
-                    xs_2, ys_2 = X_t[1:],  Y_t[1:]
-                    v = self.exp_v * np.ones(len(X_t))
-                    phis_1 = np.arctan2(ys_2 - ys_1, xs_2 - xs_1) * 180 / pi
-                    phis_1 = np.append(phis_1, feature_point[3] * 180 /pi)
+            total_x, total_y = np.append(start_line_x, np.append(cross_x, end_line_x)), np.append(start_line_y, np.append(cross_y, end_line_y))
+            total_x = total_x.astype(np.float32)
+            total_y = total_y.astype(np.float32)
 
-                    planed_traj = X_t, Y_t, phis_1
-                    self.path_list.append(ReferencePath(self.task, self.mode, planed_traj))
+            xs_1, ys_1 = total_x[:-1], total_y[:-1]
+            xs_2, ys_2 = total_x[1:], total_y[1:]
+            phis_1 = np.arctan2(ys_2 - ys_1, xs_2 - xs_1) * 180 / pi
+            planed_trj = xs_1, ys_1, phis_1
 
-            else:                                                    # green light
-                start_line_x, start_line_y = traj_start_straight(path_index, state)
-                cross_x, cross_y = traj_cross(path_index, state)
-                end_line_x, end_line_y = traj_end_straight(path_index)
-
-                total_x, total_y = np.append(start_line_x, np.append(cross_x, end_line_x)), np.append(start_line_y, np.append(cross_y, end_line_y))
-                total_x = total_x.astype(np.float32)
-                total_y = total_y.astype(np.float32)
-
-                xs_1, ys_1 = total_x[:-1], total_y[:-1]
-                xs_2, ys_2 = total_x[1:], total_y[1:]
-                phis_1 = np.arctan2(ys_2 - ys_1, xs_2 - xs_1) * 180 / pi
-                planed_trj = xs_1, ys_1, phis_1
-
-                ref = ReferencePath(self.task)
-                ref.set_path(self.mode, path_index=path_index, path=planed_trj)
-                self.path_list.append(ref)
+            ref = ReferencePath(self.task)
+            ref.set_path(self.mode, path_index=path_index, path=planed_trj)
+            self.path_list.append(ref)
 
     def trajectory_planning(self, state, point1, point2, L0, L3):
         X0 = state[0]; X1 = state[0] + L0 * cos(state[2]); X2 = point1[0] - L3 * cos(point1[2]); X3 = point1[0]
@@ -203,7 +176,7 @@ class StaticTrajectoryGenerator(object):
         plt.scatter([X1, X2], [Y1, Y2], marker='D', c='coral')
         node = np.asfortranarray([[X0, X1, X2, X3], [Y0, Y1, Y2, Y3]], dtype=np.float32)
         curve = bezier.Curve(node, degree=3)
-        # s_vals = np.linspace(0, 1.0, int(pi / 2 * (CROSSROAD_SIZE / 2 + LANE_WIDTH / 2)) * 30)
+        # s_vals = np.linspace(0, 1.0, int(pi / 2 * (CROSSROAD_SIZE / 2 + LANE_WIDTH / 2)) * 30) # size: 1260
         s_vals = np.linspace(0, 1.0, 500)
         traj_data = curve.evaluate_multi(s_vals)
         traj_data = traj_data.astype(np.float32)
