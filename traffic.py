@@ -29,7 +29,7 @@ from traci.exceptions import FatalTraCIError
 from endtoend_env_utils import shift_and_rotate_coordination, _convert_car_coord_to_sumo_coord, \
     _convert_sumo_coord_to_car_coord, xy2_edgeID_lane
 
-SUMO_BINARY = checkBinary('sumo-gui')
+SUMO_BINARY = checkBinary('sumo')
 SIM_PERIOD = 1.0 / 10
 
 
