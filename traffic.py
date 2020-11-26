@@ -13,6 +13,7 @@ import random
 import sys
 from collections import defaultdict
 from math import fabs, cos, sin, pi
+import copy
 
 
 if 'SUMO_HOME' in os.environ:
@@ -28,7 +29,7 @@ from traci.exceptions import FatalTraCIError
 from endtoend_env_utils import shift_and_rotate_coordination, _convert_car_coord_to_sumo_coord, \
     _convert_sumo_coord_to_car_coord, xy2_edgeID_lane
 
-SUMO_BINARY = checkBinary('sumo')
+SUMO_BINARY = checkBinary('sumo-gui')
 SIM_PERIOD = 1.0 / 10
 
 
@@ -117,7 +118,6 @@ class Traffic(object):
             ego_x = ego_dict['x']
             ego_y = ego_dict['y']
             ego_phi = ego_dict['phi']
-
             traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
                                     depart=0, pos=20, lane=1, speed=ego_dict['v_x'],
                                     typeID='self_car')
@@ -148,12 +148,15 @@ class Traffic(object):
     def generate_random_traffic(self):
         # to delete ego car of the last episode
         random_traffic = traci.vehicle.getContextSubscriptionResults('collector')
+        random_traffic = copy.deepcopy(random_traffic)
+
         for ego_id in self.n_ego_dict.keys():
             if ego_id in random_traffic:
                 traci.vehicle.remove(ego_id)
         traci.simulationStep()
 
         random_traffic = traci.vehicle.getContextSubscriptionResults('collector')
+        random_traffic = copy.deepcopy(random_traffic)
 
         for ego_id in self.n_ego_dict.keys():
             if ego_id in random_traffic:
@@ -205,10 +208,9 @@ class Traffic(object):
         self.n_ego_vehicles = defaultdict(list)
         for egoID in self.n_ego_dict.keys():
             veh_info_dict = traci.vehicle.getContextSubscriptionResults(egoID)
+            veh_info_dict = copy.deepcopy(veh_info_dict)
             for egosid in self.n_ego_dict.keys():
-                if egosid != egoID and egosid not in veh_info_dict:
-                    print(egosid, veh_info_dict)
-                    raise ValueError
+                assert egosid in veh_info_dict
             for i, veh in enumerate(veh_info_dict):
                 if veh != egoID:
                     length = veh_info_dict[veh][traci.constants.VAR_LENGTH]
@@ -296,5 +298,16 @@ class Traffic(object):
         self.n_ego_collision_flag = flag_dict
 
 
+def test_traffic():
+    init_state = dict(ego=dict(v_x=8., v_y=0, r=0, x=0., y=-10, phi=120., l=4.8, w=2.2, routeID='dl',))
+    traffic = Traffic(100., mode='training', init_n_ego_dict=init_state, training_task='left')
+    traffic.init_traffic(init_state)
+    for i in range(1000):
+        for j in range(10):
+            traffic.set_own_car(init_state)
+            traffic.sim_step()
+        traffic.init_traffic(init_state)
+
+
 if __name__ == "__main__":
-    pass
+    test_traffic()
