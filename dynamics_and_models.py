@@ -501,9 +501,9 @@ class ReferencePath(object):
     def _construct_ref_path(self, task):
         sl = 40  # straight length
         meter_pointnum_ratio = 30
-        control_ext = 15
+        control_ext = CROSSROAD_SIZE/3.
         if task == 'left':
-            end_offsets = [LANE_WIDTH*0.5, LANE_WIDTH*1.5, LANE_WIDTH*2.5]
+            end_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
             start_offsets = [LANE_WIDTH*0.5]
             for start_offset in start_offsets:
                 for end_offset in end_offsets:
@@ -535,8 +535,8 @@ class ReferencePath(object):
                     self.path_len_list.append((sl * meter_pointnum_ratio, len(trj_data[0]), len(xs_1)))
 
         elif task == 'straight':
-            end_offsets = [LANE_WIDTH*0.5, LANE_WIDTH*1.5, LANE_WIDTH*2.5]
-            start_offsets = [LANE_WIDTH*0.5, LANE_WIDTH*1.5]
+            end_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
+            start_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER-1)]
             for start_offset in start_offsets:
                 for end_offset in end_offsets:
                     control_point1 = start_offset, -CROSSROAD_SIZE/2
@@ -567,8 +567,8 @@ class ReferencePath(object):
 
         else:
             assert task == 'right'
-            end_offsets = [-LANE_WIDTH*0.5, -LANE_WIDTH*1.5, -LANE_WIDTH*2.5]
-            start_offsets = [LANE_WIDTH*2.5]
+            end_offsets = [-LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
+            start_offsets = [LANE_WIDTH*(LANE_NUMBER-0.5)]
 
             for start_offset in start_offsets:
                 for end_offset in end_offsets:
@@ -669,17 +669,25 @@ class ReferencePath(object):
                                                       deal_with_phi_diff(ego_phis - ref_point[2]),
                                                       ego_vs - self.exp_v], 1)
                                             for ref_point in all_ref], 1)
+            final = None
         else:
             indexs, current_points = self.find_closest_point(ego_xs, ego_ys)
             # print('Index:', indexs.numpy(), 'points:', current_points[:])
             n_future_data = self.future_n_data(indexs, n)
-            all_ref = [current_points] + n_future_data
 
-            tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
-                                                  deal_with_phi_diff(ego_phis - ref_point[2]),
-                                                  ego_vs - self.exp_v], 1)
-                                        for ref_point in all_ref], 1)
-        return tracking_error
+            tracking_error = tf.stack([two2one(current_points[0], current_points[1]),
+                                               deal_with_phi_diff(ego_phis - current_points[2]),
+                                               ego_vs - self.exp_v], 1)
+
+            final = tracking_error
+            if n > 0:
+                future_points = tf.concat([tf.stack([ref_point[0] - ego_xs,
+                                                     ref_point[1] - ego_ys,
+                                                     deal_with_phi_diff(ego_phis - ref_point[2])], 1)
+                                           for ref_point in n_future_data], 1)
+                final = tf.concat([final, future_points], 1)
+
+        return final
 
     def plot_path(self, x, y):
         plt.axis('equal')
@@ -719,7 +727,7 @@ def test_tracking_error_vector():
     phis = np.array([90, 135, 135, 180], np.float32)
     vs = np.array([10, 12, 10, 10], np.float32)
 
-    tracking_error_vector = path.tracking_error_vector(xs, ys, phis, vs, 0)
+    tracking_error_vector = path.tracking_error_vector(xs, ys, phis, vs, 10)
     print(tracking_error_vector)
 
 
@@ -747,4 +755,4 @@ def test_model():
 
 
 if __name__ == '__main__':
-    test_model()
+    test_tracking_error_vector()

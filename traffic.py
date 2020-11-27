@@ -27,7 +27,7 @@ from sumolib import checkBinary
 import traci
 from traci.exceptions import FatalTraCIError
 from endtoend_env_utils import shift_and_rotate_coordination, _convert_car_coord_to_sumo_coord, \
-    _convert_sumo_coord_to_car_coord, xy2_edgeID_lane
+    _convert_sumo_coord_to_car_coord, xy2_edgeID_lane, SUMOCFG_DIR
 
 SUMO_BINARY = checkBinary('sumo')
 SIM_PERIOD = 1.0 / 10
@@ -58,11 +58,9 @@ class Traffic(object):
             if random.random() > 0.5:
                 self.training_light_phase = 2
 
-        # SUMO_BINARY = checkBinary('sumo-gui')
-        dirname = os.path.dirname(__file__)
         try:
             traci.start(
-                [SUMO_BINARY, "-c", dirname + "/sumo_files/cross.sumocfg",
+                [SUMO_BINARY, "-c", SUMOCFG_DIR,
                  "--step-length", self.step_time_str,
                  "--lateral-resolution", "1.25",
                  "--random",
@@ -76,7 +74,7 @@ class Traffic(object):
             print('Retry by other port')
             port = sumolib.miscutils.getFreeSocketPort()
             traci.start(
-                [SUMO_BINARY, "-c", dirname + "/sumo_files/cross.sumocfg",
+                [SUMO_BINARY, "-c", SUMOCFG_DIR,
                  "--step-length", self.step_time_str,
                  "--lateral-resolution", "1.25",
                  "--random",
@@ -129,21 +127,6 @@ class Traffic(object):
             edgeID, lane = xy2_edgeID_lane(ego_x, ego_y)
             traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
             traci.vehicle.setSpeed(egoID, math.sqrt(ego_v_x ** 2 + ego_v_y ** 2))
-            traci.vehicle.subscribeContext(egoID,
-                                           traci.constants.CMD_GET_VEHICLE_VARIABLE,
-                                           999999, [traci.constants.VAR_POSITION,
-                                                    traci.constants.VAR_LENGTH,
-                                                    traci.constants.VAR_WIDTH,
-                                                    traci.constants.VAR_ANGLE,
-                                                    traci.constants.VAR_SIGNALS,
-                                                    traci.constants.VAR_SPEED,
-                                                    traci.constants.VAR_TYPE,
-                                                    traci.constants.VAR_EMERGENCY_DECEL,
-                                                    traci.constants.VAR_LANE_INDEX,
-                                                    traci.constants.VAR_LANEPOSITION,
-                                                    traci.constants.VAR_EDGES,
-                                                    traci.constants.VAR_ROUTE_INDEX],
-                                           0, 2147483647)
 
     def generate_random_traffic(self):
         # to delete ego car of the last episode
@@ -206,11 +189,9 @@ class Traffic(object):
 
     def _get_vehicles(self):
         self.n_ego_vehicles = defaultdict(list)
+        veh_infos = traci.vehicle.getContextSubscriptionResults('collector')
         for egoID in self.n_ego_dict.keys():
-            veh_info_dict = traci.vehicle.getContextSubscriptionResults(egoID)
-            veh_info_dict = copy.deepcopy(veh_info_dict)
-            for egosid in self.n_ego_dict.keys():
-                assert egosid in veh_info_dict
+            veh_info_dict = copy.deepcopy(veh_infos)
             for i, veh in enumerate(veh_info_dict):
                 if veh != egoID:
                     length = veh_info_dict[veh][traci.constants.VAR_LENGTH]

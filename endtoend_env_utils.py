@@ -8,11 +8,21 @@
 # =====================================
 
 import math
+import os
 
 L, W = 4.8, 2.0
 LANE_WIDTH = 3.75
 LANE_NUMBER = 3
 CROSSROAD_SIZE = 50
+dirname = os.path.dirname(__file__)
+SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
+# Things related to lane number: static path generation (which further influences obs initialization),
+# observation formulation (especially other vehicles selection and number), rewards formulation
+# other vehicle prediction
+# feasibility judgement
+# the sumo files, obviously,
+# the render func,
+# it is hard to unify them using one set of code, better be a case-by-case setting.
 
 ROUTE2MODE = {('1o', '2i'): 'dr', ('1o', '3i'): 'du', ('1o', '4i'): 'dl',
               ('2o', '1i'): 'rd', ('2o', '3i'): 'ru', ('2o', '4i'): 'rl',
