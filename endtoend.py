@@ -197,8 +197,8 @@ class CrossroadEnd2end(gym.Env):
          3: good done: task succeed
          4: not done
         """
-        # if self.traffic.collision_flag:
-        #     return 'collision', 0
+        if self.traffic.collision_flag:
+            return 'collision', 1
         if self._break_road_constrain():
             return 'break_road_constrain', 1
         elif self._deviate_too_much():
@@ -485,7 +485,6 @@ class CrossroadEnd2end(gym.Env):
         else:
             random_index = int(np.random.random()*(420+500)) + 700
 
-        random_index = 980
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 8 * np.random.random()
