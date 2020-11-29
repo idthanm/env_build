@@ -83,7 +83,8 @@ class EnvironmentModel(object):  # all tensors
         self.obses = None
         self.ego_params = None
         self.actions = None
-        self.ref_path = None
+        self.ref_path = ReferencePath(self.task)
+        self.ref_indexes = None
         self.num_future_data = num_future_data
         self.exp_v = 8.
         self.reward_info = None
@@ -91,11 +92,10 @@ class EnvironmentModel(object):  # all tensors
         self.per_veh_info_dim = 4
         self.per_tracking_info_dim = 3
 
-    def reset(self, obses, task):
+    def reset(self, obses, ref_indexes=None):  # input are all tensors
         self.obses = obses
+        self.ref_indexes = ref_indexes
         self.actions = None
-        self.task = task
-        # self.ref_path = ReferencePath(task, mode='training')
         self.reward_info = None
 
     def add_traj(self, obses, trajectory, mode=None):
@@ -222,7 +222,30 @@ class EnvironmentModel(object):  # all tensors
                                                                       next_ego_infos[:, 0],
                                                                       self.num_future_data)
         else:
-            next_tracking_infos = self.tracking_error_predict(ego_infos, tracking_infos, actions)
+            # next_tracking_infos = self.tracking_error_predict(ego_infos, tracking_infos, actions)
+            self.ref_path.path = self.ref_path.path_list[0]
+            next_tracking_info0 = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
+                                                                      next_ego_infos[:, 4],
+                                                                      next_ego_infos[:, 5],
+                                                                      next_ego_infos[:, 0],
+                                                                      self.num_future_data)
+            self.ref_path.path = self.ref_path.path_list[1]
+            next_tracking_info1 = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
+                                                                      next_ego_infos[:, 4],
+                                                                      next_ego_infos[:, 5],
+                                                                      next_ego_infos[:, 0],
+                                                                      self.num_future_data)
+
+            self.ref_path.path = self.ref_path.path_list[2]
+            next_tracking_info2 = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
+                                                                      next_ego_infos[:, 4],
+                                                                      next_ego_infos[:, 5],
+                                                                      next_ego_infos[:, 0],
+                                                                      self.num_future_data)
+            ref_indexes = tf.expand_dims(self.ref_indexes, axis=1)
+            next_tracking_infos = tf.where(ref_indexes == 0, next_tracking_info0,
+                                           tf.where(ref_indexes == 1, next_tracking_info1, next_tracking_info2))
+
         next_veh_infos = self.veh_predict(veh_infos)
         next_obses = tf.concat([next_ego_infos, next_tracking_infos, next_veh_infos], 1)
         next_obses = self.convert_vehs_to_rela(next_obses)
@@ -754,5 +777,71 @@ def test_model():
         model.render()
 
 
+def test_tf_function():
+    class Test2():
+        def __init__(self):
+            self.c = 2
+
+        def step1(self, a):
+            print('trace')
+            self.c = a
+
+        def step2(self):
+            return self.c
+
+    test2 = Test2()
+
+    @tf.function#(input_signature=(tf.TensorSpec(shape=[None], dtype=tf.int32),))
+    def f(a):
+        test2.step1(a)
+        return test2.step2()
+
+    print(f(2), type(test2.c))
+    print(f(2), test2.c)
+
+    print(f(tf.constant(2)), type(test2.c))
+    print(f(tf.constant(3)), test2.c)
+
+    # print(f(2), test2.c)
+    # print(f(3), test2.c)
+    # print(f(2), test2.c)
+    # print(f())
+    # print(f())
+    #
+    # test2.c.assign_add(12)
+    # print(test2.c)
+    # print(f())
+
+
+
+
+
+    # b= test2.create_test1(1)
+    # print(test2.b,b, test2.b.a)
+    # b=test2.create_test1(2)
+    # print(test2.b,b,test2.b.a)
+    # b=test2.create_test1(1)
+    # print(test2.b,b,test2.b.a)
+    # test2.create_test1(1)
+    # test2.pc()
+    # test2.create_test1(1)
+    # test2.pc()
+@tf.function
+def test_tffunc(inttt):
+    print(22)
+    if inttt=='1':
+        a = 2
+    elif inttt == '2':
+        a = 233
+    else:
+        a=22
+    return a
+
+
+
 if __name__ == '__main__':
-    test_tracking_error_vector()
+    print(test_tffunc(tf.constant('1')))
+    print(test_tffunc(tf.constant('3')))
+    print(test_tffunc(tf.constant('2')))
+
+

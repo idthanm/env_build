@@ -54,6 +54,7 @@ class Traffic(object):
         self.mode = mode
         self.training_light_phase = 0
         self.training_task = training_task
+        self.first_add = True
         if training_task == 'right':
             if random.random() > 0.5:
                 self.training_light_phase = 2
@@ -116,28 +117,28 @@ class Traffic(object):
             ego_x = ego_dict['x']
             ego_y = ego_dict['y']
             ego_phi = ego_dict['phi']
-            traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
-                                    depart=0, pos=20, lane=1, speed=ego_dict['v_x'],
-                                    typeID='self_car')
+            ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi, ego_l)
+            edgeID, lane = xy2_edgeID_lane(ego_x, ego_y)
+
+            if self.first_add:
+                traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
+                                        depart=0, pos=20, lane=1, speed=ego_dict['v_x'],
+                                        typeID='self_car')
+            try:
+                traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
+            except traci.exceptions.TraCIException:
+                print('Don\'t worry, it\'s handled well')
+                traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
+                                        depart=0, pos=20, lane=1, speed=ego_dict['v_x'],
+                                        typeID='self_car')
+                traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
+
             traci.vehicle.setLength(egoID, ego_dict['l'])
             traci.vehicle.setWidth(egoID, ego_dict['w'])
-            ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi,
-                                                                                           ego_l)
-
-            edgeID, lane = xy2_edgeID_lane(ego_x, ego_y)
-            traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo)
             traci.vehicle.setSpeed(egoID, math.sqrt(ego_v_x ** 2 + ego_v_y ** 2))
+        self.first_add = False
 
     def generate_random_traffic(self):
-        # to delete ego car of the last episode
-        random_traffic = traci.vehicle.getContextSubscriptionResults('collector')
-        random_traffic = copy.deepcopy(random_traffic)
-
-        for ego_id in self.n_ego_dict.keys():
-            if ego_id in random_traffic:
-                traci.vehicle.remove(ego_id)
-        traci.simulationStep()
-
         random_traffic = traci.vehicle.getContextSubscriptionResults('collector')
         random_traffic = copy.deepcopy(random_traffic)
 
@@ -284,7 +285,7 @@ def test_traffic():
     traffic = Traffic(100., mode='training', init_n_ego_dict=init_state, training_task='left')
     traffic.init_traffic(init_state)
     for i in range(1000):
-        for j in range(10):
+        for j in range(100):
             traffic.set_own_car(init_state)
             traffic.sim_step()
         traffic.init_traffic(init_state)
