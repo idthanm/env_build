@@ -17,12 +17,12 @@ import pandas as pd
 import seaborn as sns
 import tensorflow as tf
 from casadi import *
-import casadi as ca
 
 from endtoend import CrossroadEnd2end
-from endtoend_env_utils import CROSSROAD_SIZE, LANE_NUMBER, LANE_WIDTH, L, W
-from mpc.main import TimerStat, ReferencePath
-from mpc.policy import PolicyWithQs
+from endtoend_env_utils import CROSSROAD_SIZE, LANE_WIDTH, L, W
+from mpc.main import TimerStat
+from dynamics_and_models import ReferencePath
+from mpc.policy import Policy4Toyota
 from mpc.preprocessor import Preprocessor
 
 
@@ -44,22 +44,29 @@ class LoadPolicy(object):
         for key, val in params.items():
             parser.add_argument("-" + key, default=val)
         self.args = parser.parse_args()
-        env = CrossroadEnd2end('left')
-        self.policy = PolicyWithQs(env.observation_space, env.action_space, self.args)
+        env = CrossroadEnd2end(training_task=self.args.env_kwargs_training_task,
+                               num_future_data=self.args.env_kwargs_num_future_data)
+        self.policy = Policy4Toyota(self.args)
         self.policy.load_weights(model_dir, iter)
-        self.preprocessor = Preprocessor(env.observation_space, self.args.obs_preprocess_type,
-                                         self.args.reward_preprocess_type,
-                                         self.args.obs_scale_factor, self.args.reward_scale_factor,
+        self.preprocessor = Preprocessor((self.args.obs_dim,), self.args.obs_preprocess_type, self.args.reward_preprocess_type,
+                                         self.args.obs_scale, self.args.reward_scale, self.args.reward_shift,
                                          gamma=self.args.gamma)
         # self.preprocessor.load_params(load_dir)
         init_obs = env.reset()
         self.run(init_obs)
+        self.values(init_obs)
 
     @tf.function
     def run(self, obs):
         processed_obs = self.preprocessor.np_process_obses(obs)
         action, logp = self.policy.compute_action(processed_obs[np.newaxis, :])
         return action[0]
+
+    @tf.function
+    def values(self, obs):
+        processed_obs = self.preprocessor.np_process_obses(obs)
+        values = self.policy.compute_vs(processed_obs[np.newaxis, :])
+        return values[0]
 
 
 class VehicleDynamics(object):
@@ -108,23 +115,59 @@ class VehicleDynamics(object):
 
 
 class Dynamics(object):
-    def __init__(self, x_init, task, exp_v, tau, veh_mode_list, per_veh_info_dim=4):
+    def __init__(self, x_init, num_future_data, ref_index, task, exp_v, tau, veh_mode_list, per_veh_info_dim=4):
         self.task = task
         self.exp_v = exp_v
         self.tau = tau
         self.per_veh_info_dim = per_veh_info_dim
         self.vd = VehicleDynamics()
         self.veh_mode_list = veh_mode_list
-        self.vehs = x_init[9:]
+        self.vehs = x_init[6+3*(1+num_future_data):]
         self.x_init = x_init
-        # self.path = ReferencePath(task, ref_index)
+        path = ReferencePath(task)
+        self.ref_index = ref_index
+        path = path.path_list[self.ref_index]
+        x, y, phi = [ite[1200:-1200] for ite in path]
+        if self.task == 'left':
+            self.start, self.end = x[0], y[-1]
+            fit_x = np.arctan2(y - (-CROSSROAD_SIZE / 2), x - (-CROSSROAD_SIZE / 2))
+            fit_y1 = np.sqrt(np.square(x - (-CROSSROAD_SIZE / 2)) + np.square(y - (-CROSSROAD_SIZE / 2)))
+            fit_y2 = phi
+        elif self.task == 'straight':
+            self.start, self.end = x[0], x[-1]
+            fit_x = y
+            fit_y1 = x
+            fit_y2 = phi
+        else:
+            self.start, self.end = x[0], y[-1]
+            fit_x = np.arctan2(y - (-CROSSROAD_SIZE / 2), x - (CROSSROAD_SIZE / 2))
+            fit_y1 = np.sqrt(np.square(x - (CROSSROAD_SIZE / 2)) + np.square(y - (-CROSSROAD_SIZE / 2)))
+            fit_y2 = phi
+        self.fit_y1_para = list(np.polyfit(fit_x, fit_y1, 3, rcond=None, full=False, w=None, cov=False))
+        self.fit_y2_para = list(np.polyfit(fit_x, fit_y2, 3, rcond=None, full=False, w=None, cov=False))
 
-    def tracking_error_pred(self, x, u):
-        v_x, v_y, r, x, y, phi, delta_y, delta_phi, delta_v = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8]
-        delta_phi = deal_with_phi_casa(delta_phi)
-        next_x = self.vd.f_xu([v_x, v_y, r, x, delta_y, delta_phi], u, self.tau)
-        next_tracking_error = next_x[-2:] + [next_x[0] - self.exp_v]
-        return next_tracking_error
+    # def tracking_error_pred(self, x, u):
+    #     v_x, v_y, r, x, y, phi, delta_y, delta_phi, delta_v = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8]
+    #     delta_phi = deal_with_phi_casa(delta_phi)
+    #     next_x = self.vd.f_xu([v_x, v_y, r, x, delta_y, delta_phi], u, self.tau)
+    #     next_tracking_error = next_x[-2:] + [next_x[0] - self.exp_v]
+    #     return next_tracking_error
+
+    def tracking_error_pred(self, next_ego):
+        v_x, v_y, r, x, y, phi = next_ego[0], next_ego[1], next_ego[2], next_ego[3], next_ego[4], next_ego[5]
+        if self.task == 'left':
+            out1 = [-(y-self.end), deal_with_phi_casa(phi-180.), v_x-self.exp_v]
+            out2 = [-(x - self.start), deal_with_phi_casa(phi - 90.), v_x - self.exp_v]
+            fit_x = arctan2(y - (-CROSSROAD_SIZE / 2), x - (-CROSSROAD_SIZE / 2))
+            ref_d = self.fit_y1_para[0] * power(fit_x, 3) + self.fit_y1_para[1] * power(fit_x, 2) + \
+                    self.fit_y1_para[2] * fit_x + self.fit_y1_para[3]
+            ref_phi = self.fit_y2_para[0] * power(fit_x, 3) + self.fit_y2_para[1] * power(fit_x, 2) + \
+                      self.fit_y2_para[2] * fit_x + self.fit_y2_para[3]
+            d = sqrt(power(x - (-CROSSROAD_SIZE / 2), 2) + power(y - (-CROSSROAD_SIZE / 2), 2))
+            out3 = [-(d-ref_d), deal_with_phi_casa(phi-ref_phi), v_x-self.exp_v]
+            return [if_else(x < -CROSSROAD_SIZE/2, out1[0], if_else(y < -CROSSROAD_SIZE/2, out2[0], out3[0])),
+                    if_else(x < -CROSSROAD_SIZE/2, out1[1], if_else(y < -CROSSROAD_SIZE/2, out2[1], out3[1])),
+                    if_else(x < -CROSSROAD_SIZE/2, out1[2], if_else(y < -CROSSROAD_SIZE/2, out2[2], out3[2]))]
 
     def vehs_pred(self):
         predictions = []
@@ -136,12 +179,7 @@ class Dynamics(object):
         self.vehs = predictions
 
     def predict_for_a_mode(self, vehs, mode):
-        ego_x, ego_y = self.x_init[3], self.x_init[4]
         veh_x, veh_y, veh_v, veh_phi = vehs[0], vehs[1], vehs[2], vehs[3]
-        # if self.task == 'left':
-        #     if -3.75<ego_x<1.3 and -18<ego_y<veh_y and mode == 'ud':
-        #         veh_v = -9 # max(veh_v - self.tau * 4, 0)
-
         veh_phis_rad = veh_phi * np.pi / 180.
         veh_x_delta = veh_v * self.tau * math.cos(veh_phis_rad)
         veh_y_delta = veh_v * self.tau * math.sin(veh_phis_rad)
@@ -163,7 +201,9 @@ class Dynamics(object):
 
     def f_xu(self, x, u):
         next_ego = self.vd.f_xu(x, u, self.tau)
-        next_tracking = self.tracking_error_pred(x, u)
+        next_tracking = self.tracking_error_pred(next_ego)
+        # next_tracking = self.tracking_error_pred(x, u)
+
         return next_ego + next_tracking
 
     def g_x(self, x):
@@ -221,7 +261,7 @@ class ModelPredictiveControl(object):
         self.exp_v = 8.
         self.task = 'left'
         if self.task == 'left':
-            self.veh_mode_list = ['dl'] * 1 + ['du'] * 2 + ['ud'] * 4 + ['ul'] * 2
+            self.veh_mode_list = ['dl'] * 2 + ['du'] * 2 + ['ud'] * 4 + ['ul'] * 2
         elif self.task == 'straight':
             self.veh_mode_list = ['dl'] * 1 + ['du'] * 2 + ['ud'] * 1 + ['ru'] * 2 + ['ur'] * 2
         else:
@@ -235,8 +275,8 @@ class ModelPredictiveControl(object):
                          'ipopt.sb': 'yes',
                          'print_time': 0}
 
-    def mpc_solver(self, x_init, XO):
-        self.dynamics = Dynamics(x_init, self.task, self.exp_v, 1 / self.base_frequency, self.veh_mode_list)
+    def mpc_solver(self, x_init, XO, num_future_data, ref_index):
+        self.dynamics = Dynamics(x_init, num_future_data, ref_index, self.task, self.exp_v, 1 / self.base_frequency, self.veh_mode_list)
 
         x = SX.sym('x', self.DYNAMICS_DIM)
         u = SX.sym('u', self.ACTION_DIM)
@@ -446,16 +486,17 @@ def plot_mpc_rl(file_dir, mpc_name):
 
 
 def run_mpc():
-    horizon_list = [15]
+    horizon_list = [25]
+    num_future_data = 0
     done = 0
     mpc_timer, rl_timer = TimerStat(), TimerStat()
-    env4mpc = gym.make('CrossroadEnd2end-v0', training_task='left')
+    env4mpc = gym.make('CrossroadEnd2end-v0', training_task='left', num_future_data=num_future_data)
     # env4rl = gym.make('CrossroadEnd2end-v0', num_future_data=0)
 
     # rl_policy = LoadPolicy(rl_load_dir, rl_ite)
 
     def convert_vehs_to_abso(obs_rela):
-        ego_infos, tracking_infos, veh_rela = obs_rela[:6], obs_rela[6:9], obs_rela[9:]
+        ego_infos, tracking_infos, veh_rela = obs_rela[:6], obs_rela[6:6+3*(1+num_future_data)], obs_rela[6+3*(1+num_future_data):]
         ego_vx, ego_vy, ego_r, ego_x, ego_y, ego_phi = ego_infos
         ego = np.array([ego_x, ego_y, 0, 0]*int(len(veh_rela)/4), dtype=np.float32)
         vehs_abso = veh_rela + ego
@@ -466,13 +507,17 @@ def run_mpc():
         for i in range(1):
             data2plot = []
             obs = env4mpc.reset()
+            ref_index = env4mpc.ref_path.ref_index
             # obs4rl = env4rl.reset(init_obs=obs)
             mpc = ModelPredictiveControl(horizon)
             rew, rew4rl = 0., 0.
-            state_all = np.array((list(obs[:9]) + [0, 0]) * horizon + list(obs[:9])).reshape((-1, 1))
+            state_all = np.array((list(obs[:6+3*(1+num_future_data)]) + [0, 0]) * horizon + list(obs[:6+3*(1+num_future_data)])).reshape((-1, 1))
             for _ in range(100):
                 with mpc_timer:
-                    state, control, state_all, g_all = mpc.mpc_solver(list(convert_vehs_to_abso(obs)), state_all)
+                    state, control, state_all, g_all = mpc.mpc_solver(list(convert_vehs_to_abso(obs)),
+                                                                      state_all,
+                                                                      num_future_data,
+                                                                      ref_index)
                 if any(g_all < -1):
                     print('optimization fail')
                     mpc_action = np.array([0., -1.])
@@ -504,7 +549,7 @@ def run_mpc():
                 plt.plot([state[i][3] for i in range(1, horizon - 1)], [state[i][4] for i in range(1, horizon - 1)],
                          'r*')
                 plt.show()
-                plt.pause(0.1)
+                plt.pause(0.001)
             np.save('mpc_rl.npy', np.array(data2plot))
 
 
