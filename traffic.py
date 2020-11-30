@@ -7,14 +7,13 @@
 # @FileName: traffic.py
 # =====================================
 
+import copy
 import math
 import os
 import random
 import sys
 from collections import defaultdict
 from math import fabs, cos, sin, pi
-import copy
-
 
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')

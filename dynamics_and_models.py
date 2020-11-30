@@ -13,7 +13,7 @@ import bezier
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-from tensorflow import logical_and, logical_or
+from tensorflow import logical_and
 
 # gym.envs.user_defined.toyota_env.
 from endtoend_env_utils import rotate_coordination, L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER
@@ -837,11 +837,60 @@ def test_tffunc(inttt):
         a=22
     return a
 
+def test_ref():
+    import numpy as np
+    import matplotlib.pyplot as plt
+    # ref = ReferencePath('left')
+    # path1, path2, path3 = ref.path_list
+    # path1, path2, path3 = [ite[1200:-1200] for ite in path1],\
+    #                       [ite[1200:-1200] for ite in path2], \
+    #                       [ite[1200:-1200] for ite in path3]
+    # x1, y1, phi1 = path1
+    # x2, y2, phi2 = path2
+    # x3, y3, phi3 = path3
+    # p1, p2, p3 = np.arctan2(y1-(-CROSSROAD_SIZE/2), x1 - (-CROSSROAD_SIZE/2)), \
+    #              np.arctan2(y2 - (-CROSSROAD_SIZE / 2), x2 - (-CROSSROAD_SIZE / 2)), \
+    #              np.arctan2(y3 - (-CROSSROAD_SIZE / 2), x3 - (-CROSSROAD_SIZE / 2))
+    # d1, d2, d3 = np.sqrt(np.square(x1-(-CROSSROAD_SIZE/2))+np.square(y1-(-CROSSROAD_SIZE/2))),\
+    #              np.sqrt(np.square(x2-(-CROSSROAD_SIZE/2))+np.square(y2-(-CROSSROAD_SIZE/2))),\
+    #              np.sqrt(np.square(x3-(-CROSSROAD_SIZE/2))+np.square(y3-(-CROSSROAD_SIZE/2)))
+    #
+    # plt.plot(p1, d1, 'r')
+    # plt.plot(p2, d2, 'g')
+    # plt.plot(p3, d3, 'b')
+    # z1 = np.polyfit(p1, d1, 3, rcond=None, full=False, w=None, cov=False)
+    # p1_fit = np.poly1d(z1)
+    # plt.plot(p1, p1_fit(p1), 'r*')
+    #
+    # z2 = np.polyfit(p2, d2, 3, rcond=None, full=False, w=None, cov=False)
+    # p2_fit = np.poly1d(z2)
+    # plt.plot(p2, p2_fit(p2), 'g*')
+    #
+    # z3 = np.polyfit(p3, d3, 3, rcond=None, full=False, w=None, cov=False)
+    # p3_fit = np.poly1d(z3)
+    # plt.plot(p3, p3_fit(p3), 'b*')
+
+    ref = ReferencePath('straight')
+    path1, path2, path3, path4, path5, path6 = ref.path_list
+    path1, path2, path3 = [ite[1200:-1200] for ite in path1], \
+                          [ite[1200:-1200] for ite in path2], \
+                          [ite[1200:-1200] for ite in path3]
+    x1, y1, phi1 = path1
+    x2, y2, phi2 = path2
+    x3, y3, phi3 = path3
+
+    plt.plot(y1, x1, 'r')
+    plt.plot(y2, x2, 'g')
+    plt.plot(y3, x3, 'b')
+    z1 = np.polyfit(y1, x1, 3, rcond=None, full=False, w=None, cov=False)
+    print(type(list(z1)))
+    p1_fit = np.poly1d(z1)
+    print(z1, p1_fit)
+    plt.plot(y1, p1_fit(y1), 'r*')
+    plt.show()
 
 
 if __name__ == '__main__':
-    print(test_tffunc(tf.constant('1')))
-    print(test_tffunc(tf.constant('3')))
-    print(test_tffunc(tf.constant('2')))
+    test_ref()
 
 
