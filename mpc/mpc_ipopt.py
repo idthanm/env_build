@@ -47,12 +47,12 @@ class LoadPolicy(object):
         env = CrossroadEnd2end('left')
         self.policy = PolicyWithQs(env.observation_space, env.action_space, self.args)
         self.policy.load_weights(model_dir, iter)
-        self.preprocessor = Preprocessor(env.observation_space, self.args.obs_preprocess_type,
-                                         self.args.reward_preprocess_type,
-                                         self.args.obs_scale_factor, self.args.reward_scale_factor,
+        self.preprocessor = Preprocessor(env.observation_space, self.args.obs_preprocess_type, self.args.reward_preprocess_type,
+                                         self.args.obs_scale, self.args.reward_scale, self.args.reward_shift,
                                          gamma=self.args.gamma)
         # self.preprocessor.load_params(load_dir)
         init_obs = env.reset()
+        init_obs = tf.convert_to_tensor(init_obs)
         self.run(init_obs)
 
     @tf.function

@@ -593,7 +593,7 @@ class CrossroadEnd2end(gym.Env):
 
         return reward.numpy(), reward_dict
 
-    def render(self, real_time_traj=None, feature_points=None, mode='human'):
+    def render(self, traj_list, traj_return, path_index, feature_points=None, mode='human'):
         if mode == 'human':
             # plot basic map
             square_length = CROSSROAD_SIZE
@@ -803,34 +803,22 @@ class CrossroadEnd2end(gym.Env):
 
             # plot real time traj
             try:
-                color = ['b', 'lime', 'g']
-                for i, item in enumerate(real_time_traj):
-                    plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
-                    # if i == path_index:
-                    #     plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
-                    # else:
-                    # else:
-                    #     plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
+                color = ['b', 'coral', 'g']
+                for i, item in enumerate(traj_list):
+                    if i == path_index:
+                        plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
+                    else:
+                        plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
                     indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
                     path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
                     plt.plot(path_x, path_y,  color=color[i])
             except Exception:
                 pass
-            # color = ['b', 'lime', 'g']
-            # for i, item in enumerate(real_time_traj):
-            #     plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
-            #     # if i == path_index:
-            #     #     plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
-            #     # else:
-            #     #     plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
-            #     indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
-            #     path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-            #     plt.plot(path_x, path_y,  color=color[i])
-            plt.scatter([1.875], [-25], c='r')
+            # plt.scatter([1.875], [-25], c='r')
 
             for j, item_point in enumerate(feature_points):
                 for k in range(len(item_point)):
-                    plt.scatter(item_point[k][0], item_point[k][1], c='g')
+                    plt.scatter(item_point[k][0], item_point[k][1], c='lime')
 
             # plot ego dynamics
             text_x, text_y_start = -110, 60
@@ -875,15 +863,14 @@ class CrossroadEnd2end(gym.Env):
                     plt.text(text_x, text_y_start - next(ge), '{}: {:.4f}'.format(key, val))
 
             # indicator for trajectory selection
-            text_x, text_y_start = -25, -65
+            text_x, text_y_start = -25, -70
             ge = iter(range(0, 1000, 6))
-            # if traj_return is not None:
-            #     for i, value in enumerate(traj_return):
-            #         if i==path_index:
-            #             plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=14, color=color[i], fontstyle='italic')
-            #         else:
-            #             plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=12, color=color[i], fontstyle='italic')
-
+            if traj_return is not None:
+                for i, value in enumerate(traj_return):
+                    if i == path_index:
+                        plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=14, color=color[i], fontstyle='italic')
+                    else:
+                        plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=12, color=color[i], fontstyle='italic')
             plt.show()
             plt.pause(0.001)
 

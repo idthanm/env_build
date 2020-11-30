@@ -7,40 +7,48 @@
 # @FileName: policy.py
 # =====================================
 
+import tensorflow as tf
 import numpy as np
 from gym import spaces
 from tensorflow.keras.optimizers.schedules import PolynomialDecay
 
 from mpc.model import MLPNet
 
+NAME2MODELCLS = dict([('MLP', MLPNet),])
 
-class PolicyWithQs(object):
+
+class PolicyWithQs(tf.Module):
     import tensorflow as tf
     import tensorflow_probability as tfp
     tfd = tfp.distributions
+    tfb = tfp.bijectors
+    tf.config.experimental.set_visible_devices([], 'GPU')
 
     def __init__(self, obs_space, act_space, args):
+        super().__init__()
         self.args = args
         assert isinstance(obs_space, spaces.Box)
         assert isinstance(act_space, spaces.Box)
         obs_dim = obs_space.shape[0] if args.obs_dim is None else self.args.obs_dim
         act_dim = act_space.shape[0] if args.act_dim is None else self.args.act_dim
-        n_hiddens, n_units = self.args.num_hidden_layers, self.args.num_hidden_units
-        self.policy = MLPNet(obs_dim, n_hiddens, n_units, act_dim * 2, name='policy',
-                             output_activation=self.args.policy_out_activation)
-        self.policy_target = MLPNet(obs_dim, n_hiddens, n_units, act_dim * 2, name='policy_target',
-                                    output_activation=self.args.policy_out_activation)
+        n_hiddens, n_units, hidden_activation = self.args.num_hidden_layers, self.args.num_hidden_units, self.args.hidden_activation
+        value_model_cls, policy_model_cls = NAME2MODELCLS[self.args.value_model_cls], \
+                                            NAME2MODELCLS[self.args.policy_model_cls]
+        self.policy = policy_model_cls(obs_dim, n_hiddens, n_units, hidden_activation, act_dim * 2, name='policy',
+                                       output_activation=self.args.policy_out_activation)
+        self.policy_target = policy_model_cls(obs_dim, n_hiddens, n_units, hidden_activation, act_dim * 2, name='policy_target',
+                                              output_activation=self.args.policy_out_activation)
         policy_lr_schedule = PolynomialDecay(*self.args.policy_lr_schedule)
         self.policy_optimizer = self.tf.keras.optimizers.Adam(policy_lr_schedule, name='policy_adam_opt')
 
-        self.Q1 = MLPNet(obs_dim + act_dim, n_hiddens, n_units, 1, name='Q1')
-        self.Q1_target = MLPNet(obs_dim + act_dim, n_hiddens, n_units, 1, name='Q1_target')
+        self.Q1 = value_model_cls(obs_dim + act_dim, n_hiddens, n_units, hidden_activation, 1, name='Q1')
+        self.Q1_target = value_model_cls(obs_dim + act_dim, n_hiddens, n_units, hidden_activation, 1, name='Q1_target')
         self.Q1_target.set_weights(self.Q1.get_weights())
         self.Q1_optimizer = self.tf.keras.optimizers.Adam(self.tf.keras.optimizers.schedules.PolynomialDecay(
             *self.args.value_lr_schedule), name='Q1_adam_opt')
 
-        self.Q2 = MLPNet(obs_dim + act_dim, n_hiddens, n_units, 1, name='Q2')
-        self.Q2_target = MLPNet(obs_dim + act_dim, n_hiddens, n_units, 1, name='Q2_target')
+        self.Q2 = value_model_cls(obs_dim + act_dim, n_hiddens, n_units, hidden_activation, 1, name='Q2')
+        self.Q2_target = value_model_cls(obs_dim + act_dim, n_hiddens, n_units, hidden_activation, 1, name='Q2_target')
         self.Q2_target.set_weights(self.Q2.get_weights())
         self.Q2_optimizer = self.tf.keras.optimizers.Adam(self.tf.keras.optimizers.schedules.PolynomialDecay(
             *self.args.value_lr_schedule), name='Q2_adam_opt')
@@ -81,11 +89,6 @@ class PolicyWithQs(object):
     def get_weights(self):
         return [model.get_weights() for model in self.models] + \
                [model.get_weights() for model in self.target_models]
-
-    @property
-    def trainable_weights(self):
-        return self.tf.nest.flatten(
-            [model.trainable_weights for model in self.models])
 
     def set_weights(self, weights):
         for i, weight in enumerate(weights):
@@ -152,55 +155,74 @@ class PolicyWithQs(object):
     def compute_mode(self, obs):
         logits = self.policy(obs)
         mean, _ = self.tf.split(logits, num_or_size_splits=2, axis=-1)
-        if self.args.deterministic_policy:
-            return mean
-        else:
-            return self.tf.tanh(mean)
+        return self.args.action_range * self.tf.tanh(mean) if self.args.action_range is not None else mean
 
+    def _logits2dist(self, logits):
+        mean, log_std = self.tf.split(logits, num_or_size_splits=2, axis=-1)
+        act_dist = self.tfd.MultivariateNormalDiag(mean, self.tf.exp(log_std))
+        if self.args.action_range is not None:
+            act_dist = (
+                self.tfp.distributions.TransformedDistribution(
+                    distribution=act_dist,
+                    bijector=self.tfb.Chain(
+                        [self.tfb.Affine(scale_identity_multiplier=self.args.action_range),
+                         self.tfb.Tanh()])
+                ))
+        return act_dist
+
+    @tf.function
     def compute_action(self, obs):
         with self.tf.name_scope('compute_action') as scope:
             logits = self.policy(obs)
-            return self._logits2action(logits)
+            if self.args.deterministic_policy:
+                mean, log_std = self.tf.split(logits, num_or_size_splits=2, axis=-1)
+                return self.args.action_range * self.tf.tanh(mean) if self.args.action_range is not None else mean, 0.
+            else:
+                act_dist = self._logits2dist(logits)
+                actions = act_dist.sample()
+                logps = act_dist.log_prob(actions)
+                return actions, logps
 
+    @tf.function
     def compute_target_action(self, obs):
         with self.tf.name_scope('compute_target_action') as scope:
             logits = self.policy_target(obs)
-            return self._logits2action(logits)
+            if self.args.deterministic_policy:
+                mean, log_std = self.tf.split(logits, num_or_size_splits=2, axis=-1)
+                return self.args.action_range * self.tf.tanh(mean) if self.args.action_range is not None else mean, 0.
+            else:
+                act_dist = self._logits2dist(logits)
+                actions = act_dist.sample()
+                logps = act_dist.log_prob(actions)
+                return actions, logps
 
-    def _logits2action(self, logits):
-        mean, log_std = self.tf.split(logits, num_or_size_splits=2, axis=-1)
-        if self.args.deterministic_policy:
-            return mean, 0.
-        else:
-            base_dist = self.tfd.Normal(mean, self.tf.exp(log_std))
-            act_dist = (
-                self.tfp.distributions.TransformedDistribution(
-                    distribution=base_dist,
-                    bijector=self.tfp.bijectors.Tanh()))
-            actions = act_dist.sample()
-            log_pis = act_dist.log_prob(actions)
-            logps = self.tf.reduce_sum(log_pis, axis=-1)
-            return actions, logps
-
+    @tf.function
     def compute_Q1(self, obs, act):
         with self.tf.name_scope('compute_Q1') as scope:
             Q_inputs = self.tf.concat([obs, act], axis=-1)
-            return self.Q1(Q_inputs)
+            return tf.squeeze(self.Q1(Q_inputs), axis=1)
 
+    @tf.function
     def compute_Q2(self, obs, act):
         with self.tf.name_scope('compute_Q2') as scope:
             Q_inputs = self.tf.concat([obs, act], axis=-1)
-            return self.Q2(Q_inputs)
+            return tf.squeeze(self.Q2(Q_inputs), axis=1)
 
+    @tf.function
     def compute_Q1_target(self, obs, act):
         with self.tf.name_scope('compute_Q1_target') as scope:
             Q_inputs = self.tf.concat([obs, act], axis=-1)
-            return self.Q1_target(Q_inputs)
+            return tf.squeeze(self.Q1_target(Q_inputs), axis=1)
 
+    @tf.function
     def compute_Q2_target(self, obs, act):
         with self.tf.name_scope('compute_Q2_target') as scope:
             Q_inputs = self.tf.concat([obs, act], axis=-1)
-            return self.Q2_target(Q_inputs)
+            return tf.squeeze(self.Q2_target(Q_inputs), axis=1)
+
+    @property
+    def log_alpha(self):
+        return self.alpha_model.log_alpha
 
 
 def test_policy():

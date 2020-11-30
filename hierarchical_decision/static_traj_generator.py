@@ -172,8 +172,6 @@ class StaticTrajectoryGenerator(object):
     def trajectory_planning(self, state, point1, point2, L0, L3):
         X0 = state[0]; X1 = state[0] + L0 * cos(state[2]); X2 = point1[0] - L3 * cos(point1[2]); X3 = point1[0]
         Y0 = state[1]; Y1 = state[1] + L0 * sin(state[2]); Y2 = point1[1] - L3 * sin(point1[2]); Y3 = point1[1]
-        plt.clf()
-        plt.scatter([X1, X2], [Y1, Y2], marker='D', c='coral')
         node = np.asfortranarray([[X0, X1, X2, X3], [Y0, Y1, Y2, Y3]], dtype=np.float32)
         curve = bezier.Curve(node, degree=3)
         # s_vals = np.linspace(0, 1.0, int(pi / 2 * (CROSSROAD_SIZE / 2 + LANE_WIDTH / 2)) * 30) # size: 1260
