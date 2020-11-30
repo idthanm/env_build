@@ -132,7 +132,7 @@ class CrossroadEnd2end(gym.Env):
         self.reward_info.update({'final_rew': reward})
         # if done:
         #     print(self.done_type)
-        all_info.update({'reward_info': self.reward_info})
+        all_info.update({'reward_info': self.reward_info, 'ref_index': self.ref_path.ref_index})
         return self.obs, reward, done, all_info
 
     def _set_observation_space(self, observation):

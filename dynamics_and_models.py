@@ -13,7 +13,7 @@ import bezier
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-from tensorflow import logical_and, logical_or
+from tensorflow import logical_and
 
 # gym.envs.user_defined.toyota_env.
 from endtoend_env_utils import rotate_coordination, L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER
@@ -83,7 +83,8 @@ class EnvironmentModel(object):  # all tensors
         self.obses = None
         self.ego_params = None
         self.actions = None
-        self.ref_path = None
+        self.ref_path = ReferencePath(self.task)
+        self.ref_indexes = None
         self.num_future_data = num_future_data
         self.exp_v = 8.
         self.reward_info = None
@@ -91,11 +92,10 @@ class EnvironmentModel(object):  # all tensors
         self.per_veh_info_dim = 4
         self.per_tracking_info_dim = 3
 
-    def reset(self, obses, task):
+    def reset(self, obses, ref_indexes=None):  # input are all tensors
         self.obses = obses
+        self.ref_indexes = ref_indexes
         self.actions = None
-        self.task = task
-        # self.ref_path = ReferencePath(task, mode='training')
         self.reward_info = None
 
     def add_traj(self, obses, trajectory, mode=None):
@@ -283,7 +283,30 @@ class EnvironmentModel(object):  # all tensors
                                                                       next_ego_infos[:, 0],
                                                                       self.num_future_data)
         else:
-            next_tracking_infos = self.tracking_error_predict(ego_infos, tracking_infos, actions)
+            # next_tracking_infos = self.tracking_error_predict(ego_infos, tracking_infos, actions)
+            self.ref_path.path = self.ref_path.path_list[0]
+            next_tracking_info0 = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
+                                                                      next_ego_infos[:, 4],
+                                                                      next_ego_infos[:, 5],
+                                                                      next_ego_infos[:, 0],
+                                                                      self.num_future_data)
+            self.ref_path.path = self.ref_path.path_list[1]
+            next_tracking_info1 = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
+                                                                      next_ego_infos[:, 4],
+                                                                      next_ego_infos[:, 5],
+                                                                      next_ego_infos[:, 0],
+                                                                      self.num_future_data)
+
+            self.ref_path.path = self.ref_path.path_list[2]
+            next_tracking_info2 = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
+                                                                      next_ego_infos[:, 4],
+                                                                      next_ego_infos[:, 5],
+                                                                      next_ego_infos[:, 0],
+                                                                      self.num_future_data)
+            ref_indexes = tf.expand_dims(self.ref_indexes, axis=1)
+            next_tracking_infos = tf.where(ref_indexes == 0, next_tracking_info0,
+                                           tf.where(ref_indexes == 1, next_tracking_info1, next_tracking_info2))
+
         next_veh_infos = self.veh_predict(veh_infos)
         next_obses = tf.concat([next_ego_infos, next_tracking_infos, next_veh_infos], 1)
         next_obses = self.convert_vehs_to_rela(next_obses)
@@ -562,9 +585,9 @@ class ReferencePath(object):
     def _construct_ref_path(self, task):
         sl = 40  # straight length
         meter_pointnum_ratio = 30
-        control_ext = 15
+        control_ext = CROSSROAD_SIZE/3.
         if task == 'left':
-            end_offsets = [LANE_WIDTH*0.5, LANE_WIDTH*1.5, LANE_WIDTH*2.5]
+            end_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
             start_offsets = [LANE_WIDTH*0.5]
             for start_offset in start_offsets:
                 for end_offset in end_offsets:
@@ -596,8 +619,8 @@ class ReferencePath(object):
                     self.path_len_list.append((sl * meter_pointnum_ratio, len(trj_data[0]), len(xs_1)))
 
         elif task == 'straight':
-            end_offsets = [LANE_WIDTH*0.5, LANE_WIDTH*1.5, LANE_WIDTH*2.5]
-            start_offsets = [LANE_WIDTH*0.5, LANE_WIDTH*1.5]
+            end_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
+            start_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER-1)]
             for start_offset in start_offsets:
                 for end_offset in end_offsets:
                     control_point1 = start_offset, -CROSSROAD_SIZE/2
@@ -628,8 +651,8 @@ class ReferencePath(object):
 
         else:
             assert task == 'right'
-            end_offsets = [-LANE_WIDTH*0.5, -LANE_WIDTH*1.5, -LANE_WIDTH*2.5]
-            start_offsets = [LANE_WIDTH*2.5]
+            end_offsets = [-LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
+            start_offsets = [LANE_WIDTH*(LANE_NUMBER-0.5)]
 
             for start_offset in start_offsets:
                 for end_offset in end_offsets:
@@ -730,17 +753,25 @@ class ReferencePath(object):
                                                       deal_with_phi_diff(ego_phis - ref_point[2]),
                                                       ego_vs - self.exp_v], 1)
                                             for ref_point in all_ref], 1)
+            final = None
         else:
             indexs, current_points = self.find_closest_point(ego_xs, ego_ys)
             # print('Index:', indexs.numpy(), 'points:', current_points[:])
             n_future_data = self.future_n_data(indexs, n)
-            all_ref = [current_points] + n_future_data
 
-            tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
-                                                  deal_with_phi_diff(ego_phis - ref_point[2]),
-                                                  ego_vs - self.exp_v], 1)
-                                        for ref_point in all_ref], 1)
-        return tracking_error
+            tracking_error = tf.stack([two2one(current_points[0], current_points[1]),
+                                               deal_with_phi_diff(ego_phis - current_points[2]),
+                                               ego_vs - self.exp_v], 1)
+
+            final = tracking_error
+            if n > 0:
+                future_points = tf.concat([tf.stack([ref_point[0] - ego_xs,
+                                                     ref_point[1] - ego_ys,
+                                                     deal_with_phi_diff(ego_phis - ref_point[2])], 1)
+                                           for ref_point in n_future_data], 1)
+                final = tf.concat([final, future_points], 1)
+
+        return final
 
     def plot_path(self, x, y):
         plt.axis('equal')
@@ -780,7 +811,7 @@ def test_tracking_error_vector():
     phis = np.array([90, 135, 135, 180], np.float32)
     vs = np.array([10, 12, 10, 10], np.float32)
 
-    tracking_error_vector = path.tracking_error_vector(xs, ys, phis, vs, 0)
+    tracking_error_vector = path.tracking_error_vector(xs, ys, phis, vs, 10)
     print(tracking_error_vector)
 
 
@@ -807,5 +838,120 @@ def test_model():
         model.render()
 
 
+def test_tf_function():
+    class Test2():
+        def __init__(self):
+            self.c = 2
+
+        def step1(self, a):
+            print('trace')
+            self.c = a
+
+        def step2(self):
+            return self.c
+
+    test2 = Test2()
+
+    @tf.function#(input_signature=(tf.TensorSpec(shape=[None], dtype=tf.int32),))
+    def f(a):
+        test2.step1(a)
+        return test2.step2()
+
+    print(f(2), type(test2.c))
+    print(f(2), test2.c)
+
+    print(f(tf.constant(2)), type(test2.c))
+    print(f(tf.constant(3)), test2.c)
+
+    # print(f(2), test2.c)
+    # print(f(3), test2.c)
+    # print(f(2), test2.c)
+    # print(f())
+    # print(f())
+    #
+    # test2.c.assign_add(12)
+    # print(test2.c)
+    # print(f())
+
+
+
+
+
+    # b= test2.create_test1(1)
+    # print(test2.b,b, test2.b.a)
+    # b=test2.create_test1(2)
+    # print(test2.b,b,test2.b.a)
+    # b=test2.create_test1(1)
+    # print(test2.b,b,test2.b.a)
+    # test2.create_test1(1)
+    # test2.pc()
+    # test2.create_test1(1)
+    # test2.pc()
+@tf.function
+def test_tffunc(inttt):
+    print(22)
+    if inttt=='1':
+        a = 2
+    elif inttt == '2':
+        a = 233
+    else:
+        a=22
+    return a
+
+def test_ref():
+    import numpy as np
+    import matplotlib.pyplot as plt
+    # ref = ReferencePath('left')
+    # path1, path2, path3 = ref.path_list
+    # path1, path2, path3 = [ite[1200:-1200] for ite in path1],\
+    #                       [ite[1200:-1200] for ite in path2], \
+    #                       [ite[1200:-1200] for ite in path3]
+    # x1, y1, phi1 = path1
+    # x2, y2, phi2 = path2
+    # x3, y3, phi3 = path3
+    # p1, p2, p3 = np.arctan2(y1-(-CROSSROAD_SIZE/2), x1 - (-CROSSROAD_SIZE/2)), \
+    #              np.arctan2(y2 - (-CROSSROAD_SIZE / 2), x2 - (-CROSSROAD_SIZE / 2)), \
+    #              np.arctan2(y3 - (-CROSSROAD_SIZE / 2), x3 - (-CROSSROAD_SIZE / 2))
+    # d1, d2, d3 = np.sqrt(np.square(x1-(-CROSSROAD_SIZE/2))+np.square(y1-(-CROSSROAD_SIZE/2))),\
+    #              np.sqrt(np.square(x2-(-CROSSROAD_SIZE/2))+np.square(y2-(-CROSSROAD_SIZE/2))),\
+    #              np.sqrt(np.square(x3-(-CROSSROAD_SIZE/2))+np.square(y3-(-CROSSROAD_SIZE/2)))
+    #
+    # plt.plot(p1, d1, 'r')
+    # plt.plot(p2, d2, 'g')
+    # plt.plot(p3, d3, 'b')
+    # z1 = np.polyfit(p1, d1, 3, rcond=None, full=False, w=None, cov=False)
+    # p1_fit = np.poly1d(z1)
+    # plt.plot(p1, p1_fit(p1), 'r*')
+    #
+    # z2 = np.polyfit(p2, d2, 3, rcond=None, full=False, w=None, cov=False)
+    # p2_fit = np.poly1d(z2)
+    # plt.plot(p2, p2_fit(p2), 'g*')
+    #
+    # z3 = np.polyfit(p3, d3, 3, rcond=None, full=False, w=None, cov=False)
+    # p3_fit = np.poly1d(z3)
+    # plt.plot(p3, p3_fit(p3), 'b*')
+
+    ref = ReferencePath('straight')
+    path1, path2, path3, path4, path5, path6 = ref.path_list
+    path1, path2, path3 = [ite[1200:-1200] for ite in path1], \
+                          [ite[1200:-1200] for ite in path2], \
+                          [ite[1200:-1200] for ite in path3]
+    x1, y1, phi1 = path1
+    x2, y2, phi2 = path2
+    x3, y3, phi3 = path3
+
+    plt.plot(y1, x1, 'r')
+    plt.plot(y2, x2, 'g')
+    plt.plot(y3, x3, 'b')
+    z1 = np.polyfit(y1, x1, 3, rcond=None, full=False, w=None, cov=False)
+    print(type(list(z1)))
+    p1_fit = np.poly1d(z1)
+    print(z1, p1_fit)
+    plt.plot(y1, p1_fit(y1), 'r*')
+    plt.show()
+
+
 if __name__ == '__main__':
-    test_model()
+    test_ref()
+
+
