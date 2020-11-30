@@ -112,6 +112,67 @@ class EnvironmentModel(object):  # all tensors
 
         return self.obses, rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real
 
+    def safety_calculation(self, obs, actions):
+        # judge collision
+        actions = self._action_transformation_for_end2end(actions)
+        obs_next = self.compute_next_obses(obs, actions)  # for relative state
+        obs_next = self.convert_vehs_to_abso(obs_next)    # for absolute state
+        with tf.name_scope('compute_reward') as scope:
+            ego_infos, tracking_infos, veh_infos = obs_next[:, :self.ego_info_dim], \
+                                                   obs_next[:,
+                                                   self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
+                                                               self.num_future_data + 1)], \
+                                                   obs_next[:, self.ego_info_dim + self.per_tracking_info_dim * (
+                                                               self.num_future_data + 1):]
+            # rewards related to veh2veh collision
+            ego_lws = (L - W) / 2.
+            ego_front_points = tf.cast(ego_infos[:, 3] + ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32), \
+                               tf.cast(ego_infos[:, 4] + ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
+            ego_rear_points = tf.cast(ego_infos[:, 3] - ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32), \
+                              tf.cast(ego_infos[:, 4] - ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
+            veh2veh4real = tf.zeros_like(veh_infos[:, 0])
+            veh2veh4training = tf.zeros_like(veh_infos[:, 0])
+
+            for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
+                vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
+                veh_lws = (L - W) / 2.
+                veh_front_points = tf.cast(vehs[:, 0] + veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
+                                   tf.cast(vehs[:, 1] + veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
+                veh_rear_points = tf.cast(vehs[:, 0] - veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
+                                  tf.cast(vehs[:, 1] - veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
+                for ego_point in [ego_front_points, ego_rear_points]:
+                    for veh_point in [veh_front_points, veh_rear_points]:
+                        veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
+                        veh2veh4training += tf.where(veh2veh_dist-3.5 < 0, tf.square(veh2veh_dist-3.5), tf.zeros_like(veh_infos[:, 0]))
+                        veh2veh4real += tf.where(veh2veh_dist-2.5 < 0, tf.square(veh2veh_dist-2.5), tf.zeros_like(veh_infos[:, 0]))
+
+            # veh2road4real = tf.zeros_like(veh_infos[:, 0])
+            # veh2road4training = tf.zeros_like(veh_infos[:, 0])
+            # if self.task == 'left':
+            #     for ego_point in [ego_front_points, ego_rear_points]:
+            #         veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, ego_point[0] < 1),
+            #                              tf.square(ego_point[0]-1), tf.zeros_like(veh_infos[:, 0]))
+            #         veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, LANE_WIDTH-ego_point[0] < 1),
+            #                              tf.square(LANE_WIDTH-ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
+            #         veh2road4training += tf.where(logical_and(ego_point[0] < 0, LANE_WIDTH*LANE_NUMBER - ego_point[1] < 1),
+            #                              tf.square(LANE_WIDTH*LANE_NUMBER - ego_point[1] - 1), tf.zeros_like(veh_infos[:, 0]))
+            #         veh2road4training += tf.where(logical_and(ego_point[0] < -CROSSROAD_SIZE/2, ego_point[1] - 0 < 1),
+            #                              tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
+            #
+            #         veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, ego_point[0] < 1),
+            #                              tf.square(ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
+            #         veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, LANE_WIDTH - ego_point[0] < 1),
+            #                              tf.square(LANE_WIDTH - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
+            #         veh2road4real += tf.where(logical_and(ego_point[0] < -CROSSROAD_SIZE/2, LANE_WIDTH*LANE_NUMBER - ego_point[1] < 1),
+            #                              tf.square(LANE_WIDTH*LANE_NUMBER - ego_point[1] - 1), tf.zeros_like(veh_infos[:, 0]))
+            #         veh2road4real += tf.where(logical_and(ego_point[0] < -CROSSROAD_SIZE/2, ego_point[1] - 0 < 1),
+            #                              tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
+
+            # punish_term_for_training = veh2veh4training + veh2road4training
+            # real_punish_term = veh2veh4real + veh2road4real
+
+        return veh2veh4real
+
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]

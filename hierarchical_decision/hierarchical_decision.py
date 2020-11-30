@@ -55,6 +55,26 @@ class HierarchicalDecision(object):
             path_index = np.argmin(collision_risk)
         return path_index
 
+    def safe_sheild(self, obs, traj, action):
+        action_bound = 1.05
+        action_safe_set = ([[-action_bound, -action_bound]], [[-action_bound, action_bound]], [[action_bound, -action_bound]],
+                           [[action_bound, action_bound]])
+        obs = tf.convert_to_tensor(obs[np.newaxis, :])
+        self.model.add_traj(obs, traj)
+        veh2veh4real = self.model.safety_calculation(obs, action)
+        if veh2veh4real != 0:
+            print('original action will cause collision at next step!!!')
+            for safe_action in action_safe_set:
+                veh2veh4real = self.model.safety_calculation(obs, safe_action)
+                if veh2veh4real == 0:
+                    break
+                else:
+                    print('still collide')
+                    safe_action = action.numpy().squeeze(0)
+        else:
+            safe_action = action.numpy().squeeze(0)
+        return safe_action
+
     def step(self,):
         start_time = time.time()
         traj_list, feature_points = self.stg.generate_traj(self.task, self.obs)
@@ -69,7 +89,7 @@ class HierarchicalDecision(object):
             start_time = time.time()
             tracking, collision = self.virtual_rollout(obs)
             end_time = time.time()
-            print('rollout time:', end_time-start_time)
+            # print('rollout time:', end_time-start_time)
             traj_return.append([tracking.numpy().squeeze().tolist(), collision.numpy().squeeze().tolist()])
 
         traj_return = np.array(traj_return, dtype=np.float32)
@@ -78,8 +98,10 @@ class HierarchicalDecision(object):
         self.env.set_traj(traj_list[path_index])
         self.obs_real = self.env._get_obs(func='tracking')
 
-        action = self.policy.run(self.obs_real)
-        self.obs, r, done, info = self.env.step(action)
+        action = self.policy.run(self.obs_real[np.newaxis, :])
+        # add the safe_action
+        safe_action = self.safe_sheild(self.obs_real, traj_list[path_index], action)
+        self.obs, r, done, info = self.env.step(safe_action)
         return done
 
 
