@@ -639,15 +639,19 @@ class ReferencePath(object):
                     self.path_list.append(planed_trj)
                     self.path_len_list.append((sl * meter_pointnum_ratio, len(trj_data[0]), len(xs_1)))
 
-    def find_closest_point(self, xs, ys):
-        xs_tile = tf.tile(tf.reshape(xs, (-1, 1)), tf.constant([1, len(self.path[0])]))
-        ys_tile = tf.tile(tf.reshape(ys, (-1, 1)), tf.constant([1, len(self.path[0])]))
-        pathx_tile = tf.tile(tf.reshape(self.path[0], (1, -1)), tf.constant([len(xs), 1]))
-        pathy_tile = tf.tile(tf.reshape(self.path[1], (1, -1)), tf.constant([len(xs), 1]))
+    def find_closest_point(self, xs, ys, ratio=10):
+        path_len = len(self.path[0])
+        reduced_idx = np.arange(0, path_len, ratio)
+        reduced_len = len(reduced_idx)
+        reduced_path_x, reduced_path_y = self.path[0][reduced_idx], self.path[1][reduced_idx]
+        xs_tile = tf.tile(tf.reshape(xs, (-1, 1)), tf.constant([1, reduced_len]))
+        ys_tile = tf.tile(tf.reshape(ys, (-1, 1)), tf.constant([1, reduced_len]))
+        pathx_tile = tf.tile(tf.reshape(reduced_path_x, (1, -1)), tf.constant([len(xs), 1]))
+        pathy_tile = tf.tile(tf.reshape(reduced_path_y, (1, -1)), tf.constant([len(xs), 1]))
 
         dist_array = tf.square(xs_tile - pathx_tile) + tf.square(ys_tile - pathy_tile)
 
-        indexs = tf.argmin(dist_array, 1)
+        indexs = tf.argmin(dist_array, 1) * ratio
         return indexs, self.indexs2points(indexs)
 
     def future_n_data(self, current_indexs, n):
