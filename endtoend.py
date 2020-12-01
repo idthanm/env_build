@@ -485,6 +485,7 @@ class CrossroadEnd2end(gym.Env):
         else:
             random_index = int(np.random.random()*(420+500)) + 700
 
+        random_index = 900
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 8 * np.random.random()
@@ -593,7 +594,7 @@ class CrossroadEnd2end(gym.Env):
 
         return reward.numpy(), reward_dict
 
-    def render(self, traj_list, traj_return, path_index, feature_points=None, mode='human'):
+    def render(self, traj_list=None, traj_return=None, path_index=None, feature_points=None, mode='human'):
         if mode == 'human':
             # plot basic map
             square_length = CROSSROAD_SIZE

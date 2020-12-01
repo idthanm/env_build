@@ -10,7 +10,6 @@ from dynamics_and_models import ReferencePath
 import numpy as np
 from math import pi, sqrt, sin, cos
 import bezier
-import matplotlib.pyplot as plt
 
 L, W = 4.8, 2.0
 LANE_WIDTH = 3.75
@@ -22,26 +21,28 @@ meter_pointnum_ratio = 30
 
 
 class StaticTrajectoryGenerator(object):
-    def __init__(self, task, state, mode, v_light=0):
+    def __init__(self, task, state, ref_index, mode, v_light=0):
         # state: [v_x, v_y, r, x, y, phi(°)]
         self.mode = mode
-        self.path_num = 3  # the number of static trajectories
+        self.path_num = 3                                # number of trajectories
         self.exp_v = 8.
-        self.N = 25
         self.order = [0 for _ in range(self.path_num)]
         self.task = task
         self.ego_info_dim = 6
         self.feature_points_all = self._future_points_init(self.task)
         self.state = state[:self.ego_info_dim]
-        self.ref_index = np.random.choice(list(range(self.path_num)))
-        self._future_point_choice(self.state)
-        self.construct_ref_path(self.task, self.state, v_light)
+        self.ref_index = ref_index
+        # self._future_point_choice(self.state)
+        # self.construct_ref_path(self.task, self.state, v_light)
 
     def generate_traj(self, task, state, v_light=0):
-        """"generate two reference trajectory in real time"""
+        """"generate reference trajectory in real time"""
         if self.mode == 'static_traj':
             self.path_list = []
             for path_index in range(self.path_num):
+                if self.task == 'straight':
+                    if self.ref_index > LANE_NUMBER - 1:
+                        path_index = path_index + 3
                 ref = ReferencePath(self.task)
                 ref.set_path(self.mode, path_index)
                 self.path_list.append(ref)
@@ -51,7 +52,7 @@ class StaticTrajectoryGenerator(object):
         return self.path_list, self.feature_points
 
     def _future_points_init(self, task):
-        feature_points = []
+        self.feature_points = []
         if task == 'left':
             self.end_offsets = [LANE_WIDTH * 0.5, LANE_WIDTH * 1.5, LANE_WIDTH * 2.5]
             start_offsets = [LANE_WIDTH * 0.5]
@@ -63,15 +64,35 @@ class StaticTrajectoryGenerator(object):
                     control_point4 = -sl - CROSSROAD_SIZE/2,  end_offset,                -pi
 
                     node = [control_point1, control_point2, control_point3, control_point4]
-                    feature_points.append(node)
+                    self.feature_points.append(node)
 
         elif task == 'right':
-            raise SystemExit('unfinished for right turn tasks!')
+            self.end_offsets = [-LANE_WIDTH * 0.5, -LANE_WIDTH * 1.5, -LANE_WIDTH * 2.5]
+            start_offsets = [LANE_WIDTH * 2.5]
+            for start_offset in start_offsets:
+                for end_offset in self.end_offsets:
+                    control_point1 = start_offset,      -CROSSROAD_SIZE/2,               0.5 * pi
+                    control_point2 = CROSSROAD_SIZE/2, end_offset,                      0.
+                    control_point3 = CROSSROAD_SIZE,   end_offset,                      0.
+                    control_point4 = sl + CROSSROAD_SIZE/2,  end_offset,                0.
+
+                    node = [control_point1, control_point2, control_point3, control_point4]
+                    self.feature_points.append(node)
 
         elif task == 'straight':
-            raise SystemExit('unfinished for right go straight tasks!')
+            self.end_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
+            start_offsets = [LANE_WIDTH * 1.5]
+            for start_offset in start_offsets:
+                for end_offset in self.end_offsets:
+                    control_point1 = start_offset, -CROSSROAD_SIZE/2,   0.5 * pi
+                    control_point2 = end_offset, CROSSROAD_SIZE/2,      0.5 * pi
+                    control_point3 = end_offset, CROSSROAD_SIZE,        0.5 * pi
+                    control_point4 = end_offset, CROSSROAD_SIZE/2 + sl, 0.5 * pi
 
-        return feature_points
+                    node = [control_point1, control_point2, control_point3, control_point4]
+                    self.feature_points.append(node)
+
+        return self.feature_points
 
     def _future_point_choice(self, state):
         # choose the forward feature points according to the current state
@@ -143,12 +164,6 @@ class StaticTrajectoryGenerator(object):
             else:                                           # the vehicle has arrived
                 end_line_x, end_line_y = [], []
             return end_line_x, end_line_y
-
-
-        if self.ref_index == 0:
-            self.new_point_bound = [0.16, 0.06]
-        else:
-            self.new_point_bound = [0.06, 0.16]
 
         self.path_list = []
         for path_index in range(0, self.path_num):

@@ -115,8 +115,8 @@ class EnvironmentModel(object):  # all tensors
     def safety_calculation(self, obs, actions):
         # judge collision
         actions = self._action_transformation_for_end2end(actions)
-        obs_next = self.compute_next_obses(obs, actions)  # for relative state
-        obs_next = self.convert_vehs_to_abso(obs_next)    # for absolute state
+        obs_next = self.compute_next_obses(obs, actions)           # for relative state
+        obs_next = self.convert_vehs_to_abso(obs_next)             # for absolute state
         with tf.name_scope('compute_reward') as scope:
             ego_infos, tracking_infos, veh_infos = obs_next[:, :self.ego_info_dim], \
                                                    obs_next[:,
