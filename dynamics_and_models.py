@@ -362,9 +362,9 @@ class EnvironmentModel(object):  # all tensors
         veh_ys_delta = veh_vs / self.base_frequency * tf.sin(veh_phis_rad)
 
         if mode in ['dl', 'rd', 'ur', 'lu']:
-            veh_phis_rad_delta = tf.where(middle_cond, (veh_vs / (CROSSROAD_SIZE/2+LANE_WIDTH/2)) / self.base_frequency, zeros)
+            veh_phis_rad_delta = tf.where(middle_cond, (veh_vs / (CROSSROAD_SIZE/2+0.5*LANE_WIDTH)) / self.base_frequency, zeros)
         elif mode in ['dr', 'ru', 'ul', 'ld']:
-            veh_phis_rad_delta = tf.where(middle_cond, -(veh_vs / (CROSSROAD_SIZE/2-2.5*LANE_WIDTH/2)) / self.base_frequency, zeros)
+            veh_phis_rad_delta = tf.where(middle_cond, -(veh_vs / (CROSSROAD_SIZE/2-2.5*LANE_WIDTH)) / self.base_frequency, zeros)
         else:
             veh_phis_rad_delta = zeros
         next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis_rad = \

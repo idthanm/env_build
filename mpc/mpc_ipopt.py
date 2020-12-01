@@ -174,10 +174,10 @@ class Dynamics(object):
         veh_y_delta = veh_v * self.tau * math.sin(veh_phis_rad)
 
         if mode in ['dl', 'rd', 'ur', 'lu']:
-            veh_phi_rad_delta = (veh_v / (CROSSROAD_SIZE/2+LANE_WIDTH/2)) * self.tau if -CROSSROAD_SIZE/2 < veh_x < CROSSROAD_SIZE/2 \
+            veh_phi_rad_delta = (veh_v / (CROSSROAD_SIZE/2+0.5*LANE_WIDTH)) * self.tau if -CROSSROAD_SIZE/2 < veh_x < CROSSROAD_SIZE/2 \
                                                              and -CROSSROAD_SIZE/2 < veh_y < CROSSROAD_SIZE/2 else 0
         elif mode in ['dr', 'ru', 'ul', 'ld']:
-            veh_phi_rad_delta = -(veh_v / (CROSSROAD_SIZE/2-2.5*LANE_WIDTH/2)) * self.tau if -CROSSROAD_SIZE/2 < veh_x < CROSSROAD_SIZE/2 \
+            veh_phi_rad_delta = -(veh_v / (CROSSROAD_SIZE/2-2.5*LANE_WIDTH)) * self.tau if -CROSSROAD_SIZE/2 < veh_x < CROSSROAD_SIZE/2 \
                                                                 and -CROSSROAD_SIZE/2 < veh_y < CROSSROAD_SIZE/2 else 0
         else:
             veh_phi_rad_delta = 0
