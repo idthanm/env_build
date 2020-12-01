@@ -267,28 +267,18 @@ class EnvironmentModel(object):  # all tensors
                                                                       self.num_future_data)
         else:
             # next_tracking_infos = self.tracking_error_predict(ego_infos, tracking_infos, actions)
-            self.ref_path.path = self.ref_path.path_list[0]
-            next_tracking_info0 = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
-                                                                      next_ego_infos[:, 4],
-                                                                      next_ego_infos[:, 5],
-                                                                      next_ego_infos[:, 0],
-                                                                      self.num_future_data)
-            self.ref_path.path = self.ref_path.path_list[1]
-            next_tracking_info1 = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
-                                                                      next_ego_infos[:, 4],
-                                                                      next_ego_infos[:, 5],
-                                                                      next_ego_infos[:, 0],
-                                                                      self.num_future_data)
-
-            self.ref_path.path = self.ref_path.path_list[2]
-            next_tracking_info2 = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
-                                                                      next_ego_infos[:, 4],
-                                                                      next_ego_infos[:, 5],
-                                                                      next_ego_infos[:, 0],
-                                                                      self.num_future_data)
+            next_tracking_infos = tf.zeros(shape=(len(next_ego_infos),
+                                                  (self.num_future_data+1)*self.per_tracking_info_dim))
             ref_indexes = tf.expand_dims(self.ref_indexes, axis=1)
-            next_tracking_infos = tf.where(ref_indexes == 0, next_tracking_info0,
-                                           tf.where(ref_indexes == 1, next_tracking_info1, next_tracking_info2))
+            for ref_idx, path in enumerate(self.ref_path.path_list):
+                self.ref_path.path = path
+                tracking_info_4_this_ref_idx = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
+                                                                                   next_ego_infos[:, 4],
+                                                                                   next_ego_infos[:, 5],
+                                                                                   next_ego_infos[:, 0],
+                                                                                   self.num_future_data)
+                next_tracking_infos = tf.where(ref_indexes == ref_idx, tracking_info_4_this_ref_idx,
+                                               next_tracking_infos)
 
         next_veh_infos = self.veh_predict(veh_infos)
         next_obses = tf.concat([next_ego_infos, next_tracking_infos, next_veh_infos], 1)
@@ -489,16 +479,6 @@ class EnvironmentModel(object):  # all tensors
 
             plot_phi_line(ego_x, ego_y, ego_phi, 'red')
             draw_rotate_rec(ego_x, ego_y, ego_phi, L, W, 'red')
-
-            # plot planed trj
-            # ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
-            # indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32),
-            #                                                   np.array([ego_y], np.float32))
-            # path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-            # delta_x, delta_y, delta_phi, delta_v = tracing_info[:4]
-            # # delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
-            # plt.plot(path_x, path_y, 'go')
-            # plot_phi_line(path_x, path_y, path_phi, 'g')
 
             # plot text
             text_x, text_y_start = -110, 60
