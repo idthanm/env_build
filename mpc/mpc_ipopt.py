@@ -152,7 +152,7 @@ class Dynamics(object):
                     self.fit_y1_para[2] * fit_x + self.fit_y1_para[3]
             ref_phi = self.fit_y2_para[0] * power(fit_x, 3) + self.fit_y2_para[1] * power(fit_x, 2) + \
                       self.fit_y2_para[2] * fit_x + self.fit_y2_para[3]
-            d = sqrt(power(x - (-CROSSROAD_SIZE / 2), 2) + power(y - (-CROSSROAD_SIZE / 2), 2))
+            d = sqrt(power(x - (CROSSROAD_SIZE / 2), 2) + power(y - (-CROSSROAD_SIZE / 2), 2))
             out3 = [d - ref_d, deal_with_phi_casa(phi - ref_phi), v_x - self.exp_v]
             return [if_else(y < -CROSSROAD_SIZE / 2, out1[0], if_else(x > CROSSROAD_SIZE / 2, out2[0], out3[0])),
                     if_else(y < -CROSSROAD_SIZE / 2, out1[1], if_else(x > CROSSROAD_SIZE / 2, out2[1], out3[1])),
@@ -243,12 +243,13 @@ class Dynamics(object):
 
 
 class ModelPredictiveControl(object):
-    def __init__(self, horizon):
+    def __init__(self, horizon, task, num_future_data, ref_index):
         self.horizon = horizon
         self.base_frequency = 10.
-        self.num_future_data = 0
+        self.num_future_data = num_future_data
         self.exp_v = 8.
-        self.task = 'left'
+        self.task = task
+        self.ref_index = ref_index
         self.veh_mode_list = VEHICLE_MODE_LIST[self.task]
         self.DYNAMICS_DIM = 9
         self.ACTION_DIM = 2
@@ -258,8 +259,9 @@ class ModelPredictiveControl(object):
                          'ipopt.sb': 'yes',
                          'print_time': 0}
 
-    def mpc_solver(self, x_init, XO, num_future_data, ref_index):
-        self.dynamics = Dynamics(x_init, num_future_data, ref_index, self.task, self.exp_v, 1 / self.base_frequency, self.veh_mode_list)
+    def mpc_solver(self, x_init, XO):
+        self.dynamics = Dynamics(x_init, self.num_future_data, self.ref_index, self.task,
+                                 self.exp_v, 1 / self.base_frequency, self.veh_mode_list)
 
         x = SX.sym('x', self.DYNAMICS_DIM)
         u = SX.sym('u', self.ACTION_DIM)
@@ -469,11 +471,12 @@ def plot_mpc_rl(file_dir, mpc_name):
 
 
 def run_mpc():
-    horizon_list = [25]
+    horizon = 25
+    task = 'right'
     num_future_data = 0
-    done = 0
+    num_simu = 1
     mpc_timer, rl_timer = TimerStat(), TimerStat()
-    env4mpc = gym.make('CrossroadEnd2end-v0', training_task='left', num_future_data=num_future_data)
+    env4mpc = gym.make('CrossroadEnd2end-v0', training_task=task, num_future_data=num_future_data)
     # env4rl = gym.make('CrossroadEnd2end-v0', num_future_data=0)
 
     # rl_policy = LoadPolicy(rl_load_dir, rl_ite)
@@ -486,54 +489,50 @@ def run_mpc():
         out = np.concatenate((ego_infos, tracking_infos, vehs_abso), axis=0)
         return out
 
-    for horizon in horizon_list:
-        for i in range(1):
-            data2plot = []
-            obs = env4mpc.reset()
-            ref_index = env4mpc.ref_path.ref_index
-            # obs4rl = env4rl.reset(init_obs=obs)
-            mpc = ModelPredictiveControl(horizon)
-            rew, rew4rl = 0., 0.
-            state_all = np.array((list(obs[:6+3*(1+num_future_data)]) + [0, 0]) * horizon + list(obs[:6+3*(1+num_future_data)])).reshape((-1, 1))
-            for _ in range(100):
-                with mpc_timer:
-                    state, control, state_all, g_all = mpc.mpc_solver(list(convert_vehs_to_abso(obs)),
-                                                                      state_all,
-                                                                      num_future_data,
-                                                                      ref_index)
-                if any(g_all < -1):
-                    print('optimization fail')
-                    mpc_action = np.array([0., -1.])
-                    state_all = np.array((list(obs[:9]) + [0, 0]) * horizon + list(obs[:9])).reshape((-1, 1))
-                else:
-                    state_all = np.array((list(obs[:9]) + [0, 0]) * horizon + list(obs[:9])).reshape((-1, 1))
-                    # np.zeros(shape=(11*horizon+9, 1))
-                    mpc_action = control[0]
-                # with rl_timer:
-                #     rl_action_mpc = rl_policy.run(obs).numpy()[0]
-                #     rl_action = rl_policy.run(obs4rl).numpy()[0]
+    for i in range(num_simu):
+        data2plot = []
+        obs = env4mpc.reset()
+        ref_index = env4mpc.ref_path.ref_index
+        # obs4rl = env4rl.reset(init_obs=obs, ref_index=ref_index)
+        mpc = ModelPredictiveControl(horizon, task, num_future_data, ref_index)
+        rew, rew4rl = 0., 0.
+        state_all = np.array((list(obs[:6+3*(1+num_future_data)]) + [0, 0]) * horizon + list(obs[:6+3*(1+num_future_data)])).reshape((-1, 1))
+        for _ in range(100):
+            with mpc_timer:
+                state, control, state_all, g_all = mpc.mpc_solver(list(convert_vehs_to_abso(obs)), state_all,)
+            if any(g_all < -1):
+                print('optimization fail')
+                mpc_action = np.array([0., -1.])
+                state_all = np.array((list(obs[:9]) + [0, 0]) * horizon + list(obs[:9])).reshape((-1, 1))
+            else:
+                state_all = np.array((list(obs[:9]) + [0, 0]) * horizon + list(obs[:9])).reshape((-1, 1))
+                # np.zeros(shape=(11*horizon+9, 1))
+                mpc_action = control[0]
+            # with rl_timer:
+            #     rl_action_mpc = rl_policy.run(obs).numpy()[0]
+            #     rl_action = rl_policy.run(obs4rl).numpy()[0]
 
-                data2plot.append(dict(mpc_obs=obs,
-                                      # rl_obs=obs4rl,
-                                      mpc_action=mpc_action,
-                                      # rl_action=rl_action,
-                                      # rl_action_mpc=rl_action_mpc,
-                                      mpc_time=mpc_timer.mean,
-                                      # rl_time=rl_timer.mean,
-                                      mpc_rew=rew,
-                                      # rl_rew=rew4rl[0],
-                                      )
-                                 )
+            data2plot.append(dict(mpc_obs=obs,
+                                  # rl_obs=obs4rl,
+                                  mpc_action=mpc_action,
+                                  # rl_action=rl_action,
+                                  # rl_action_mpc=rl_action_mpc,
+                                  mpc_time=mpc_timer.mean,
+                                  # rl_time=rl_timer.mean,
+                                  mpc_rew=rew,
+                                  # rl_rew=rew4rl[0],
+                                  )
+                             )
 
-                mpc_action = mpc_action.astype(np.float32)
-                obs, rew, _, _ = env4mpc.step(mpc_action)
-                # obs4rl, rew4rl, _, _ = env4rl.step(np.array([rl_action]))
-                env4mpc.render()
-                plt.plot([state[i][3] for i in range(1, horizon - 1)], [state[i][4] for i in range(1, horizon - 1)],
-                         'r*')
-                plt.show()
-                plt.pause(0.001)
-            np.save('mpc_rl.npy', np.array(data2plot))
+            mpc_action = mpc_action.astype(np.float32)
+            obs, rew, _, _ = env4mpc.step(mpc_action)
+            # obs4rl, rew4rl, _, _ = env4rl.step(np.array([rl_action]))
+            env4mpc.render()
+            plt.plot([state[i][3] for i in range(1, horizon - 1)], [state[i][4] for i in range(1, horizon - 1)],
+                     'r*')
+            plt.show()
+            plt.pause(0.001)
+        np.save('mpc_rl.npy', np.array(data2plot))
 
 
 if __name__ == '__main__':

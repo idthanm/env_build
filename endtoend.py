@@ -47,12 +47,13 @@ class CrossroadEnd2end(gym.Env):
     def __init__(self,
                  training_task,  # 'left', 'straight', 'right'
                  num_future_data=0,
-                 display=False):
+                 display=False,
+                 **kwargs):
         metadata = {'render.modes': ['human']}
         self.dynamics = VehicleDynamics()
         self.interested_vehs = None
         self.training_task = training_task
-        self.ref_path = ReferencePath(self.training_task)
+        self.ref_path = ReferencePath(self.training_task, **kwargs)
         self.detected_vehicles = None
         self.all_vehicles = None
         self.ego_dynamics = None
@@ -94,7 +95,7 @@ class CrossroadEnd2end(gym.Env):
         return [seed]
 
     def reset(self, **kwargs):  # kwargs include three keys
-        self.ref_path = ReferencePath(self.training_task)
+        self.ref_path = ReferencePath(self.training_task, **kwargs)
         self.init_state = self._reset_init_state()
         self.traffic.init_traffic(self.init_state)
         self.traffic.sim_step()

@@ -539,7 +539,7 @@ def deal_with_phi_diff(phi_diff):
 
 
 class ReferencePath(object):
-    def __init__(self, task, mode=None):
+    def __init__(self, task, mode=None, ref_index=None):
         self.mode = mode
         self.traj_mode = None
         self.exp_v = 8.
@@ -547,7 +547,7 @@ class ReferencePath(object):
         self.path_list = []
         self.path_len_list = []
         self._construct_ref_path(self.task)
-        self.ref_index = np.random.choice(len(self.path_list))
+        self.ref_index = np.random.choice(len(self.path_list)) if ref_index is None else ref_index
         self.path = self.path_list[self.ref_index]
 
     def set_path(self, traj_mode, path_index=None, path=None):
