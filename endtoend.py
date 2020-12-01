@@ -21,7 +21,7 @@ from gym.utils import seeding
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath
 from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination, deal_with_phi, \
-    L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT
+    L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, VEH_NUM
 from traffic import Traffic
 
 warnings.filterwarnings("ignore")
@@ -83,6 +83,7 @@ class CrossroadEnd2end(gym.Env):
         self.obs = None
         self.action = None
         self.veh_mode_dict = VEHICLE_MODE_DICT[self.training_task]
+        self.veh_num = VEH_NUM[self.training_task]
 
         self.done_type = 'not_done_yet'
         self.reward_info = None

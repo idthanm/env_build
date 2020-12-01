@@ -29,6 +29,17 @@ def dict2flat(inp):
     return out
 
 
+def dict2num(inp):
+    out = 0
+    for _, val in inp.items():
+        out += val
+    return out
+
+
+VEH_NUM = dict(left=dict2num(VEHICLE_MODE_DICT['left']),
+               straight=dict2num(VEHICLE_MODE_DICT['straight']),
+               right=dict2num(VEHICLE_MODE_DICT['right']))
+
 VEHICLE_MODE_LIST = dict(left=dict2flat(VEHICLE_MODE_DICT['left']),
                          straight=dict2flat(VEHICLE_MODE_DICT['straight']),
                          right=dict2flat(VEHICLE_MODE_DICT['right']))
