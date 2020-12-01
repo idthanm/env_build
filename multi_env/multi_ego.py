@@ -7,11 +7,8 @@
 # @FileName: multi_ego.py
 # =====================================
 
-import argparse
 import copy
-import json
 import os
-import tensorflow as tf
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,9 +17,7 @@ from endtoend import CrossroadEnd2end
 from endtoend_env_utils import rotate_coordination, cal_ego_info_in_transform_coordination, \
     cal_info_in_transform_coordination
 from traffic import Traffic
-from multi_env.policy import PolicyWithQs
-from multi_env.preprocessor import Preprocessor
-
+from utils.load_policy import LoadPolicy
 
 NAME2TASK = dict(DL='left', DU='straight', DR='right',
                  RD='left', RL='straight', RU='right',
@@ -30,30 +25,6 @@ NAME2TASK = dict(DL='left', DU='straight', DR='right',
                  LU='left', LR='straight', LD='right')
 ROTATE_ANGLE = dict(D=0, R=90, U=180, L=-90)
 dirname = os.path.dirname(__file__)
-
-
-class LoadPolicy(object):
-    def __init__(self, model_dir, iter):
-        parser = argparse.ArgumentParser()
-        params = json.loads(open(model_dir + '/config.json').read())
-        for key, val in params.items():
-            parser.add_argument("-" + key, default=val)
-        self.args = parser.parse_args()
-        env = CrossroadEnd2end(self.args.training_task, 0)
-        self.policy = PolicyWithQs(env.observation_space, env.action_space, self.args)
-        self.policy.load_weights(model_dir, iter)
-        self.preprocessor = Preprocessor(env.observation_space, self.args.obs_preprocess_type, self.args.reward_preprocess_type,
-                                         self.args.obs_scale_factor, self.args.reward_scale_factor,
-                                         gamma=self.args.gamma)
-        # self.preprocessor.load_params(load_dir)
-        self.run(env.reset())
-        env.close()
-
-    @tf.function
-    def run(self, obs):
-        processed_obs = self.preprocessor.tf_process_obses(tf.convert_to_tensor([obs]))
-        action, neglogp = self.policy.compute_action(processed_obs)
-        return action
 
 
 class MultiEgo(object):
@@ -97,7 +68,9 @@ class MultiEgo(object):
             self.n_ego_instance[egoID].v_light = v_light_trans
             obs = self.n_ego_instance[egoID]._get_obs(exit_=egoID[0])
             task = NAME2TASK[egoID[:2]]
-            logits = self.TASK2MODEL[task].run(obs).numpy()[0]
+            # select and safety shield -------------------
+            logits = self.TASK2MODEL[task].run(obs).numpy()
+            # select and safety shield -------------------
             action_trans = self.n_ego_instance[egoID]._action_transformation_for_end2end(logits)
             next_ego_state, next_ego_params = self.n_ego_instance[egoID]._get_next_ego_state(action_trans)
             next_ego_dynamics = self.n_ego_instance[egoID]._get_ego_dynamics(next_ego_state, next_ego_params)

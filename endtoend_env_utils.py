@@ -8,6 +8,7 @@
 # =====================================
 
 import math
+from collections import OrderedDict
 import os
 
 L, W = 4.8, 2.0
@@ -16,6 +17,21 @@ LANE_NUMBER = 3
 CROSSROAD_SIZE = 50
 dirname = os.path.dirname(__file__)
 SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
+VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=2, du=2, ud=4, ul=2),
+                         straight=OrderedDict(dl=1, du=2, ud=2, ru=2, ur=2),
+                         right=OrderedDict(dr=1, ur=2, lr=2))
+
+
+def dict2flat(inp):
+    out = []
+    for key, val in inp.items():
+        out.extend([key]*val)
+    return out
+
+
+VEHICLE_MODE_LIST = dict(left=dict2flat(VEHICLE_MODE_DICT['left']),
+                         straight=dict2flat(VEHICLE_MODE_DICT['straight']),
+                         right=dict2flat(VEHICLE_MODE_DICT['right']))
 # Things related to lane number: static path generation (which further influences obs initialization),
 # observation formulation (especially other vehicles selection and number), rewards formulation
 # other vehicle prediction

@@ -7,23 +7,18 @@
 # @FileName: mpc_ipopt.py
 # =====================================
 
-import argparse
-import json
+
 import math
 
 import gym
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import tensorflow as tf
 from casadi import *
 
-from endtoend import CrossroadEnd2end
-from endtoend_env_utils import CROSSROAD_SIZE, LANE_WIDTH, L, W
-from mpc.main import TimerStat
 from dynamics_and_models import ReferencePath
-from mpc.policy import Policy4Toyota
-from mpc.preprocessor import Preprocessor
+from endtoend_env_utils import CROSSROAD_SIZE, LANE_WIDTH, L, W, VEHICLE_MODE_LIST
+from mpc.main import TimerStat
 
 
 def deal_with_phi_casa(phi):
@@ -34,39 +29,6 @@ def deal_with_phi_casa(phi):
 def deal_with_phi(phi):
     phi = if_else(phi > 180, phi - 360, if_else(phi < -180, phi + 360, phi))
     return phi
-
-
-class LoadPolicy(object):
-    def __init__(self, exp_dir, iter):
-        model_dir = exp_dir + '/models'
-        parser = argparse.ArgumentParser()
-        params = json.loads(open(exp_dir + '/config.json').read())
-        for key, val in params.items():
-            parser.add_argument("-" + key, default=val)
-        self.args = parser.parse_args()
-        env = CrossroadEnd2end(training_task=self.args.env_kwargs_training_task,
-                               num_future_data=self.args.env_kwargs_num_future_data)
-        self.policy = Policy4Toyota(self.args)
-        self.policy.load_weights(model_dir, iter)
-        self.preprocessor = Preprocessor((self.args.obs_dim,), self.args.obs_preprocess_type, self.args.reward_preprocess_type,
-                                         self.args.obs_scale, self.args.reward_scale, self.args.reward_shift,
-                                         gamma=self.args.gamma)
-        # self.preprocessor.load_params(load_dir)
-        init_obs = env.reset()
-        self.run(init_obs)
-        self.values(init_obs)
-
-    @tf.function
-    def run(self, obs):
-        processed_obs = self.preprocessor.np_process_obses(obs)
-        action, logp = self.policy.compute_action(processed_obs[np.newaxis, :])
-        return action[0]
-
-    @tf.function
-    def values(self, obs):
-        processed_obs = self.preprocessor.np_process_obses(obs)
-        values = self.policy.compute_vs(processed_obs[np.newaxis, :])
-        return values[0]
 
 
 class VehicleDynamics(object):
@@ -168,6 +130,33 @@ class Dynamics(object):
             return [if_else(x < -CROSSROAD_SIZE/2, out1[0], if_else(y < -CROSSROAD_SIZE/2, out2[0], out3[0])),
                     if_else(x < -CROSSROAD_SIZE/2, out1[1], if_else(y < -CROSSROAD_SIZE/2, out2[1], out3[1])),
                     if_else(x < -CROSSROAD_SIZE/2, out1[2], if_else(y < -CROSSROAD_SIZE/2, out2[2], out3[2]))]
+        elif self.task == 'straight':
+            out1 = [-(x - self.start), deal_with_phi_casa(phi - 90.), v_x - self.exp_v]
+            out2 = [-(x - self.end), deal_with_phi_casa(phi - 90.), v_x - self.exp_v]
+            fit_x = y
+            ref_d = self.fit_y1_para[0] * power(fit_x, 3) + self.fit_y1_para[1] * power(fit_x, 2) + \
+                    self.fit_y1_para[2] * fit_x + self.fit_y1_para[3]
+            ref_phi = self.fit_y2_para[0] * power(fit_x, 3) + self.fit_y2_para[1] * power(fit_x, 2) + \
+                      self.fit_y2_para[2] * fit_x + self.fit_y2_para[3]
+            d = x
+            out3 = [-(d-ref_d), deal_with_phi_casa(phi-ref_phi), v_x-self.exp_v]
+            return [if_else(y < -CROSSROAD_SIZE/2, out1[0], if_else(y > CROSSROAD_SIZE/2, out2[0], out3[0])),
+                    if_else(y < -CROSSROAD_SIZE/2, out1[1], if_else(y > CROSSROAD_SIZE/2, out2[1], out3[1])),
+                    if_else(y < -CROSSROAD_SIZE/2, out1[2], if_else(y > CROSSROAD_SIZE/2, out2[2], out3[2]))]
+        else:
+            assert self.task == 'right'
+            out1 = [-(x - self.start), deal_with_phi_casa(phi - 90.), v_x - self.exp_v]
+            out2 = [y - self.end, deal_with_phi_casa(phi - 0.), v_x - self.exp_v]
+            fit_x = arctan2(y - (-CROSSROAD_SIZE / 2), x - (CROSSROAD_SIZE / 2))
+            ref_d = self.fit_y1_para[0] * power(fit_x, 3) + self.fit_y1_para[1] * power(fit_x, 2) + \
+                    self.fit_y1_para[2] * fit_x + self.fit_y1_para[3]
+            ref_phi = self.fit_y2_para[0] * power(fit_x, 3) + self.fit_y2_para[1] * power(fit_x, 2) + \
+                      self.fit_y2_para[2] * fit_x + self.fit_y2_para[3]
+            d = sqrt(power(x - (-CROSSROAD_SIZE / 2), 2) + power(y - (-CROSSROAD_SIZE / 2), 2))
+            out3 = [d - ref_d, deal_with_phi_casa(phi - ref_phi), v_x - self.exp_v]
+            return [if_else(y < -CROSSROAD_SIZE / 2, out1[0], if_else(x > CROSSROAD_SIZE / 2, out2[0], out3[0])),
+                    if_else(y < -CROSSROAD_SIZE / 2, out1[1], if_else(x > CROSSROAD_SIZE / 2, out2[1], out3[1])),
+                    if_else(y < -CROSSROAD_SIZE / 2, out1[2], if_else(x > CROSSROAD_SIZE / 2, out2[2], out3[2]))]
 
     def vehs_pred(self):
         predictions = []
@@ -260,13 +249,7 @@ class ModelPredictiveControl(object):
         self.num_future_data = 0
         self.exp_v = 8.
         self.task = 'left'
-        if self.task == 'left':
-            self.veh_mode_list = ['dl'] * 2 + ['du'] * 2 + ['ud'] * 4 + ['ul'] * 2
-        elif self.task == 'straight':
-            self.veh_mode_list = ['dl'] * 1 + ['du'] * 2 + ['ud'] * 1 + ['ru'] * 2 + ['ur'] * 2
-        else:
-            assert self.task == 'right'
-            self.veh_mode_list = ['dr'] * 1 + ['ur'] * 2 + ['lr'] * 2
+        self.veh_mode_list = VEHICLE_MODE_LIST[self.task]
         self.DYNAMICS_DIM = 9
         self.ACTION_DIM = 2
         self.dynamics = None
