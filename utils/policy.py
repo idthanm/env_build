@@ -7,11 +7,10 @@
 # @FileName: policy.py
 # =====================================
 
-import numpy as np
 import tensorflow as tf
 from tensorflow.keras.optimizers.schedules import PolynomialDecay
 
-from mpc.model import MLPNet
+from utils.model import MLPNet
 
 NAME2MODELCLS = dict([('MLP', MLPNet),])
 

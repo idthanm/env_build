@@ -100,9 +100,14 @@ class Traffic(object):
                                                 traci.constants.VAR_EDGES,
                                                 traci.constants.VAR_ROUTE_INDEX],
                                        0, 2147483647)
-        while traci.simulation.getTime() < 200:
-            if self.mode == "training":
-                traci.trafficlight.setPhase('0', self.training_light_phase)
+        while traci.simulation.getTime() < 100:
+            if traci.simulation.getTime() < 80:
+                traci.trafficlight.setPhase('0', 2)
+            else:
+                traci.trafficlight.setPhase('0', 0)
+
+            # if self.mode == "training":
+            #     traci.trafficlight.setPhase('0', self.training_light_phase)
             traci.simulationStep()
 
     def __del__(self):
