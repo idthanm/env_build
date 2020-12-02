@@ -542,7 +542,7 @@ class CrossroadEnd2end(gym.Env):
             for ego_point in [ego_front_points, ego_rear_points]:
                 for veh_point in [veh_front_points, veh_rear_points]:
                     veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
-                    veh2veh4training += tf.square(veh2veh_dist) if veh2veh_dist - 2.5 < 0 else 0
+                    veh2veh4training += tf.square(veh2veh_dist) if veh2veh_dist - 3.5 < 0 else 0
                     veh2veh4real += tf.square(veh2veh_dist) if veh2veh_dist - 2.5 < 0 else 0
 
         veh2road4training = tf.constant(0.)
