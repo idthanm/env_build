@@ -380,7 +380,7 @@ class CrossroadEnd2end(gym.Env):
                 elif start == name_setting['lo'] and end == name_setting['di']:
                     ld.append(v)
             if v_light != 0 and ego_y < -CROSSROAD_SIZE/2:
-                du.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0, phi=90, l=5, w=2.5, route=None))
+                dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0, phi=90, l=5, w=2.5, route=None))
                 du.append(dict(x=LANE_WIDTH*1.5, y=-CROSSROAD_SIZE/2, v=0, phi=90, l=5, w=2.5, route=None))
 
             # fetch veh in range
