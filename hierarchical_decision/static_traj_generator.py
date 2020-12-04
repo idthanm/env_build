@@ -35,9 +35,9 @@ class StaticTrajectoryGenerator(object):
         if self.mode == 'static_traj':
             self.path_list = []
             for path_index in range(self.path_num):
-                if task == 'straight':
-                    if self.ref_index > LANE_NUMBER - 1:
-                        path_index = path_index + 3
+                # if task == 'straight':
+                #     if self.ref_index > LANE_NUMBER - 1:
+                #         path_index = path_index + 3
                 ref = ReferencePath(task)
                 ref.set_path(self.mode, path_index)
                 self.path_list.append(ref)
