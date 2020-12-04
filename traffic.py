@@ -62,7 +62,7 @@ class Traffic(object):
             traci.start(
                 [SUMO_BINARY, "-c", SUMOCFG_DIR,
                  "--step-length", self.step_time_str,
-                 "--lateral-resolution", "1.25",
+                 "--lateral-resolution", "3.75",
                  "--random",
                  # "--start",
                  # "--quit-on-end",
@@ -130,13 +130,13 @@ class Traffic(object):
                                         depart=0, pos=20, lane=1, speed=ego_dict['v_x'],
                                         typeID='self_car')
             try:
-                traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=2)
+                traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=1)
             except traci.exceptions.TraCIException:
                 print('Don\'t worry, it\'s handled well')
                 traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
                                         depart=0, pos=20, lane=1, speed=ego_dict['v_x'],
                                         typeID='self_car')
-                traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=2)
+                traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=1)
 
             traci.vehicle.setLength(egoID, ego_dict['l'])
             traci.vehicle.setWidth(egoID, ego_dict['w'])
@@ -244,7 +244,7 @@ class Traffic(object):
             ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi,
                                                                                            self.n_ego_dict[egoID]['l'])
             egdeID, lane = xy2_edgeID_lane(ego_x, ego_y)
-            keeproute = 2
+            keeproute = 1
             # if self.training_task == 'left':  # TODO
             #     keeproute = 2 if ego_x > 0 and ego_y > -7 else 1
             try:
@@ -319,7 +319,7 @@ def test_traffic():
             # traffic.set_own_car(init_state)
             # traffic.sim_step()
         # init_state = _reset_init_state()
-        traffic.init_traffic(init_state)
+        # traffic.init_traffic(init_state)
         traffic.sim_step()
 
 
