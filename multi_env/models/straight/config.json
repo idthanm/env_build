@@ -8,8 +8,8 @@
     "off_policy": true,
     "env_id": "CrossroadEnd2end-v0",
     "env_kwargs_num_future_data": 0,
-    "env_kwargs_training_task": "right",
-    "obs_dim": 29,
+    "env_kwargs_training_task": "straight",
+    "obs_dim": 45,
     "act_dim": 2,
     "alg_name": "AMPC",
     "M": 1,
@@ -39,12 +39,12 @@
     "policy_lr_schedule": [
         3e-05,
         100000,
-        1e-05
+        3e-06
     ],
     "value_lr_schedule": [
         8e-05,
         100000,
-        1e-05
+        8e-06
     ],
     "num_hidden_layers": 2,
     "num_hidden_units": 256,
@@ -82,6 +82,22 @@
         0.03333333333333333,
         0.03333333333333333,
         0.2,
+        0.005555555555555556,
+        0.03333333333333333,
+        0.03333333333333333,
+        0.2,
+        0.005555555555555556,
+        0.03333333333333333,
+        0.03333333333333333,
+        0.2,
+        0.005555555555555556,
+        0.03333333333333333,
+        0.03333333333333333,
+        0.2,
+        0.005555555555555556,
+        0.03333333333333333,
+        0.03333333333333333,
+        0.2,
         0.005555555555555556
     ],
     "reward_preprocess_type": "scale",
@@ -97,9 +113,9 @@
     "eval_interval": 5000,
     "save_interval": 5000,
     "log_interval": 100,
-    "result_dir": "./results/toyota3lane/experiment-2020-12-04-10-53-05",
-    "log_dir": "./results/toyota3lane/experiment-2020-12-04-10-53-05/logs",
-    "model_dir": "./results/toyota3lane/experiment-2020-12-04-10-53-05/models",
+    "result_dir": "./results/toyota3lane/experiment-2020-12-02-19-58-51",
+    "log_dir": "./results/toyota3lane/experiment-2020-12-02-19-58-51/logs",
+    "model_dir": "./results/toyota3lane/experiment-2020-12-02-19-58-51/models",
     "model_load_dir": null,
     "model_load_ite": null,
     "ppc_load_dir": null

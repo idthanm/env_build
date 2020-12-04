@@ -72,7 +72,7 @@ class CrossroadEnd2end(gym.Env):
         self.init_state = self._reset_init_state()
         if not display:
             self.traffic = Traffic(self.step_length,
-                                   mode='training',
+                                   mode='display',
                                    init_n_ego_dict=self.init_state,
                                    training_task=self.training_task)
             self.reset()
@@ -483,7 +483,7 @@ class CrossroadEnd2end(gym.Env):
         else:
             random_index = int(np.random.random()*(420+500)) + 700
 
-        random_index = 900
+        random_index = 800
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 8 * np.random.random()
@@ -519,7 +519,6 @@ class CrossroadEnd2end(gym.Env):
         punish_yaw_rate = -tf.square(ego_infos[2])
 
         # rewards related to tracking error
-        # devi_v = -tf.cast(tf.square(ego_infos[0] - self.exp_v), dtype=tf.float32)
         devi_y = -tf.square(tracking_infos[0])
         devi_phi = -tf.cast(tf.square(tracking_infos[1] * np.pi / 180.), dtype=tf.float32)
         devi_v = -tf.square(tracking_infos[2])
@@ -836,21 +835,21 @@ class CrossroadEnd2end(gym.Env):
             draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'red')
 
             # plot future data
-            tracking_info = self.obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)]
-            future_path = tracking_info[self.per_tracking_info_dim:]
-            for i in range(self.num_future_data):
-                delta_x, delta_y, delta_phi = future_path[i*self.per_tracking_info_dim:
-                                                                     (i+1)*self.per_tracking_info_dim]
-                path_x, path_y, path_phi = ego_x+delta_x, ego_y+delta_y, ego_phi-delta_phi
-                plt.plot(path_x, path_y, 'g.')
-                plot_phi_line(path_x, path_y, path_phi, 'g')
+            # tracking_info = self.obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)]
+            # future_path = tracking_info[self.per_tracking_info_dim:]
+            # for i in range(self.num_future_data):
+            #     delta_x, delta_y, delta_phi = future_path[i*self.per_tracking_info_dim:
+            #                                                          (i+1)*self.per_tracking_info_dim]
+            #     path_x, path_y, path_phi = ego_x+delta_x, ego_y+delta_y, ego_phi-delta_phi
+            #     plt.plot(path_x, path_y, 'g.')
+            #     plot_phi_line(path_x, path_y, path_phi, 'g')
 
-            delta_, _, _ = tracking_info[:3]
-            # ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
-            indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
-            path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-            # plt.plot(path_x, path_y, 'g.')
-            delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
+            # delta_, _, _ = tracking_info[:3]
+            # # ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
+            # indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
+            # path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+            # # plt.plot(path_x, path_y, 'g.')
+            # delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
 
             # plot real time traj
             try:
@@ -878,12 +877,12 @@ class CrossroadEnd2end(gym.Env):
             plt.text(text_x, text_y_start - next(ge), 'ego_y: {:.2f}m'.format(ego_y))
             plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
             plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
-            plt.text(text_x, text_y_start - next(ge), 'delta_: {:.2f}m'.format(delta_))
-            plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
-            plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
-            plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
-            plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
-            plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
+            # plt.text(text_x, text_y_start - next(ge), 'delta_: {:.2f}m'.format(delta_))
+            # plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
+            # plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
+            # plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
+            # plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
+            # plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
 
             plt.text(text_x, text_y_start - next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
             plt.text(text_x, text_y_start - next(ge), 'exp_v: {:.2f}m/s'.format(self.exp_v))

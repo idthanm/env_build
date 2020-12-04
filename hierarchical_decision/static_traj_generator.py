@@ -4,7 +4,7 @@
 # =====================================
 # @Time    : 2020/10/12
 # @Author  : Yang Guan; Yangang Ren (Tsinghua Univ.)
-# @FileName: hierarchical_decision.py
+# @FileName: hier_decision.py
 # =====================================
 from dynamics_and_models import ReferencePath
 import numpy as np
@@ -21,37 +21,33 @@ meter_pointnum_ratio = 30
 
 
 class StaticTrajectoryGenerator(object):
-    def __init__(self, task, state, ref_index, mode, v_light=0):
+    def __init__(self, mode, ref_index=3, v_light=0):
         # state: [v_x, v_y, r, x, y, phi(°)]
         self.mode = mode
-        self.path_num = 3                                # number of trajectories
+        self.path_num = 3                                   # number of trajectories
         self.exp_v = 8.
         self.order = [0 for _ in range(self.path_num)]
-        self.task = task
         self.ego_info_dim = 6
-        self.feature_points_all = self._future_points_init(self.task)
-        self.state = state[:self.ego_info_dim]
         self.ref_index = ref_index
-        # self._future_point_choice(self.state)
-        # self.construct_ref_path(self.task, self.state, v_light)
 
-    def generate_traj(self, task, state, v_light=0):
+    def generate_traj(self, task, state=None, v_light=0):
         """"generate reference trajectory in real time"""
         if self.mode == 'static_traj':
             self.path_list = []
             for path_index in range(self.path_num):
-                if self.task == 'straight':
+                if task == 'straight':
                     if self.ref_index > LANE_NUMBER - 1:
                         path_index = path_index + 3
-                ref = ReferencePath(self.task)
+                ref = ReferencePath(task)
                 ref.set_path(self.mode, path_index)
                 self.path_list.append(ref)
         else:
-            self._future_point_choice(state)
+            self._future_point_choice(state, task)
             self.construct_ref_path(task, state, v_light)
-        return self.path_list, self.feature_points
+        return self.path_list, self._future_points_init(task)
 
     def _future_points_init(self, task):
+        """only correlated with tasks"""
         self.feature_points = []
         if task == 'left':
             self.end_offsets = [LANE_WIDTH * 0.5, LANE_WIDTH * 1.5, LANE_WIDTH * 2.5]
@@ -94,9 +90,10 @@ class StaticTrajectoryGenerator(object):
 
         return self.feature_points
 
-    def _future_point_choice(self, state):
+    def _future_point_choice(self, state, task):
         # choose the forward feature points according to the current state
         self.feature_points = []
+        self.feature_points_all = self._future_points_init(task)
         x, y, v, phi = state[3], state[4], state[0], state[5] / 180 * pi
         for i, item in enumerate(self.feature_points_all):
             if -CROSSROAD_SIZE/2 <= y:
@@ -107,7 +104,7 @@ class StaticTrajectoryGenerator(object):
                 else:
                     self.feature_points.append(list(item[3:]))
             else:
-                self.feature_points = self._future_points_init(self.task)
+                self.feature_points = self._future_points_init(task)
 
         # if distance is more than dist_bound, change the feature point priorly
         self.dist_bound = 4. * np.ones([self.path_num])
@@ -180,7 +177,7 @@ class StaticTrajectoryGenerator(object):
             phis_1 = np.arctan2(ys_2 - ys_1, xs_2 - xs_1) * 180 / pi
             planed_trj = xs_1, ys_1, phis_1
 
-            ref = ReferencePath(self.task)
+            ref = ReferencePath(task)
             ref.set_path(self.mode, path_index=path_index, path=planed_trj)
             self.path_list.append(ref)
 

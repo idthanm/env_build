@@ -169,9 +169,9 @@ class EnvironmentModel(object):  # all tensors
             #                              tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
 
             # punish_term_for_training = veh2veh4training + veh2road4training
-            # real_punish_term = veh2veh4real + veh2road4real
-
-        return veh2veh4real
+            # real_punish_term  = veh2veh4real + veh2road4real
+        obs_next_final = self.convert_vehs_to_rela(obs_next)
+        return obs_next_final, veh2veh4real
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
@@ -583,7 +583,7 @@ class ReferencePath(object):
     def __init__(self, task, mode=None, ref_index=None):
         self.mode = mode
         self.traj_mode = None
-        self.exp_v = 8.
+        self.exp_v = 0.
         self.task = task
         self.path_list = []
         self.path_len_list = []

@@ -161,7 +161,7 @@ class Traffic(object):
         self.v_light = None
         self.training_light_phase = 0
         self.n_ego_dict = init_n_ego_dict
-        traci.trafficlight.setPhase('0', self.training_light_phase)
+        # traci.trafficlight.setPhase('0', self.training_light_phase)
         random_traffic = self.generate_random_traffic()
 
         self.add_self_car(init_n_ego_dict)
@@ -216,6 +216,8 @@ class Traffic(object):
     def sim_step(self):
         self.sim_time += SIM_PERIOD
         if self.mode == 'training':
+            traci.trafficlight.setPhase('0', self.training_light_phase)
+        elif self.mode == 'display':
             traci.trafficlight.setPhase('0', self.training_light_phase)
         traci.simulationStep()
         self._get_vehicles()
