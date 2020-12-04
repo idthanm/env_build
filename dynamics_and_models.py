@@ -220,7 +220,7 @@ class EnvironmentModel(object):  # all tensors
                 for ego_point in [ego_front_points, ego_rear_points]:
                     for veh_point in [veh_front_points, veh_rear_points]:
                         veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
-                        veh2veh4training += tf.where(veh2veh_dist-2.5 < 0, tf.square(veh2veh_dist-2.5), tf.zeros_like(veh_infos[:, 0]))
+                        veh2veh4training += tf.where(veh2veh_dist-3.5 < 0, tf.square(veh2veh_dist-3.5), tf.zeros_like(veh_infos[:, 0]))
                         veh2veh4real += tf.where(veh2veh_dist-2.5 < 0, tf.square(veh2veh_dist-2.5), tf.zeros_like(veh_infos[:, 0]))
 
             veh2road4real = tf.zeros_like(veh_infos[:, 0])
@@ -246,8 +246,8 @@ class EnvironmentModel(object):  # all tensors
                                          tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
             elif self.task == 'straight':
                 for ego_point in [ego_front_points, ego_rear_points]:
-                    veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, ego_point[0] < 1),
-                                         tf.square(ego_point[0]-1), tf.zeros_like(veh_infos[:, 0]))
+                    veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, ego_point[0] - LANE_WIDTH < 1),
+                                         tf.square(ego_point[0] - LANE_WIDTH -1), tf.zeros_like(veh_infos[:, 0]))
                     veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, 2*LANE_WIDTH-ego_point[0] < 1),
                                          tf.square(2*LANE_WIDTH-ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
                     veh2road4training += tf.where(logical_and(ego_point[1] > CROSSROAD_SIZE/2, LANE_WIDTH*LANE_NUMBER - ego_point[0] < 1),
@@ -255,8 +255,8 @@ class EnvironmentModel(object):  # all tensors
                     veh2road4training += tf.where(logical_and(ego_point[1] > CROSSROAD_SIZE/2, ego_point[0] - 0 < 1),
                                          tf.square(ego_point[0] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
 
-                    veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE / 2, ego_point[0] < 1),
-                                                  tf.square(ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
+                    veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE / 2, ego_point[0]-LANE_WIDTH < 1),
+                                                  tf.square(ego_point[0]-LANE_WIDTH - 1), tf.zeros_like(veh_infos[:, 0]))
                     veh2road4real += tf.where(
                         logical_and(ego_point[1] < -CROSSROAD_SIZE / 2, 2 * LANE_WIDTH - ego_point[0] < 1),
                         tf.square(2 * LANE_WIDTH - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
@@ -637,7 +637,7 @@ class ReferencePath(object):
 
         elif task == 'straight':
             end_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
-            start_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER-1)]
+            start_offsets = [LANE_WIDTH*1.5]
             for start_offset in start_offsets:
                 for end_offset in end_offsets:
                     control_point1 = start_offset, -CROSSROAD_SIZE/2
@@ -668,7 +668,7 @@ class ReferencePath(object):
 
         else:
             assert task == 'right'
-            control_ext = CROSSROAD_SIZE/4.
+            control_ext = CROSSROAD_SIZE/5.
             end_offsets = [-LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
             start_offsets = [LANE_WIDTH*(LANE_NUMBER-0.5)]
 

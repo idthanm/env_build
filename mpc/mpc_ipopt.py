@@ -228,7 +228,7 @@ class Dynamics(object):
             for ego_point in [ego_front_points, ego_rear_points]:
                 for veh_point in [veh_front_points, veh_rear_points]:
                     veh2veh_dist = sqrt(
-                        power(ego_point[0] - veh_point[0], 2) + power(ego_point[1] - veh_point[1], 2)) - 2.5
+                        power(ego_point[0] - veh_point[0], 2) + power(ego_point[1] - veh_point[1], 2)) - 3.5
                     g_list.append(veh2veh_dist)
 
         # for ego_point in [ego_front_points]:

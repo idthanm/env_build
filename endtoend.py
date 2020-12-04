@@ -21,7 +21,7 @@ from gym.utils import seeding
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath
 from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination, deal_with_phi, \
-    L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT
+    L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, VEH_NUM
 from traffic import Traffic
 
 warnings.filterwarnings("ignore")
@@ -83,6 +83,7 @@ class CrossroadEnd2end(gym.Env):
         self.obs = None
         self.action = None
         self.veh_mode_dict = VEHICLE_MODE_DICT[self.training_task]
+        self.veh_num = VEH_NUM[self.training_task]
 
         self.done_type = 'not_done_yet'
         self.reward_info = None
@@ -379,12 +380,12 @@ class CrossroadEnd2end(gym.Env):
                 elif start == name_setting['lo'] and end == name_setting['di']:
                     ld.append(v)
             if v_light != 0 and ego_y < -CROSSROAD_SIZE/2:
-                du.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0, phi=90, l=5, w=2.5, route=None))
+                dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0, phi=90, l=5, w=2.5, route=None))
                 du.append(dict(x=LANE_WIDTH*1.5, y=-CROSSROAD_SIZE/2, v=0, phi=90, l=5, w=2.5, route=None))
 
             # fetch veh in range
-            dl = list(filter(lambda v: v['x'] > -CROSSROAD_SIZE/2-10 and v['y'] > ego_y, dl))  # interest of left straight
-            du = list(filter(lambda v: ego_y < v['y'] < CROSSROAD_SIZE/2+10 and v['x'] < ego_x+2, du))  # interest of left straight
+            dl = list(filter(lambda v: v['x'] > -CROSSROAD_SIZE/2-10 and v['y'] > ego_y-2, dl))  # interest of left straight
+            du = list(filter(lambda v: ego_y-2 < v['y'] < CROSSROAD_SIZE/2+10 and v['x'] < ego_x+5, du))  # interest of left straight
 
             dr = list(filter(lambda v: v['x'] < CROSSROAD_SIZE/2+10 and v['y'] > ego_y, dr))  # interest of right
 
@@ -426,7 +427,7 @@ class CrossroadEnd2end(gym.Env):
                     return sorted_list
 
             fill_value_for_dl = dict(x=LANE_WIDTH/2, y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=2.5, l=5, route=('1o', '4i'))
-            fill_value_for_du = dict(x=LANE_WIDTH/2, y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=2.5, l=5, route=('1o', '3i'))
+            fill_value_for_du = dict(x=LANE_WIDTH*1.5, y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=2.5, l=5, route=('1o', '3i'))
             fill_value_for_dr = dict(x=LANE_WIDTH*(LANE_NUMBER-0.5), y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=2.5, l=5, route=('1o', '2i'))
 
             fill_value_for_ru = dict(x=(CROSSROAD_SIZE/2+15), y=LANE_WIDTH*(LANE_NUMBER-0.5), v=0, phi=180, w=2.5, l=5, route=('2o', '3i'))
@@ -434,10 +435,10 @@ class CrossroadEnd2end(gym.Env):
             fill_value_for_ur_straight = dict(x=-LANE_WIDTH/2, y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '2i'))
             fill_value_for_ur_right = dict(x=-LANE_WIDTH/2, y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '2i'))
 
-            fill_value_for_ud = dict(x=-LANE_WIDTH/2, y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '1i'))
+            fill_value_for_ud = dict(x=-LANE_WIDTH*1.5, y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '1i'))
             fill_value_for_ul = dict(x=-LANE_WIDTH*(LANE_NUMBER-0.5), y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '4i'))
 
-            fill_value_for_lr = dict(x=-(CROSSROAD_SIZE/2+20), y=-LANE_WIDTH/2, v=0, phi=0, w=2.5, l=5, route=('4o', '2i'))
+            fill_value_for_lr = dict(x=-(CROSSROAD_SIZE/2+20), y=-LANE_WIDTH*1.5, v=0, phi=0, w=2.5, l=5, route=('4o', '2i'))
 
             tmp = OrderedDict()
             if task == 'left':
@@ -541,7 +542,7 @@ class CrossroadEnd2end(gym.Env):
             for ego_point in [ego_front_points, ego_rear_points]:
                 for veh_point in [veh_front_points, veh_rear_points]:
                     veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
-                    veh2veh4training += tf.square(veh2veh_dist) if veh2veh_dist - 2.5 < 0 else 0
+                    veh2veh4training += tf.square(veh2veh_dist) if veh2veh_dist - 3.5 < 0 else 0
                     veh2veh4real += tf.square(veh2veh_dist) if veh2veh_dist - 2.5 < 0 else 0
 
         veh2road4training = tf.constant(0.)
@@ -571,8 +572,8 @@ class CrossroadEnd2end(gym.Env):
                                           tf.square(ego_point[1] - 0 - 1), 0.)
         elif self.training_task == 'straight':
             for ego_point in [ego_front_points, ego_rear_points]:
-                veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE / 2, ego_point[0] < 1),
-                                              tf.square(ego_point[0] - 1), 0.)
+                veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE / 2, ego_point[0]-LANE_WIDTH < 1),
+                                              tf.square(ego_point[0]-LANE_WIDTH - 1), 0.)
                 veh2road4training += tf.where(
                     logical_and(ego_point[1] < -CROSSROAD_SIZE / 2, 2 * LANE_WIDTH - ego_point[0] < 1),
                     tf.square(2 * LANE_WIDTH - ego_point[0] - 1), 0.)
@@ -582,8 +583,8 @@ class CrossroadEnd2end(gym.Env):
                 veh2road4training += tf.where(logical_and(ego_point[1] > CROSSROAD_SIZE / 2, ego_point[0] - 0 < 1),
                                               tf.square(ego_point[0] - 0 - 1), 0.)
 
-                veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE / 2, ego_point[0] < 1),
-                                          tf.square(ego_point[0] - 1), 0.)
+                veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE / 2, ego_point[0]-LANE_WIDTH < 1),
+                                          tf.square(ego_point[0]-LANE_WIDTH - 1), 0.)
                 veh2road4real += tf.where(
                     logical_and(ego_point[1] < -CROSSROAD_SIZE / 2, 2 * LANE_WIDTH - ego_point[0] < 1),
                     tf.square(2 * LANE_WIDTH - ego_point[0] - 1), 0.)
@@ -665,8 +666,8 @@ class CrossroadEnd2end(gym.Env):
                                        facecolor='none'))
 
             # ----------arrow--------------
-            plt.arrow(lane_width/2, -square_length / 2-10, 0, 5, color='b', head_width=1)
-            plt.arrow(lane_width/2, -square_length / 2-10+2.5, -0.5, 0, color='b', head_width=1)
+            plt.arrow(lane_width/2, -square_length / 2-10, 0, 5, color='b')
+            plt.arrow(lane_width/2, -square_length / 2-10+5, -0.5, 0, color='b', head_width=1)
             plt.arrow(lane_width*1.5, -square_length / 2-10, 0, 5, color='b', head_width=1)
             plt.arrow(lane_width*2.5, -square_length / 2 - 10, 0, 5, color='b')
             plt.arrow(lane_width*2.5, -square_length / 2 - 10+5, 0.5, 0, color='b', head_width=1)
@@ -930,7 +931,7 @@ class CrossroadEnd2end(gym.Env):
 
 
 def test_end2end():
-    env = CrossroadEnd2end(training_task='left', num_future_data=5)
+    env = CrossroadEnd2end(training_task='right', num_future_data=5)
     obs = env.reset()
     i = 0
     done = 0
