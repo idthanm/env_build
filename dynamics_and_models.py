@@ -86,7 +86,7 @@ class EnvironmentModel(object):  # all tensors
         self.ref_path = ReferencePath(self.task)
         self.ref_indexes = None
         self.num_future_data = num_future_data
-        self.exp_v = 8.
+        self.exp_v = 0.0
         self.reward_info = None
         self.ego_info_dim = 6
         self.per_veh_info_dim = 4
