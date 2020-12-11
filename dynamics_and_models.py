@@ -86,7 +86,7 @@ class EnvironmentModel(object):  # all tensors
         self.ref_path = ReferencePath(self.task)
         self.ref_indexes = None
         self.num_future_data = num_future_data
-        self.exp_v = 0.0
+        self.exp_v = 8.0
         self.reward_info = None
         self.ego_info_dim = 6
         self.per_veh_info_dim = 4
@@ -583,7 +583,7 @@ class ReferencePath(object):
     def __init__(self, task, mode=None, ref_index=None):
         self.mode = mode
         self.traj_mode = None
-        self.exp_v = 0.
+        self.exp_v = 8.
         self.task = task
         self.path_list = []
         self.path_len_list = []
@@ -637,6 +637,7 @@ class ReferencePath(object):
 
         elif task == 'straight':
             end_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
+            end_offsets = [LANE_WIDTH * 1.5, LANE_WIDTH * 0.5, LANE_WIDTH * 2.5]
             start_offsets = [LANE_WIDTH*1.5]
             for start_offset in start_offsets:
                 for end_offset in end_offsets:
@@ -669,7 +670,7 @@ class ReferencePath(object):
         else:
             assert task == 'right'
             control_ext = CROSSROAD_SIZE/5.
-            end_offsets = [-LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
+            end_offsets = [-LANE_WIDTH * 2.5, -LANE_WIDTH * 1.5, -LANE_WIDTH * 0.5]
             start_offsets = [LANE_WIDTH*(LANE_NUMBER-0.5)]
 
             for start_offset in start_offsets:

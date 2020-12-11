@@ -63,7 +63,7 @@ class StaticTrajectoryGenerator(object):
                     self.feature_points.append(node)
 
         elif task == 'right':
-            self.end_offsets = [-LANE_WIDTH * 0.5, -LANE_WIDTH * 1.5, -LANE_WIDTH * 2.5]
+            self.end_offsets = [-LANE_WIDTH * 2.5, -LANE_WIDTH * 1.5, -LANE_WIDTH * 0.5]
             start_offsets = [LANE_WIDTH * 2.5]
             for start_offset in start_offsets:
                 for end_offset in self.end_offsets:

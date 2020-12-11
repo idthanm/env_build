@@ -209,7 +209,7 @@ class CrossroadEnd2end(gym.Env):
         # elif self._break_stability():
         #     return 'break_stability', 1
         elif self._break_red_light():
-            return 'break_red_light', 1
+            return 'break_red_light', 0
         elif self._is_achieve_goal():
             return 'good_done', 1
         else:
@@ -255,9 +255,10 @@ class CrossroadEnd2end(gym.Env):
         steer_norm, a_x_norm = action[0], action[1]
         scaled_steer = 0.4 * steer_norm
         scaled_a_x = 3.*a_x_norm - 1
-        # if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
-        #     scaled_steer = 0.
-        #     scaled_a_x = -3.
+        # todo: rules
+        if self.v_light != 0 and self.ego_dynamics['y'] < -25 and self.training_task != 'right':
+            scaled_steer = 0.
+            scaled_a_x = -3.
 
         scaled_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
         return scaled_action
@@ -484,7 +485,7 @@ class CrossroadEnd2end(gym.Env):
         else:
             random_index = int(np.random.random()*(420+500)) + 700
 
-        random_index = 800
+        random_index = 700
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
         v = 8 * np.random.random()
@@ -788,21 +789,21 @@ class CrossroadEnd2end(gym.Env):
                     draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, 'black')
 
             # plot_interested vehs
-            for mode, num in self.veh_mode_dict.items():
-                for i in range(num):
-                    veh = self.interested_vehs[mode][i]
-                    veh_x = veh['x']
-                    veh_y = veh['y']
-                    veh_phi = veh['phi']
-                    veh_l = veh['l']
-                    veh_w = veh['w']
-                    task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
-
-                    if is_in_plot_area(veh_x, veh_y):
-                        plot_phi_line(veh_x, veh_y, veh_phi, 'black')
-                        task = MODE2TASK[mode]
-                        color = task2color[task]
-                        draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
+            # for mode, num in self.veh_mode_dict.items():
+            #     for i in range(num):
+            #         veh = self.interested_vehs[mode][i]
+            #         veh_x = veh['x']
+            #         veh_y = veh['y']
+            #         veh_phi = veh['phi']
+            #         veh_l = veh['l']
+            #         veh_w = veh['w']
+            #         task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+            #
+            #         if is_in_plot_area(veh_x, veh_y):
+            #             plot_phi_line(veh_x, veh_y, veh_phi, 'black')
+            #             task = MODE2TASK[mode]
+            #             color = task2color[task]
+            #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
 
             # plot own car
             # dict(v_x=ego_dict['v_x'],
@@ -836,21 +837,21 @@ class CrossroadEnd2end(gym.Env):
             draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'red')
 
             # plot future data
-            # tracking_info = self.obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)]
-            # future_path = tracking_info[self.per_tracking_info_dim:]
-            # for i in range(self.num_future_data):
-            #     delta_x, delta_y, delta_phi = future_path[i*self.per_tracking_info_dim:
-            #                                                          (i+1)*self.per_tracking_info_dim]
-            #     path_x, path_y, path_phi = ego_x+delta_x, ego_y+delta_y, ego_phi-delta_phi
-            #     plt.plot(path_x, path_y, 'g.')
-            #     plot_phi_line(path_x, path_y, path_phi, 'g')
+            tracking_info = self.obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)]
+            future_path = tracking_info[self.per_tracking_info_dim:]
+            for i in range(self.num_future_data):
+                delta_x, delta_y, delta_phi = future_path[i*self.per_tracking_info_dim:
+                                                                     (i+1)*self.per_tracking_info_dim]
+                path_x, path_y, path_phi = ego_x+delta_x, ego_y+delta_y, ego_phi-delta_phi
+                plt.plot(path_x, path_y, 'g.')
+                plot_phi_line(path_x, path_y, path_phi, 'g')
 
-            # delta_, _, _ = tracking_info[:3]
-            # # ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
-            # indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
-            # path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-            # # plt.plot(path_x, path_y, 'g.')
-            # delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
+            delta_, _, _ = tracking_info[:3]
+            # ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
+            indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
+            path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+            # plt.plot(path_x, path_y, 'g.')
+            delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
 
             # plot real time traj
             try:
@@ -867,23 +868,23 @@ class CrossroadEnd2end(gym.Env):
                 pass
             # plt.scatter([1.875], [-25], c='r')
 
-            for j, item_point in enumerate(feature_points):
-                for k in range(len(item_point)):
-                    plt.scatter(item_point[k][0], item_point[k][1], c='lime')
+            # for j, item_point in enumerate(feature_points):
+            #     for k in range(len(item_point)):
+            #         plt.scatter(item_point[k][0], item_point[k][1], c='lime')
 
             # plot ego dynamics
-            text_x, text_y_start = -110, 60
+            text_x, text_y_start = -120, 60
             ge = iter(range(0, 1000, 4))
             plt.text(text_x, text_y_start - next(ge), 'ego_x: {:.2f}m'.format(ego_x))
             plt.text(text_x, text_y_start - next(ge), 'ego_y: {:.2f}m'.format(ego_y))
             plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
             plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
-            # plt.text(text_x, text_y_start - next(ge), 'delta_: {:.2f}m'.format(delta_))
-            # plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
-            # plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
-            # plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
-            # plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
-            # plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
+            plt.text(text_x, text_y_start - next(ge), 'delta_: {:.2f}m'.format(delta_))
+            plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
+            plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
+            plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
+            plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
+            plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
 
             plt.text(text_x, text_y_start - next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
             plt.text(text_x, text_y_start - next(ge), 'exp_v: {:.2f}m/s'.format(self.exp_v))
@@ -919,9 +920,9 @@ class CrossroadEnd2end(gym.Env):
             if traj_return is not None:
                 for i, value in enumerate(traj_return):
                     if i == path_index:
-                        plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=14, color=color[i], fontstyle='italic')
+                        plt.text(text_x, text_y_start-next(ge), 'trajectory reward={:.4f}'.format(value[0]), fontsize=14, color=color[i], fontstyle='italic')
                     else:
-                        plt.text(text_x, text_y_start-next(ge), 'track_error={:.4f}, collision_risk={:.4f}'.format(value[0], value[1]), fontsize=12, color=color[i], fontstyle='italic')
+                        plt.text(text_x, text_y_start-next(ge), 'trajectory reward={:.4f}'.format(value[0]), fontsize=12, color=color[i], fontstyle='italic')
             plt.show()
             plt.pause(0.001)
 
