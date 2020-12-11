@@ -39,7 +39,7 @@
     <flow id="carflow_1.4" type="car_1" beg="0" from="4o" to="3i" departLane="best"
           departPos="random" departSpeed="random" vehsPerHour="600"/>
     <flow id="carflow_2.4" type="car_2" beg="0" from="4o" to="2i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="600"/>
+          departPos="random" departSpeed="random" vehsPerHour="800"/>
     <flow id="carflow_3.4" type="car_3" beg="0" from="4o" to="1i" departLane="best"
           departPos="random" departSpeed="random" vehsPerHour="800"/>
     <route id="ru" edges="2o 3i"/>
