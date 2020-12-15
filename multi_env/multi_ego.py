@@ -225,7 +225,7 @@ class MultiEgo(object):
             traj_return_value = np.array(traj_return_value, dtype=np.float32)
             temp = traj_return_value[:, 0]
             if task == 'right':
-                temp = traj_return_value[:, 0] + np.array([150, 0, 0])
+                temp = traj_return_value[:, 0] + np.array([170, 0, 0])
             path_index = np.argmax(temp)
             self.n_ego_select_index[egoID] = path_index
             # self.n_ego_instance[egoID].render(traj_list, traj_return_value, path_index, feature_points)
@@ -378,11 +378,11 @@ class Simulation(object):
                                        facecolor='none'))
 
             # ----------arrow--------------
-            plt.arrow(lane_width/2, -square_length / 2-10, 0, 5, color='b', head_width=1)
-            plt.arrow(lane_width/2, -square_length / 2-10+2.5, -0.5, 0, color='b', head_width=1)
-            plt.arrow(lane_width*1.5, -square_length / 2-10, 0, 5, color='b', head_width=1)
-            plt.arrow(lane_width*2.5, -square_length / 2 - 10, 0, 5, color='b')
-            plt.arrow(lane_width*2.5, -square_length / 2 - 10+5, 0.5, 0, color='b', head_width=1)
+            # plt.arrow(lane_width/2, -square_length / 2-10, 0, 5, color='b', head_width=1)
+            # plt.arrow(lane_width/2, -square_length / 2-10+2.5, -0.5, 0, color='b', head_width=1)
+            # plt.arrow(lane_width*1.5, -square_length / 2-10, 0, 5, color='b', head_width=1)
+            # plt.arrow(lane_width*2.5, -square_length / 2 - 10, 0, 5, color='b')
+            # plt.arrow(lane_width*2.5, -square_length / 2 - 10+5, 0.5, 0, color='b', head_width=1)
 
             # ----------horizon--------------
             plt.plot([-square_length / 2 - extension, -square_length / 2], [0, 0], color='black')
@@ -508,11 +508,11 @@ class Simulation(object):
                 ego_a = ego_info['phi']
                 ego_l = ego_info['l']
                 ego_w = ego_info['w']
-                draw_rotate_rec(ego_x, ego_y, ego_a, ego_l, ego_w, 'red')
-                plot_phi_line(ego_x, ego_y, ego_a, 'red')
+                draw_rotate_rec(ego_x, ego_y, ego_a, ego_l, ego_w, 'fuchsia')
+                plot_phi_line(ego_x, ego_y, ego_a, 'fuchsia')
 
             # plot trajectory
-            color = ['b', 'coral', 'g']
+            color = ['blue', 'coral', 'cyan']
             for egoID, planed_traj in self.n_ego_traj_trans.items():
                 for i, path in enumerate(planed_traj):
                     alpha = 1
@@ -533,14 +533,14 @@ class Simulation(object):
 
 if __name__ == '__main__':
     init_n_ego_dict = dict(
-        DL1=dict(v_x=5, v_y=0, r=0, x=0.5 * LANE_WIDTH, y=-32, phi=90, l=4.3, w=1.9, routeID='dl'),
-        DU1=dict(v_x=8, v_y=0, r=0, x=1.5 * LANE_WIDTH, y=-40, phi=90, l=4.3, w=1.9, routeID='du'),
+        DL1=dict(v_x=5, v_y=0, r=0, x=0.5 * LANE_WIDTH, y=-30, phi=90, l=4.3, w=1.9, routeID='dl'),
+        DU1=dict(v_x=8, v_y=0, r=0, x=1.5 * LANE_WIDTH, y=-45, phi=90, l=4.3, w=1.9, routeID='du'),
         DR1=dict(v_x=5, v_y=0, r=0, x=2.5 * LANE_WIDTH, y=-30, phi=90, l=4.3, w=1.9, routeID='dr'),
-        RD1=dict(v_x=3, v_y=0, r=0, x=32, y=0.5 * LANE_WIDTH, phi=180, l=4.3, w=1.9, routeID='rd'),
-        RL1=dict(v_x=5, v_y=0, r=0, x=32, y=1.5 * LANE_WIDTH, phi=180, l=4.3, w=1.9, routeID='rl'),
+        RD1=dict(v_x=3, v_y=0, r=0, x=31.5, y=0.5 * LANE_WIDTH, phi=180, l=4.3, w=1.9, routeID='rd'),
+        RL1=dict(v_x=5, v_y=0, r=0, x=33, y=1.5 * LANE_WIDTH, phi=180, l=4.3, w=1.9, routeID='rl'),
         RU1=dict(v_x=5, v_y=0, r=0, x=38, y=2.5 * LANE_WIDTH, phi=180, l=4.3, w=1.9, routeID='ru'),
         UR1=dict(v_x=5, v_y=0, r=0, x=-0.5 * LANE_WIDTH, y=32, phi=-90, l=4.3, w=1.9, routeID='ur'),
-        UD1=dict(v_x=5, v_y=0, r=0, x=-1.5 * LANE_WIDTH, y=40, phi=-90, l=4.3, w=1.9, routeID='ud'),
+        UD1=dict(v_x=5, v_y=0, r=0, x=-1.5 * LANE_WIDTH, y=50, phi=-90, l=4.3, w=1.9, routeID='ud'),
         UL1=dict(v_x=5, v_y=0, r=0, x=-2.5 * LANE_WIDTH, y=50, phi=-90, l=4.3, w=1.9, routeID='ul'),
         LU1=dict(v_x=5, v_y=0, r=0, x=-34, y=-0.5 * LANE_WIDTH, phi=0, l=4.3, w=1.9, routeID='lu'),
         LR1=dict(v_x=5, v_y=0, r=0, x=-32, y=-1.5 * LANE_WIDTH, phi=0, l=4.3, w=1.9, routeID='lr'),

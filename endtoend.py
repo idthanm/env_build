@@ -211,7 +211,7 @@ class CrossroadEnd2end(gym.Env):
         elif self._break_red_light():
             return 'break_red_light', 0
         elif self._is_achieve_goal():
-            return 'good_done', 1
+            return 'good_done', 2
         else:
             return 'not_done_yet', 0
 
@@ -256,9 +256,10 @@ class CrossroadEnd2end(gym.Env):
         scaled_steer = 0.4 * steer_norm
         scaled_a_x = 3.*a_x_norm - 1
         # todo: rules
-        if self.v_light != 0 and self.ego_dynamics['y'] < -25 and self.training_task != 'right':
-            scaled_steer = 0.
-            scaled_a_x = -3.
+        # if self.v_light != 0 and self.ego_dynamics['y'] < -25 and self.training_task != 'right':
+        #     scaled_steer = 0.
+        #     scaled_a_x = -3.0
+            # scaled_a_x = np.random.uniform(-2.6, -1.6)
 
         scaled_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
         return scaled_action
@@ -488,7 +489,8 @@ class CrossroadEnd2end(gym.Env):
         random_index = 700
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
-        v = 8 * np.random.random()
+        # v = 8 * np.random.random()
+        v = 9.5
         if self.training_task == 'left':
             routeID = 'dl'
         elif self.training_task == 'straight':
@@ -833,8 +835,8 @@ class CrossroadEnd2end(gym.Env):
             alpha_r_bound = self.ego_dynamics['alpha_r_bound']
             r_bound = self.ego_dynamics['r_bound']
 
-            plot_phi_line(ego_x, ego_y, ego_phi, 'red')
-            draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'red')
+            plot_phi_line(ego_x, ego_y, ego_phi, 'fuchsia')
+            draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'fuchsia')
 
             # plot future data
             tracking_info = self.obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)]
@@ -855,10 +857,11 @@ class CrossroadEnd2end(gym.Env):
 
             # plot real time traj
             try:
-                color = ['b', 'coral', 'g']
+                # color = ['rebeccapurple', 'rebeccapurple', 'rebeccapurple']
+                color = ['blue', 'coral', 'cyan']
                 for i, item in enumerate(traj_list):
                     if i == path_index:
-                        plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
+                        plt.plot(item.path[0], item.path[1], color=color[i])
                     else:
                         plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
                     indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
@@ -915,14 +918,14 @@ class CrossroadEnd2end(gym.Env):
                     plt.text(text_x, text_y_start - next(ge), '{}: {:.4f}'.format(key, val))
 
             # indicator for trajectory selection
-            text_x, text_y_start = -25, -70
+            text_x, text_y_start = -18, -70
             ge = iter(range(0, 1000, 6))
             if traj_return is not None:
                 for i, value in enumerate(traj_return):
                     if i == path_index:
-                        plt.text(text_x, text_y_start-next(ge), 'trajectory reward={:.4f}'.format(value[0]), fontsize=14, color=color[i], fontstyle='italic')
+                        plt.text(text_x, text_y_start-next(ge), 'Path reward={:.4f}'.format(value[0]), fontsize=14, color=color[i], fontstyle='italic')
                     else:
-                        plt.text(text_x, text_y_start-next(ge), 'trajectory reward={:.4f}'.format(value[0]), fontsize=12, color=color[i], fontstyle='italic')
+                        plt.text(text_x, text_y_start-next(ge), 'Path reward={:.4f}'.format(value[0]), fontsize=12, color=color[i], fontstyle='italic')
             plt.show()
             plt.pause(0.001)
 
