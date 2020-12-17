@@ -19,7 +19,7 @@ import ray
 
 from endtoend import CrossroadEnd2end
 from endtoend_env_utils import rotate_coordination, cal_ego_info_in_transform_coordination, \
-    cal_info_in_transform_coordination, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER
+    cal_info_in_transform_coordination, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, render_for_other_ego
 from hierarchical_decision.static_traj_generator import StaticTrajectoryGenerator
 from traffic import Traffic
 from utils.load_policy import LoadPolicy
@@ -338,8 +338,9 @@ class Simulation(object):
         n_ego_done = self.multiego.judge_n_ego_done(current_n_ego_collision_flag)
         for egoID, flag_list in n_ego_done.items():
             if flag_list[0]:
-                print('Ego {} collision!'.format(egoID))
-                return 1
+                pass
+                # print('Ego {} collision!'.format(egoID))
+                # return 1
             elif flag_list[1]:
                 print('Ego {} achieve goal!'.format(egoID))
                 self.multiego.n_ego_dynamics.pop(egoID)
@@ -350,9 +351,8 @@ class Simulation(object):
                 self.n_ego_traj_trans.pop(egoID)
                 if len(self.traffic.n_ego_dict) == 0:
                     print('All ego achieve goal!'.format(egoID))
-
                     return 1
-        self.traffic.set_own_car(next_n_ego_dynamics)
+        # self.traffic.set_own_car(next_n_ego_dynamics)
         self.traffic.sim_step()
         return 0
 
@@ -484,12 +484,55 @@ class Simulation(object):
             n_ego_traj = {egoID: self.multiego.traj_generator.generate_traj(NAME2TASK[egoID[:2]])[0] for egoID in self.multiego.n_ego_dynamics.keys()}
 
             some_egoID = list(n_ego_vehicles.keys())[0]
-            all_vehicles = cal_info_in_transform_coordination(n_ego_vehicles[some_egoID], 0, 0,
-                                                              -ROTATE_ANGLE[some_egoID[0]])
-            n_ego_dynamics_trans = {}
-            for egoID, ego_dynamics in n_ego_dynamics.items():
-                n_ego_dynamics_trans[egoID] = cal_ego_info_in_transform_coordination(ego_dynamics, 0, 0,
-                                                                                 -ROTATE_ANGLE[egoID[0]])
+            all_vehicles = cal_info_in_transform_coordination(n_ego_vehicles[some_egoID], 0, 0, -ROTATE_ANGLE[some_egoID[0]])
+
+            # temp_vehicles = n_ego_vehicles[some_egoID]   # rotate in 'D' phase
+            # all_vehicles = temp_vehicles
+
+            def _is_achieve_goal(x, y, egoID):
+                if egoID[0] == 'D':
+                    if x < -CROSSROAD_SIZE / 2 - 10 and 0 < y < LANE_NUMBER * LANE_WIDTH:
+                        return True
+                    if x > CROSSROAD_SIZE / 2 + 10 and -LANE_NUMBER * LANE_WIDTH < y < 0:
+                        return True
+                    if y > CROSSROAD_SIZE / 2 + 10 and 0 < x < LANE_NUMBER * LANE_WIDTH:
+                        return True
+                    else:
+                        return False
+                elif egoID[0] == 'U':
+                    if x < -CROSSROAD_SIZE / 2 - 10 and 0 < y < LANE_NUMBER * LANE_WIDTH:
+                        return True
+                    if x > CROSSROAD_SIZE / 2 + 10 and -LANE_NUMBER * LANE_WIDTH < y < 0:
+                        return True
+                    if y < -CROSSROAD_SIZE / 2 - 10 and -LANE_NUMBER * LANE_WIDTH < x < 0:
+                        return True
+                    else:
+                        return False
+
+                elif egoID[0] == 'L':
+                    if y < -CROSSROAD_SIZE / 2 - 10 and -LANE_NUMBER * LANE_WIDTH < x < 0:
+                        return True
+                    if x > CROSSROAD_SIZE / 2 + 10 and -LANE_NUMBER * LANE_WIDTH < y < 0:
+                        return True
+                    if y > CROSSROAD_SIZE / 2 + 10 and 0 < x < LANE_NUMBER * LANE_WIDTH:
+                        return True
+                    else:
+                        return False
+                elif egoID[0] == 'R':
+                    if x < -CROSSROAD_SIZE / 2 - 10 and 0 < y < LANE_NUMBER * LANE_WIDTH:
+                        return True
+                    if y > CROSSROAD_SIZE / 2 + 10 and 0 < x < LANE_NUMBER * LANE_WIDTH:
+                        return True
+                    if y < -CROSSROAD_SIZE / 2 - 10 and -LANE_NUMBER * LANE_WIDTH < x < 0:
+                        return True
+                    else:
+                        return False
+                else:
+                    return False
+
+            # n_ego_dynamics_trans = {}
+            # for egoID, ego_dynamics in n_ego_dynamics.items():
+            #     n_ego_dynamics_trans[egoID] = cal_ego_info_in_transform_coordination(ego_dynamics, 0, 0, -ROTATE_ANGLE[egoID[0]])
 
             for veh in all_vehicles:
                 x = veh['x']
@@ -497,50 +540,58 @@ class Simulation(object):
                 a = veh['phi']
                 l = veh['l']
                 w = veh['w']
+                egoID = veh['veh_type'][-3:]
                 if is_in_plot_area(x, y):
-                    draw_rotate_rec(x, y, a, l, w, 'black')
-                    plot_phi_line(x, y, a, 'black')
+                    if l == 4.3 and w == 1.9:
+                        if not _is_achieve_goal(x, y, egoID):
+                            draw_rotate_rec(x, y, a, l, w, 'fuchsia')
+                            plot_phi_line(x, y, a, 'fuchsia')
+
+                    else:
+                        draw_rotate_rec(x, y, a, l, w, 'black')
+                        plot_phi_line(x, y, a, 'black')
+
 
             # plot own car
-            for egoID, ego_info in n_ego_dynamics_trans.items():
-                ego_x = ego_info['x']
-                ego_y = ego_info['y']
-                ego_a = ego_info['phi']
-                ego_l = ego_info['l']
-                ego_w = ego_info['w']
-                draw_rotate_rec(ego_x, ego_y, ego_a, ego_l, ego_w, 'fuchsia')
-                plot_phi_line(ego_x, ego_y, ego_a, 'fuchsia')
+            # for egoID, ego_info in n_ego_dynamics_trans.items():
+            #     ego_x = ego_info['x']
+            #     ego_y = ego_info['y']
+            #     ego_a = ego_info['phi']
+            #     ego_l = ego_info['l']
+            #     ego_w = ego_info['w']
+            #     draw_rotate_rec(ego_x, ego_y, ego_a, ego_l, ego_w, 'fuchsia')
+            #     plot_phi_line(ego_x, ego_y, ego_a, 'fuchsia')
 
             # plot trajectory
-            color = ['blue', 'coral', 'cyan']
-            for egoID, planed_traj in self.n_ego_traj_trans.items():
-                for i, path in enumerate(planed_traj):
-                    alpha = 1
-                    if v_color != 'green':
-                        if egoID[:2] in ['DL', 'DU', 'UD', 'UR']:
-                            alpha = 0.2
-                    if h_color != 'green':
-                        if egoID[:2] in ['RD', 'RL', 'LR', 'LU']:
-                            alpha = 0.2
-                    if planed_traj is not None:
-                        if i == self.multiego.n_ego_select_index[egoID]:
-                            ax.plot(path[0], path[1], color=color[i], alpha=alpha)
-                        else:
-                            ax.plot(path[0], path[1], color=color[i], alpha=0.2)
+            # color = ['blue', 'coral', 'cyan']
+            # for egoID, planed_traj in self.n_ego_traj_trans.items():
+            #     for i, path in enumerate(planed_traj):
+            #         alpha = 1
+            #         if v_color != 'green':
+            #             if egoID[:2] in ['DL', 'DU', 'UD', 'UR']:
+            #                 alpha = 0.2
+            #         if h_color != 'green':
+            #             if egoID[:2] in ['RD', 'RL', 'LR', 'LU']:
+            #                 alpha = 0.2
+            #         if planed_traj is not None:
+            #             if i == self.multiego.n_ego_select_index[egoID]:
+            #                 ax.plot(path[0], path[1], color=color[i], alpha=alpha)
+            #             else:
+            #                 ax.plot(path[0], path[1], color=color[i], alpha=0.2)
             # plt.show()
             plt.pause(0.001)
 
 
 if __name__ == '__main__':
     init_n_ego_dict = dict(
-        DL1=dict(v_x=5, v_y=0, r=0, x=0.5 * LANE_WIDTH, y=-30, phi=90, l=4.3, w=1.9, routeID='dl'),
-        DU1=dict(v_x=8, v_y=0, r=0, x=1.5 * LANE_WIDTH, y=-45, phi=90, l=4.3, w=1.9, routeID='du'),
+        DL1=dict(v_x=5, v_y=0, r=0, x=0.5 * LANE_WIDTH, y=-32, phi=90, l=4.3, w=1.9, routeID='dl'),
+        DU1=dict(v_x=8, v_y=0, r=0, x=1.5 * LANE_WIDTH, y=-50, phi=90, l=4.3, w=1.9, routeID='du'),
         DR1=dict(v_x=5, v_y=0, r=0, x=2.5 * LANE_WIDTH, y=-30, phi=90, l=4.3, w=1.9, routeID='dr'),
         RD1=dict(v_x=3, v_y=0, r=0, x=31.5, y=0.5 * LANE_WIDTH, phi=180, l=4.3, w=1.9, routeID='rd'),
         RL1=dict(v_x=5, v_y=0, r=0, x=33, y=1.5 * LANE_WIDTH, phi=180, l=4.3, w=1.9, routeID='rl'),
         RU1=dict(v_x=5, v_y=0, r=0, x=38, y=2.5 * LANE_WIDTH, phi=180, l=4.3, w=1.9, routeID='ru'),
         UR1=dict(v_x=5, v_y=0, r=0, x=-0.5 * LANE_WIDTH, y=32, phi=-90, l=4.3, w=1.9, routeID='ur'),
-        UD1=dict(v_x=5, v_y=0, r=0, x=-1.5 * LANE_WIDTH, y=50, phi=-90, l=4.3, w=1.9, routeID='ud'),
+        UD1=dict(v_x=5, v_y=0, r=0, x=-1.5 * LANE_WIDTH, y=45, phi=-90, l=4.3, w=1.9, routeID='ud'),
         UL1=dict(v_x=5, v_y=0, r=0, x=-2.5 * LANE_WIDTH, y=50, phi=-90, l=4.3, w=1.9, routeID='ul'),
         LU1=dict(v_x=5, v_y=0, r=0, x=-34, y=-0.5 * LANE_WIDTH, phi=0, l=4.3, w=1.9, routeID='lu'),
         LR1=dict(v_x=5, v_y=0, r=0, x=-32, y=-1.5 * LANE_WIDTH, phi=0, l=4.3, w=1.9, routeID='lr'),

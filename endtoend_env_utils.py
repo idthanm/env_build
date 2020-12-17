@@ -159,6 +159,7 @@ def cal_info_in_transform_coordination(filtered_objects, x, y, rotate_d):  # rot
         width = obj['w']
         length = obj['l']
         route = obj['route']
+        veh_type = obj['veh_type']
         shifted_x, shifted_y = shift_coordination(orig_x, orig_y, x, y)
         trans_x, trans_y, trans_heading = rotate_coordination(shifted_x, shifted_y, orig_heading, rotate_d)
         trans_v = orig_v
@@ -168,7 +169,8 @@ def cal_info_in_transform_coordination(filtered_objects, x, y, rotate_d):  # rot
                         'phi': trans_heading,
                         'w': width,
                         'l': length,
-                        'route': route,})
+                        'route': route,
+                        'veh_type': veh_type})
     return results
 
 
@@ -186,6 +188,13 @@ def cal_ego_info_in_transform_coordination(ego_dynamics, x, y, rotate_d):
                              phi=trans_a,
                              Corner_point=trans_corner_points))
     return ego_dynamics
+
+
+def render_for_other_ego(ego_dynamics, x, y, rotate_d):
+    orig_x, orig_y, orig_a = ego_dynamics['x'], ego_dynamics['y'], ego_dynamics['phi']
+    shifted_x, shifted_y = shift_coordination(orig_x, orig_y, x, y)
+    trans_x, trans_y, trans_a = rotate_coordination(shifted_x, shifted_y, orig_a, rotate_d)
+    return trans_x, trans_y
 
 
 def xy2_edgeID_lane(x, y):

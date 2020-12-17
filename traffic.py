@@ -93,7 +93,7 @@ class Traffic(object):
                                                 traci.constants.VAR_ANGLE,
                                                 traci.constants.VAR_SIGNALS,
                                                 traci.constants.VAR_SPEED,
-                                                # traci.constants.VAR_TYPE,
+                                                traci.constants.VAR_TYPE,
                                                 # traci.constants.VAR_EMERGENCY_DECEL,
                                                 # traci.constants.VAR_LANE_INDEX,
                                                 # traci.constants.VAR_LANEPOSITION,
@@ -160,7 +160,7 @@ class Traffic(object):
         self.n_ego_collision_flag = {}
         self.collision_ego_id = None
         self.v_light = None
-        self.training_light_phase = 0
+        self.training_light_phase = 2
         self.n_ego_dict = init_n_ego_dict
         traci.trafficlight.setPhase('0', self.training_light_phase)
         random_traffic = self.generate_random_traffic()
@@ -201,10 +201,12 @@ class Traffic(object):
         for egoID in self.n_ego_dict.keys():
             veh_info_dict = copy.deepcopy(veh_infos)
             for i, veh in enumerate(veh_info_dict):
-                if veh != egoID:
+                # if veh != egoID:
+                if 1:
                     length = veh_info_dict[veh][traci.constants.VAR_LENGTH]
                     width = veh_info_dict[veh][traci.constants.VAR_WIDTH]
                     route = veh_info_dict[veh][traci.constants.VAR_EDGES]
+                    type = veh_infos[veh][traci.constants.VAR_TYPE]
                     if route[0] == '4i':
                         continue
                     x_in_sumo, y_in_sumo = veh_info_dict[veh][traci.constants.VAR_POSITION]
@@ -213,7 +215,7 @@ class Traffic(object):
                     x, y, a = _convert_sumo_coord_to_car_coord(x_in_sumo, y_in_sumo, a_in_sumo, length)
                     v = veh_info_dict[veh][traci.constants.VAR_SPEED]
                     self.n_ego_vehicles[egoID].append(dict(x=x, y=y, v=v, phi=a, l=length,
-                                                           w=width, route=route))
+                                                           w=width, route=route, veh_type=type))
 
     def _get_traffic_light(self):
         self.v_light = traci.trafficlight.getPhase('0')
