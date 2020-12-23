@@ -207,3 +207,4 @@ mpc/mpc_rl.npy
 test.py
 test_sumo.py
 end_to_end_test.py
+/utils/models/
