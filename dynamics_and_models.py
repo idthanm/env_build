@@ -637,7 +637,6 @@ class ReferencePath(object):
 
         elif task == 'straight':
             end_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
-            end_offsets = [LANE_WIDTH * 1.5, LANE_WIDTH * 0.5, LANE_WIDTH * 2.5]
             start_offsets = [LANE_WIDTH*1.5]
             for start_offset in start_offsets:
                 for end_offset in end_offsets:

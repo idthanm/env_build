@@ -222,9 +222,6 @@ class Traffic(object):
         self.sim_time += SIM_PERIOD
         if self.mode == 'training':
             traci.trafficlight.setPhase('0', self.training_light_phase)
-        elif self.mode == 'display':
-            # traci.trafficlight.setPhase('0', self.training_light_phase)
-            pass
         traci.simulationStep()
         self._get_vehicles()
         self._get_traffic_light()
