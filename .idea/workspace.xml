@@ -25,84 +25,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3d9152c8-6c22-421d-a57e-4ce9823911f2" name="Default Changelist" comment="minor change">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hierarchical_decision/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/hierarchical_decision/data_across_all_episodes.npy" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/hierarchical_decision/data_across_all_episodes_left_episode0.npy" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/hierarchical_decision/data_across_all_episodes_left_episode3_red.npy" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/hierarchical_decision/data_across_all_episodes_left_green_episode0.npy" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/hierarchical_decision/data_across_all_episodes_straight_episode0_green.npy" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/left/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/left/ckpt_ite100000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/left/ckpt_ite100000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/left/ckpt_ite80000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/left/ckpt_ite80000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/left/config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/right/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/right/ckpt_ite100000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/right/ckpt_ite100000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/right/ckpt_ite145000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/right/ckpt_ite145000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/right/config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/straight/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/straight/ckpt_ite60000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/straight/ckpt_ite60000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/straight/ckpt_ite95000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/straight/ckpt_ite95000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/straight/config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/logs/evaluator/events.out.tfevents.1603176799.guanyang-ubuntu1804.32704.1310.v2" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/logs/optimizer/events.out.tfevents.1603176800.guanyang-ubuntu1804.32508.1445.v2" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/logs/tester/test-2020-10-20-16-39-53/events.out.tfevents.1603183210.guanyang-ubuntu1804.36531.1322.v2" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/logs/tester/test-2020-10-20-16-39-53/test_config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/logs/tester/test-2020-10-20-16-41-43/events.out.tfevents.1603183321.guanyang-ubuntu1804.36863.1316.v2" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/logs/tester/test-2020-10-20-16-41-43/test_config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/models/checkpoint" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/models/ckpt_ite120000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/models/ckpt_ite120000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/models/ckpt_ite140000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/models/ckpt_ite145000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/models/ckpt_ite145000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/models/ckpt_ite150000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/models/ckpt_ite150000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/models/ckpt_ite80000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/models/ckpt_ite80000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mpc/rl_experiments/experiment-2020-10-20-14-52-58/models/ppc_params.npy" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/left/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/left/ckpt_ite80000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/left/ckpt_ite80000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/left/config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/right/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/right/ckpt_ite145000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/right/ckpt_ite145000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/right/ckpt_ite15000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/right/ckpt_ite15000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/right/config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/straight/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/straight/ckpt_ite60000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/straight/ckpt_ite60000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_env/models/straight/config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/left/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/left/ckpt_ite100000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/left/ckpt_ite100000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/left/ckpt_ite80000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/left/ckpt_ite80000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/left/config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/right/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/right/ckpt_ite100000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/right/ckpt_ite100000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/right/ckpt_ite145000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/right/ckpt_ite145000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/right/config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/straight/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/straight/ckpt_ite60000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/straight/ckpt_ite60000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/straight/ckpt_ite95000-1.data-00000-of-00001" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/straight/ckpt_ite95000-1.index" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/models/straight/config.json" beforeDir="false" />
+      <change afterPath="$PROJECT_DIR$/hierarchical_decision/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/hierarchical_decision/static_traj_generator.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -624,7 +548,14 @@
       <option name="project" value="LOCAL" />
       <updated>1608791390227</updated>
     </task>
-    <option name="localTasksCounter" value="44" />
+    <task id="LOCAL-00044" summary="minor change">
+      <created>1608792398579</created>
+      <option name="number" value="00044" />
+      <option name="presentableId" value="LOCAL-00044" />
+      <option name="project" value="LOCAL" />
+      <updated>1608792398579</updated>
+    </task>
+    <option name="localTasksCounter" value="45" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -675,11 +606,11 @@
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="682" y="343" key="#Notifications/-1920.0.1920.1040/0.0.1920.1040@0.0.1920.1040" timestamp="1607065656800" />
-    <state x="424" y="69" width="802" height="769" key="CommitChangelistDialog2" timestamp="1608792328641">
+    <state x="424" y="69" width="802" height="769" key="CommitChangelistDialog2" timestamp="1608792630819">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="-1461" y="0" key="CommitChangelistDialog2/-1920.0.1920.1040/0.0.1920.1040@-1920.0.1920.1040" timestamp="1608178715814" />
-    <state x="424" y="69" width="1278" height="871" key="CommitChangelistDialog2/-1920.0.1920.1040/0.0.1920.1040@0.0.1920.1040" timestamp="1608792328641" />
+    <state x="424" y="69" width="1278" height="871" key="CommitChangelistDialog2/-1920.0.1920.1040/0.0.1920.1040@0.0.1920.1040" timestamp="1608792630819" />
     <state x="367" y="55" width="802" height="769" key="CommitChangelistDialog2/0.0.1536.824@0.0.1536.824" timestamp="1608741143366" />
     <state x="34" y="47" width="1790" height="908" key="DiffContextDialog" timestamp="1608790803123">
       <screen x="0" y="0" width="1920" height="1040" />
@@ -765,10 +696,10 @@
     </state>
     <state x="-1411" y="308" key="Vcs.Multiple.Commit.Info.Dialog.Key/-1920.0.1920.1040/0.0.1920.1040@-1920.0.1920.1040" timestamp="1606459607470" />
     <state x="407" y="244" key="Vcs.Multiple.Commit.Info.Dialog.Key/0.0.1536.824@0.0.1536.824" timestamp="1604407481477" />
-    <state x="552" y="253" width="814" height="574" key="Vcs.Push.Dialog.v2" timestamp="1608791407892">
+    <state x="552" y="253" width="814" height="574" key="Vcs.Push.Dialog.v2" timestamp="1608792441291">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state x="552" y="253" key="Vcs.Push.Dialog.v2/-1920.0.1920.1040/0.0.1920.1040@0.0.1920.1040" timestamp="1608791407892" />
+    <state x="552" y="253" key="Vcs.Push.Dialog.v2/-1920.0.1920.1040/0.0.1920.1040@0.0.1920.1040" timestamp="1608792441291" />
     <state x="422" y="133" width="814" height="574" key="Vcs.Push.Dialog.v2/0.0.1536.824@0.0.1536.824" timestamp="1608743084046" />
     <state width="775" height="419" key="XDebugger.FullValuePopup" timestamp="1608129309285">
       <screen x="0" y="0" width="1536" height="824" />
