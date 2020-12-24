@@ -161,9 +161,6 @@ class Traffic(object):
         self.collision_ego_id = None
         self.v_light = None
         self.training_light_phase = 0
-        if self.training_task == 'right':
-            if random.random() > 0.5:
-                self.training_light_phase = 2
         self.n_ego_dict = init_n_ego_dict
         traci.trafficlight.setPhase('0', self.training_light_phase)
         random_traffic = self.generate_random_traffic()
