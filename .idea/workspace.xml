@@ -24,10 +24,7 @@
     </select>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3d9152c8-6c22-421d-a57e-4ce9823911f2" name="Default Changelist" comment="minor change">
-      <change afterPath="$PROJECT_DIR$/hierarchical_decision/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/hierarchical_decision/static_traj_generator.py" afterDir="false" />
-    </list>
+    <list default="true" id="3d9152c8-6c22-421d-a57e-4ce9823911f2" name="Default Changelist" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -555,7 +552,14 @@
       <option name="project" value="LOCAL" />
       <updated>1608792398579</updated>
     </task>
-    <option name="localTasksCounter" value="45" />
+    <task id="LOCAL-00045" summary="minor change">
+      <created>1608792842772</created>
+      <option name="number" value="00045" />
+      <option name="presentableId" value="LOCAL-00045" />
+      <option name="project" value="LOCAL" />
+      <updated>1608792842772</updated>
+    </task>
+    <option name="localTasksCounter" value="46" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -606,11 +610,11 @@
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="682" y="343" key="#Notifications/-1920.0.1920.1040/0.0.1920.1040@0.0.1920.1040" timestamp="1607065656800" />
-    <state x="424" y="69" width="802" height="769" key="CommitChangelistDialog2" timestamp="1608792630819">
+    <state x="424" y="69" width="802" height="769" key="CommitChangelistDialog2" timestamp="1608792842385">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="-1461" y="0" key="CommitChangelistDialog2/-1920.0.1920.1040/0.0.1920.1040@-1920.0.1920.1040" timestamp="1608178715814" />
-    <state x="424" y="69" width="1278" height="871" key="CommitChangelistDialog2/-1920.0.1920.1040/0.0.1920.1040@0.0.1920.1040" timestamp="1608792630819" />
+    <state x="424" y="69" width="1278" height="871" key="CommitChangelistDialog2/-1920.0.1920.1040/0.0.1920.1040@0.0.1920.1040" timestamp="1608792842385" />
     <state x="367" y="55" width="802" height="769" key="CommitChangelistDialog2/0.0.1536.824@0.0.1536.824" timestamp="1608741143366" />
     <state x="34" y="47" width="1790" height="908" key="DiffContextDialog" timestamp="1608790803123">
       <screen x="0" y="0" width="1920" height="1040" />
@@ -696,10 +700,10 @@
     </state>
     <state x="-1411" y="308" key="Vcs.Multiple.Commit.Info.Dialog.Key/-1920.0.1920.1040/0.0.1920.1040@-1920.0.1920.1040" timestamp="1606459607470" />
     <state x="407" y="244" key="Vcs.Multiple.Commit.Info.Dialog.Key/0.0.1536.824@0.0.1536.824" timestamp="1604407481477" />
-    <state x="552" y="253" width="814" height="574" key="Vcs.Push.Dialog.v2" timestamp="1608792441291">
+    <state x="552" y="253" width="814" height="574" key="Vcs.Push.Dialog.v2" timestamp="1608792856990">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state x="552" y="253" key="Vcs.Push.Dialog.v2/-1920.0.1920.1040/0.0.1920.1040@0.0.1920.1040" timestamp="1608792441291" />
+    <state x="552" y="253" key="Vcs.Push.Dialog.v2/-1920.0.1920.1040/0.0.1920.1040@0.0.1920.1040" timestamp="1608792856990" />
     <state x="422" y="133" width="814" height="574" key="Vcs.Push.Dialog.v2/0.0.1536.824@0.0.1536.824" timestamp="1608743084046" />
     <state width="775" height="419" key="XDebugger.FullValuePopup" timestamp="1608129309285">
       <screen x="0" y="0" width="1536" height="824" />
