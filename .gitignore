@@ -202,9 +202,20 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-.idea/
+
 mpc/mpc_rl.npy
 test.py
 test_sumo.py
 end_to_end_test.py
+
 /utils/models/
+/hierarchical_decision/
+/mpc/rl_experiments/
+/multi_env/models/
+
+/.idea/
+
+SearchImage/.idea/misc.xml
+SearchImage/.idea/workspace.xml
+SearchImage/.idea/vcs.xml
+SearchImage/.idea/

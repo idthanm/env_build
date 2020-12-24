@@ -204,10 +204,10 @@ class CrossroadEnd2end(gym.Env):
             return 'collision', 1
         if self._break_road_constrain():
             return 'break_road_constrain', 1
-        # elif self._deviate_too_much():
-        #     return 'deviate_too_much', 1
-        # elif self._break_stability():
-        #     return 'break_stability', 1
+        elif self._deviate_too_much():
+            return 'deviate_too_much', 1
+        elif self._break_stability():
+            return 'break_stability', 1
         elif self._break_red_light():
             return 'break_red_light', 1
         elif self._is_achieve_goal():
