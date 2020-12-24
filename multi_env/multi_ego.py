@@ -40,9 +40,9 @@ class DistributedEgo(object):
     """Each class is one single vehicle and will be put into one process"""
     def __init__(self, task, egoID):
         self.task = task
-        TASK2MODEL = dict(left=LoadPolicy('C:\\Users\\Yangang REN\\Desktop\\env_build\\utils\\models\\left', 100000),
-                               straight=LoadPolicy('C:\\Users\\Yangang REN\\Desktop\\env_build\\utils\\models\\straight', 95000),
-                               right=LoadPolicy('C:\\Users\\Yangang REN\\Desktop\\env_build\\utils\\models\\right', 100000),)
+        TASK2MODEL = dict(left=LoadPolicy('G:\\env_build\\utils\\models\\left', 100000),
+                               straight=LoadPolicy('G:\\env_build\\utils\\models\\straight', 95000),
+                               right=LoadPolicy('G:\\env_build\\utils\\models\\right', 100000),)
         self.model = TASK2MODEL[task]
         self.egoID = egoID
         self.ego_instance = CrossroadEnd2end(training_task=task, display=True)
@@ -161,9 +161,9 @@ class DistributedMultiEgo(object):
 
 class MultiEgo(object):
     def __init__(self, init_n_ego_dict):  # init_n_ego_dict is used to init traffic (mainly) and ego dynamics
-        self.TASK2MODEL = dict(left=LoadPolicy('C:\\Users\\Yangang REN\\Desktop\\env_build\\utils\\models\\left', 100000),
-                               straight=LoadPolicy('C:\\Users\\Yangang REN\\Desktop\\env_build\\utils\\models\\straight', 95000),
-                               right=LoadPolicy('C:\\Users\\Yangang REN\\Desktop\\env_build\\utils\\models\\right', 145000),)
+        self.TASK2MODEL = dict(left=LoadPolicy('G:\\env_build\\utils\\models\\left', 100000),
+                               straight=LoadPolicy('G:\\env_build\\utils\\models\\straight', 95000),
+                               right=LoadPolicy('G:\\env_build\\utils\\models\\right', 145000),)
         self.n_ego_instance = {}
         self.n_ego_dynamics = {}
         self.n_ego_select_index = {}
