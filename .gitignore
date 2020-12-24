@@ -213,7 +213,7 @@ end_to_end_test.py
 /hierarchical_decision/
 /mpc/rl_experiments/
 /multi_env/models/
-/.idea/
+/.idea
 
 SearchImage/.idea/misc.xml
 SearchImage/.idea/workspace.xml
