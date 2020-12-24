@@ -210,7 +210,7 @@ end_to_end_test.py
 
 
 /utils/models/
-.idea/
 /hierarchical_decision/
 /mpc/rl_experiments/
 /multi_env/models/
+/.idea/
