@@ -19,6 +19,7 @@ from casadi import *
 from dynamics_and_models import ReferencePath
 from endtoend_env_utils import CROSSROAD_SIZE, LANE_WIDTH, L, W, VEHICLE_MODE_LIST
 from mpc.main import TimerStat
+from utils.load_policy import LoadPolicy
 
 
 def deal_with_phi_casa(phi):
@@ -105,6 +106,7 @@ class Dynamics(object):
             fit_x = np.arctan2(y - (-CROSSROAD_SIZE / 2), x - (CROSSROAD_SIZE / 2))
             fit_y1 = np.sqrt(np.square(x - (CROSSROAD_SIZE / 2)) + np.square(y - (-CROSSROAD_SIZE / 2)))
             fit_y2 = phi
+
         self.fit_y1_para = list(np.polyfit(fit_x, fit_y1, 3, rcond=None, full=False, w=None, cov=False))
         self.fit_y2_para = list(np.polyfit(fit_x, fit_y2, 3, rcond=None, full=False, w=None, cov=False))
 
@@ -341,34 +343,40 @@ class ModelPredictiveControl(object):
 
 
 def plot_mpc_rl(file_dir, mpc_name):
+    # v_x, v_y, r, x, y, phi
     data = np.load(file_dir, allow_pickle=True)
     iteration = np.array([i for i in range(len(data))])
-    mpc_delta_v = np.array([trunk['mpc_obs'][0][0] - 20. for trunk in data])
-    rl_delta_v = np.array([trunk['rl_obs'][0][0] - 20. for trunk in data])
-    mpc_delta_y = np.array([trunk['mpc_obs'][0][3] for trunk in data])
-    rl_delta_y = np.array([trunk['rl_obs'][0][3] for trunk in data])
-    mpc_delta_phi = np.array([trunk['mpc_obs'][0][4] for trunk in data])
-    rl_delta_phi = np.array([trunk['rl_obs'][0][4] for trunk in data])
+
+    mpc_delta_v = np.array([trunk['mpc_obs'][0] - 20. for trunk in data])
+    # rl_delta_v = np.array([trunk['rl_obs'][0][0] - 20. for trunk in data])
+
+    mpc_delta_y = np.array([trunk['mpc_obs'][3] for trunk in data])
+    # rl_delta_y = np.array([trunk['rl_obs'][0][3] for trunk in data])
+
+    mpc_delta_phi = np.array([trunk['mpc_obs'][4] for trunk in data])
+    # rl_delta_phi = np.array([trunk['rl_obs'][0][4] for trunk in data])
+
     mpc_steer = np.array([0.4 * trunk['mpc_action'][0] for trunk in data])
     mpc_acc = np.array([3 * trunk['mpc_action'][1] for trunk in data])
     mpc_time = np.array([trunk['mpc_time'] for trunk in data])
     mpc_rew = np.array([trunk['mpc_rew'] for trunk in data])
-    rl_steer = np.array([0.4 * trunk['rl_action'][0] for trunk in data])
-    rl_acc = np.array([3 * trunk['rl_action'][1] for trunk in data])
-    rl_steer_mpc = np.array([0.4 * trunk['rl_action_mpc'][0] for trunk in data])
-    rl_acc_mpc = np.array([3 * trunk['rl_action_mpc'][1] for trunk in data])
-    rl_time = np.array([trunk['rl_time'] for trunk in data])
-    rl_rew = np.array([trunk['rl_rew'] for trunk in data])
 
-    print("mean_mpc_time: {}, mean_rl_time: {}".format(np.mean(mpc_time), np.mean(rl_time)))
-    print("var_mpc_time: {}, var_rl_time: {}".format(np.var(mpc_time), np.var(rl_time)))
-    print("mpc_delta_y_mse: {}, rl_delta_y_mse: {}".format(np.sqrt(np.mean(np.square(mpc_delta_y))),
-                                                           np.sqrt(np.mean(np.square(rl_delta_y)))))
-    print("mpc_delta_v_mse: {}, rl_delta_v_mse: {}".format(np.sqrt(np.mean(np.square(mpc_delta_v))),
-                                                           np.sqrt(np.mean(np.square(rl_delta_v)))))
-    print("mpc_delta_phi_mse: {}, rl_delta_phi_mse: {}".format(np.sqrt(np.mean(np.square(mpc_delta_phi))),
-                                                               np.sqrt(np.mean(np.square(rl_delta_phi)))))
-    print("mpc_rew_sum: {}, rl_rew_sum: {}".format(np.sum(mpc_rew), np.sum(rl_rew)))
+    # rl_steer = np.array([0.4 * trunk['rl_action'][0] for trunk in data])
+    # rl_acc = np.array([3 * trunk['rl_action'][1] for trunk in data])
+    # rl_steer_mpc = np.array([0.4 * trunk['rl_action_mpc'][0] for trunk in data])
+    # rl_acc_mpc = np.array([3 * trunk['rl_action_mpc'][1] for trunk in data])
+    # rl_time = np.array([trunk['rl_time'] for trunk in data])
+    # rl_rew = np.array([trunk['rl_rew'] for trunk in data])
+
+    # print("mean_mpc_time: {}, mean_rl_time: {}".format(np.mean(mpc_time), np.mean(rl_time)))
+    # print("var_mpc_time: {}, var_rl_time: {}".format(np.var(mpc_time), np.var(rl_time)))
+    # print("mpc_delta_y_mse: {}, rl_delta_y_mse: {}".format(np.sqrt(np.mean(np.square(mpc_delta_y))),
+    #                                                        np.sqrt(np.mean(np.square(rl_delta_y)))))
+    # print("mpc_delta_v_mse: {}, rl_delta_v_mse: {}".format(np.sqrt(np.mean(np.square(mpc_delta_v))),
+    #                                                        np.sqrt(np.mean(np.square(rl_delta_v)))))
+    # print("mpc_delta_phi_mse: {}, rl_delta_phi_mse: {}".format(np.sqrt(np.mean(np.square(mpc_delta_phi))),
+    #                                                            np.sqrt(np.mean(np.square(rl_delta_phi)))))
+    # print("mpc_rew_sum: {}, rl_rew_sum: {}".format(np.sum(mpc_rew), np.sum(rl_rew)))
 
     df_mpc = pd.DataFrame({'algorithms': mpc_name,
                            'iteration': iteration,
@@ -379,25 +387,26 @@ def plot_mpc_rl(file_dir, mpc_name):
                            'delta_y': mpc_delta_y,
                            'delta_phi': mpc_delta_phi,
                            'rew': mpc_rew})
-    df_rl = pd.DataFrame({'algorithms': 'AMPC',
-                          'iteration': iteration,
-                          'steer': rl_steer,
-                          'acc': rl_acc,
-                          'time': rl_time,
-                          'delta_v': rl_delta_v,
-                          'delta_y': rl_delta_y,
-                          'delta_phi': rl_delta_phi,
-                          'rew': rl_rew})
-    df_rl_same_obs_as_mpc = pd.DataFrame({'algorithms': 'AMPC_sameobs_mpc',
-                                          'iteration': iteration,
-                                          'steer': rl_steer_mpc,
-                                          'acc': rl_acc_mpc,
-                                          'time': rl_time,
-                                          'delta_v': mpc_delta_v,
-                                          'delta_y': mpc_delta_y,
-                                          'delta_phi': mpc_delta_phi,
-                                          'rew': mpc_rew})
-    total_df = df_mpc.append([df_rl, df_rl_same_obs_as_mpc], ignore_index=True)
+    # df_rl = pd.DataFrame({'algorithms': 'AMPC',
+    #                       'iteration': iteration,
+    #                       'steer': rl_steer,
+    #                       'acc': rl_acc,
+    #                       'time': rl_time,
+    #                       'delta_v': rl_delta_v,
+    #                       'delta_y': rl_delta_y,
+    #                       'delta_phi': rl_delta_phi,
+    #                       'rew': rl_rew})
+    # df_rl_same_obs_as_mpc = pd.DataFrame({'algorithms': 'AMPC_sameobs_mpc',
+    #                                       'iteration': iteration,
+    #                                       'steer': rl_steer_mpc,
+    #                                       'acc': rl_acc_mpc,
+    #                                       'time': rl_time,
+    #                                       'delta_v': mpc_delta_v,
+    #                                       'delta_y': mpc_delta_y,
+    #                                       'delta_phi': mpc_delta_phi,
+    #                                       'rew': mpc_rew})
+    # total_df = df_mpc.append([df_rl, df_rl_same_obs_as_mpc], ignore_index=True)
+    total_df = df_mpc
     f1 = plt.figure(1)
     ax1 = f1.add_axes([0.155, 0.12, 0.82, 0.86])
     sns.lineplot(x="iteration", y="steer", hue="algorithms", data=total_df, linewidth=2, palette="bright", )
@@ -428,55 +437,54 @@ def plot_mpc_rl(file_dir, mpc_name):
     plt.yticks(fontsize=15)
     plt.xticks(fontsize=15)
 
-    f4 = plt.figure(4)
-    ax4 = f4.add_axes([0.155, 0.12, 0.82, 0.86])
-    sns.lineplot(x="iteration", y="delta_v", hue="algorithms", data=total_df, linewidth=2, palette="bright")
-    # ax3.set_ylabel('Average Q-value Estimation Bias', fontsize=15)
-    # ax3.set_xlabel("Million iterations", fontsize=15)
-    # plt.xlim(0, 3)
-    # plt.ylim(-40, 80)
-    plt.yticks(fontsize=15)
-    plt.xticks(fontsize=15)
-
-    f5 = plt.figure(5)
-    ax5 = f5.add_axes([0.155, 0.12, 0.82, 0.86])
-    sns.lineplot(x="iteration", y="delta_y", hue="algorithms", data=total_df, linewidth=2, palette="bright")
-    # ax3.set_ylabel('Average Q-value Estimation Bias', fontsize=15)
-    # ax3.set_xlabel("Million iterations", fontsize=15)
-    # plt.xlim(0, 3)
-    # plt.ylim(-40, 80)
-    plt.yticks(fontsize=15)
-    plt.xticks(fontsize=15)
-
-    f6 = plt.figure(6)
-    ax6 = f6.add_axes([0.155, 0.12, 0.82, 0.86])
-    sns.lineplot(x="iteration", y="delta_phi", hue="algorithms", data=total_df, linewidth=2, palette="bright")
-    # ax3.set_ylabel('Average Q-value Estimation Bias', fontsize=15)
-    # ax3.set_xlabel("Million iterations", fontsize=15)
-    # plt.xlim(0, 3)
-    # plt.ylim(-40, 80)
-    plt.yticks(fontsize=15)
-    plt.xticks(fontsize=15)
-
-    f7 = plt.figure(7)
-    ax7 = f7.add_axes([0.155, 0.12, 0.82, 0.86])
-    sns.lineplot(x="iteration", y="rew", hue="algorithms", data=total_df, linewidth=2, palette="bright")
-    # ax3.set_ylabel('Average Q-value Estimation Bias', fontsize=15)
-    # ax3.set_xlabel("Million iterations", fontsize=15)
-    # plt.xlim(0, 3)
-    # plt.ylim(-40, 80)
-    plt.yticks(fontsize=15)
-    plt.xticks(fontsize=15)
+    # f4 = plt.figure(4)
+    # ax4 = f4.add_axes([0.155, 0.12, 0.82, 0.86])
+    # sns.lineplot(x="iteration", y="delta_v", hue="algorithms", data=total_df, linewidth=2, palette="bright")
+    # # ax3.set_ylabel('Average Q-value Estimation Bias', fontsize=15)
+    # # ax3.set_xlabel("Million iterations", fontsize=15)
+    # # plt.xlim(0, 3)
+    # # plt.ylim(-40, 80)
+    # plt.yticks(fontsize=15)
+    # plt.xticks(fontsize=15)
+    #
+    # f5 = plt.figure(5)
+    # ax5 = f5.add_axes([0.155, 0.12, 0.82, 0.86])
+    # sns.lineplot(x="iteration", y="delta_y", hue="algorithms", data=total_df, linewidth=2, palette="bright")
+    # # ax3.set_ylabel('Average Q-value Estimation Bias', fontsize=15)
+    # # ax3.set_xlabel("Million iterations", fontsize=15)
+    # # plt.xlim(0, 3)
+    # # plt.ylim(-40, 80)
+    # plt.yticks(fontsize=15)
+    # plt.xticks(fontsize=15)
+    #
+    # f6 = plt.figure(6)
+    # ax6 = f6.add_axes([0.155, 0.12, 0.82, 0.86])
+    # sns.lineplot(x="iteration", y="delta_phi", hue="algorithms", data=total_df, linewidth=2, palette="bright")
+    # # ax3.set_ylabel('Average Q-value Estimation Bias', fontsize=15)
+    # # ax3.set_xlabel("Million iterations", fontsize=15)
+    # # plt.xlim(0, 3)
+    # # plt.ylim(-40, 80)
+    # plt.yticks(fontsize=15)
+    # plt.xticks(fontsize=15)
+    #
+    # f7 = plt.figure(7)
+    # ax7 = f7.add_axes([0.155, 0.12, 0.82, 0.86])
+    # sns.lineplot(x="iteration", y="rew", hue="algorithms", data=total_df, linewidth=2, palette="bright")
+    # # ax3.set_ylabel('Average Q-value Estimation Bias', fontsize=15)
+    # # ax3.set_xlabel("Million iterations", fontsize=15)
+    # # plt.xlim(0, 3)
+    # # plt.ylim(-40, 80)
+    # plt.yticks(fontsize=15)
+    # plt.xticks(fontsize=15)
     plt.show()
 
 
-def run_mpc():
+def run_mpc(task, rl_policy=None):
     horizon = 25
-    task = 'right'
     num_future_data = 0
     num_simu = 1
     mpc_timer, rl_timer = TimerStat(), TimerStat()
-    env4mpc = gym.make('CrossroadEnd2end-v0', training_task=task, num_future_data=num_future_data)
+    env4mpc = gym.make('CrossroadEnd2end-v1', training_task=task, num_future_data=num_future_data)
     # env4rl = gym.make('CrossroadEnd2end-v0', num_future_data=0)
 
     # rl_policy = LoadPolicy(rl_load_dir, rl_ite)
@@ -506,7 +514,6 @@ def run_mpc():
                 state_all = np.array((list(obs[:9]) + [0, 0]) * horizon + list(obs[:9])).reshape((-1, 1))
             else:
                 state_all = np.array((list(obs[:9]) + [0, 0]) * horizon + list(obs[:9])).reshape((-1, 1))
-                # np.zeros(shape=(11*horizon+9, 1))
                 mpc_action = control[0]
             # with rl_timer:
             #     rl_action_mpc = rl_policy.run(obs).numpy()[0]
@@ -517,7 +524,7 @@ def run_mpc():
                                   mpc_action=mpc_action,
                                   # rl_action=rl_action,
                                   # rl_action_mpc=rl_action_mpc,
-                                  mpc_time=mpc_timer.mean,
+                                  mpc_time=mpc_timer.mean * 1000,
                                   # rl_time=rl_timer.mean,
                                   mpc_rew=rew,
                                   # rl_rew=rew4rl[0],
@@ -532,10 +539,11 @@ def run_mpc():
                      'r*')
             plt.show()
             plt.pause(0.001)
-        np.save('mpc_rl.npy', np.array(data2plot))
+        np.save('mpc.npy', np.array(data2plot))
 
 
 if __name__ == '__main__':
-    # test = LoadPolicy('./mpc/rl_experiments/experiment-2020-10-20-14-52-58', 95000)
-    run_mpc()
-    # plot_mpc_rl('./mpc_rl.npy', 'IPOPT')
+    task = 'left'
+    rl_policy = LoadPolicy('G:\\env_build\\utils\\models\\left', 100000)
+    run_mpc(task, rl_policy)
+    # plot_mpc_rl('./mpc.npy', 'IPOPT')
