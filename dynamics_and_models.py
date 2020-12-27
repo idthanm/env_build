@@ -16,7 +16,7 @@ import tensorflow as tf
 from tensorflow import logical_and
 
 # gym.envs.user_defined.toyota_env.
-from endtoend_env_utils import rotate_coordination, L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, VEHICLE_MODE_LIST
+from endtoend_env_utils import rotate_coordination, L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, VEHICLE_MODE_LIST, EXPECTED_V
 
 
 class VehicleDynamics(object):
@@ -173,13 +173,13 @@ class EnvironmentModel(object):  # all tensors
         obs_next_final = self.convert_vehs_to_rela(obs_next)
         return obs_next_final, veh2veh4real
 
-    def _action_transformation_for_end2end(self, actions):  # [-1, 1]
+    def _action_transformation_for_end2end(self, actions):  # [-1, 1] # TODO:
         actions = tf.clip_by_value(actions, -1.05, 1.05)
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
         steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm-1
         return tf.stack([steer_scale, a_xs_scale], 1)
 
-    def compute_rewards(self, obses, actions):
+    def compute_rewards(self, obses, actions): # #TODO: temp veh2road
         obses = self.convert_vehs_to_abso(obses)
         with tf.name_scope('compute_reward') as scope:
             ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
@@ -392,7 +392,7 @@ class EnvironmentModel(object):  # all tensors
         return next_tracking_infos
 
     def veh_predict(self, veh_infos):
-        veh_mode_list = VEHICLE_MODE_LIST[self.task]
+        veh_mode_list = VEHICLE_MODE_LIST[self.task] #TODO: temp
         predictions_to_be_concat = []
 
         for vehs_index in range(len(veh_mode_list)):
@@ -412,10 +412,10 @@ class EnvironmentModel(object):  # all tensors
         veh_xs_delta = veh_vs / self.base_frequency * tf.cos(veh_phis_rad)
         veh_ys_delta = veh_vs / self.base_frequency * tf.sin(veh_phis_rad)
 
-        if mode in ['dl', 'rd', 'ur', 'lu']:
+        if mode in ['dl', 'rd', 'ur', 'lu']: #TODO: temp predict Psi
             veh_phis_rad_delta = tf.where(middle_cond, (veh_vs / (CROSSROAD_SIZE/2+0.5*LANE_WIDTH)) / self.base_frequency, zeros)
         elif mode in ['dr', 'ru', 'ul', 'ld']:
-            veh_phis_rad_delta = tf.where(middle_cond, -(veh_vs / (CROSSROAD_SIZE/2-2.5*LANE_WIDTH)) / self.base_frequency, zeros)
+            veh_phis_rad_delta = tf.where(middle_cond, -(veh_vs / (CROSSROAD_SIZE/2-0.5*LANE_WIDTH)) / self.base_frequency, zeros)
         else:
             veh_phis_rad_delta = zeros
         next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis_rad = \
@@ -425,7 +425,7 @@ class EnvironmentModel(object):  # all tensors
         next_veh_phis = next_veh_phis_rad * 180 / np.pi
         return tf.stack([next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis], 1)
 
-    def render(self, mode='human'):
+    def render(self, mode='human'): #TODO:for debug
         if mode == 'human':
             # plot basic map
             square_length = CROSSROAD_SIZE
@@ -583,7 +583,7 @@ class ReferencePath(object):
     def __init__(self, task, mode=None, ref_index=None):
         self.mode = mode
         self.traj_mode = None
-        self.exp_v = 8.
+        self.exp_v = EXPECTED_V #TODO: temp
         self.task = task
         self.path_list = []
         self.path_len_list = []
@@ -602,10 +602,10 @@ class ReferencePath(object):
     def _construct_ref_path(self, task):
         sl = 40  # straight length
         meter_pointnum_ratio = 30
-        control_ext = CROSSROAD_SIZE/3.
+        control_ext = CROSSROAD_SIZE/3. #TODO: temp
         if task == 'left':
-            end_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
-            start_offsets = [LANE_WIDTH*0.5]
+            end_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)] #TODO: temp
+            start_offsets = [LANE_WIDTH*0.5] #TODO: temp
             for start_offset in start_offsets:
                 for end_offset in end_offsets:
                     control_point1 = start_offset, -CROSSROAD_SIZE/2
@@ -637,7 +637,7 @@ class ReferencePath(object):
 
         elif task == 'straight':
             end_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
-            start_offsets = [LANE_WIDTH*1.5]
+            start_offsets = [LANE_WIDTH*0.5]
             for start_offset in start_offsets:
                 for end_offset in end_offsets:
                     control_point1 = start_offset, -CROSSROAD_SIZE/2
@@ -669,7 +669,7 @@ class ReferencePath(object):
         else:
             assert task == 'right'
             control_ext = CROSSROAD_SIZE/5.
-            end_offsets = [-LANE_WIDTH * 2.5, -LANE_WIDTH * 1.5, -LANE_WIDTH * 0.5]
+            end_offsets = [-LANE_WIDTH * 0.5]
             start_offsets = [LANE_WIDTH*(LANE_NUMBER-0.5)]
 
             for start_offset in start_offsets:
@@ -700,7 +700,7 @@ class ReferencePath(object):
                     self.path_list.append(planed_trj)
                     self.path_len_list.append((sl * meter_pointnum_ratio, len(trj_data[0]), len(xs_1)))
 
-    def find_closest_point(self, xs, ys, ratio=10):
+    def find_closest_point(self, xs, ys, ratio=6): #TODO: temp ratio yasuobili
         path_len = len(self.path[0])
         reduced_idx = np.arange(0, path_len, ratio)
         reduced_len = len(reduced_idx)
