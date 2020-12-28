@@ -127,14 +127,14 @@ class Traffic(object):
 
             if self.first_add:
                 traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
-                                        depart=0, pos=20, lane=1, speed=ego_dict['v_x'],
+                                        depart=0, pos=20, lane=0, speed=ego_dict['v_x'],
                                         typeID='self_car')
             try:
                 traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=1)
             except traci.exceptions.TraCIException:
                 print('Don\'t worry, it\'s handled well')
                 traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
-                                        depart=0, pos=20, lane=1, speed=ego_dict['v_x'],
+                                        depart=0, pos=20, lane=0, speed=ego_dict['v_x'],
                                         typeID='self_car')
                 traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=1)
 
@@ -192,7 +192,7 @@ class Traffic(object):
                                                                                                            a_in_ego_coord)
                 if (-5 < x_in_ego_coord < 1 * (ego_v_x) + ego_l/2. + veh_l/2. + 2 and abs(y_in_ego_coord) < 3) or \
                         (-5 < ego_x_in_veh_coord < 1 * (veh_v) + ego_l/2. + veh_l/2. + 2 and abs(ego_y_in_veh_coord) <3):
-                    traci.vehicle.moveToXY(veh, '4i', 1, -80, 1.85, 180, 2)
+                    traci.vehicle.moveToXY(veh, '4i', 1, -80, 1.85, 180, 2) #TODO: check
                     # traci.vehicle.remove(vehID=veh)
                 # if 0<x_in_sumo<3.5 and -22<y_in_sumo<-15:# and veh_sig!=1 and veh_sig!=9:
                 #     traci.vehicle.moveToXY(veh, '4o', 1, -80, 1.85, 180,2)

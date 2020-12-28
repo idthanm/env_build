@@ -12,14 +12,16 @@ from collections import OrderedDict
 import os
 
 L, W = 4.8, 2.0
-LANE_WIDTH = 3.75
-LANE_NUMBER = 3
-CROSSROAD_SIZE = 50
+LANE_WIDTH = 3.5
+LANE_NUMBER = 1 #TODO: temp
+CROSSROAD_SIZE = 22.0 #TODO: temp
+START_OFFSET = 3.0
+EXPECTED_V = 5. #TODO: temp
 dirname = os.path.dirname(__file__)
 SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
-VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=2, du=2, ud=2, ul=2),
-                         straight=OrderedDict(dl=1, du=2, ud=2, ru=2, ur=2),
-                         right=OrderedDict(dr=1, ur=2, lr=2))
+VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=1, du=1, ud=2, ul=1), # dl=2, du=2, ud=2, ul=2
+                         straight=OrderedDict(dl=1, du=1, ud=1, ru=2, ur=2), #vdl=1, du=2, ud=2, ru=2, ur=2
+                         right=OrderedDict(dr=1, ur=2, lr=2)) #TODO: temp relevant to filter interested vehicle
 
 
 def dict2flat(inp):
@@ -63,14 +65,14 @@ MODE2TASK = {'dr': 'right', 'du': 'straight', 'dl': 'left',
 
 
 def judge_feasible(orig_x, orig_y, task):  # map dependant
-    def is_in_straight_before1(orig_x, orig_y):
-        return 0 < orig_x < LANE_WIDTH and orig_y <= -CROSSROAD_SIZE / 2
+    def is_in_straight_before1(orig_x, orig_y): #TODO: temp
+        return 0 < orig_x < LANE_WIDTH and orig_y <= -CROSSROAD_SIZE / 2 - START_OFFSET
 
-    def is_in_straight_before2(orig_x, orig_y):
-        return LANE_WIDTH < orig_x < LANE_WIDTH * 2 and orig_y <= -CROSSROAD_SIZE / 2
-
-    def is_in_straight_before3(orig_x, orig_y):
-        return LANE_WIDTH * 2 < orig_x < LANE_WIDTH * 3 and orig_y <= -CROSSROAD_SIZE / 2
+    # def is_in_straight_before2(orig_x, orig_y):
+    #     return LANE_WIDTH < orig_x < LANE_WIDTH * 2 and orig_y <= -CROSSROAD_SIZE / 2
+    #
+    # def is_in_straight_before3(orig_x, orig_y):
+    #     return LANE_WIDTH * 2 < orig_x < LANE_WIDTH * 3 and orig_y <= -CROSSROAD_SIZE / 2
 
     def is_in_straight_after(orig_x, orig_y):
         return 0 < orig_x < LANE_WIDTH * LANE_NUMBER and orig_y >= CROSSROAD_SIZE / 2
@@ -82,17 +84,17 @@ def judge_feasible(orig_x, orig_y, task):  # map dependant
         return -LANE_WIDTH * LANE_NUMBER < orig_y < 0 and orig_x > CROSSROAD_SIZE / 2
 
     def is_in_middle(orig_x, orig_y):
-        return True if -CROSSROAD_SIZE / 2 < orig_y < CROSSROAD_SIZE / 2 and -CROSSROAD_SIZE / 2 < orig_x < CROSSROAD_SIZE / 2 else False
+        return True if -CROSSROAD_SIZE / 2 - START_OFFSET < orig_y < CROSSROAD_SIZE / 2 and -CROSSROAD_SIZE / 2 < orig_x < CROSSROAD_SIZE / 2 else False
 
     if task == 'left':
         return True if is_in_straight_before1(orig_x, orig_y) or is_in_left(orig_x, orig_y) \
                        or is_in_middle(orig_x, orig_y) else False
     elif task == 'straight':
-        return True if is_in_straight_before2(orig_x, orig_y) or is_in_straight_after(
+        return True if is_in_straight_before1(orig_x, orig_y) or is_in_straight_after(
             orig_x, orig_y) or is_in_middle(orig_x, orig_y) else False
     else:
         assert task == 'right'
-        return True if is_in_straight_before3(orig_x, orig_y) or is_in_right(orig_x, orig_y) \
+        return True if is_in_straight_before1(orig_x, orig_y) or is_in_right(orig_x, orig_y) \
                        or is_in_middle(orig_x, orig_y) else False
 
 
@@ -188,19 +190,19 @@ def cal_ego_info_in_transform_coordination(ego_dynamics, x, y, rotate_d):
     return ego_dynamics
 
 
-def xy2_edgeID_lane(x, y):
-    if y < -CROSSROAD_SIZE/2:
+def xy2_edgeID_lane(x, y): #TODO: temp
+    if y < -CROSSROAD_SIZE/2 - START_OFFSET:
         edgeID = '1o'
-        lane = int((LANE_NUMBER-1)-int(x/LANE_WIDTH))
+        lane = 0 # int((LANE_NUMBER-1)-int(x/LANE_WIDTH))
     elif x < -CROSSROAD_SIZE/2:
         edgeID = '4i'
-        lane = int((LANE_NUMBER-1)-int(y/LANE_WIDTH))
+        lane = 0 # int((LANE_NUMBER-1)-int(y/LANE_WIDTH))
     elif y > CROSSROAD_SIZE/2:
         edgeID = '3i'
-        lane = int((LANE_NUMBER-1)-int(x/LANE_WIDTH))
+        lane = 0 # int((LANE_NUMBER-1)-int(x/LANE_WIDTH))
     elif x > CROSSROAD_SIZE/2:
         edgeID = '2i'
-        lane = int((LANE_NUMBER-1)-int(-y/LANE_WIDTH))
+        lane = 0 # int((LANE_NUMBER-1)-int(-y/LANE_WIDTH))
     else:
         edgeID = '0'
         lane = 0
