@@ -127,14 +127,14 @@ class Traffic(object):
 
             if self.first_add:
                 traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
-                                        depart=0, pos=20, lane=1, speed=ego_dict['v_x'],
+                                        depart=0, pos=20, lane=0, speed=ego_dict['v_x'],
                                         typeID='self_car')
             try:
                 traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=1)
             except traci.exceptions.TraCIException:
                 print('Don\'t worry, it\'s handled well')
                 traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
-                                        depart=0, pos=20, lane=1, speed=ego_dict['v_x'],
+                                        depart=0, pos=20, lane=0, speed=ego_dict['v_x'],
                                         typeID='self_car')
                 traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=1)
 

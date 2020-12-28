@@ -12,9 +12,10 @@ from collections import OrderedDict
 import os
 
 L, W = 4.8, 2.0
-LANE_WIDTH = 3.75
+LANE_WIDTH = 3.5
 LANE_NUMBER = 1 #TODO: temp
-CROSSROAD_SIZE = 20 #TODO: temp
+CROSSROAD_SIZE = 22.0 #TODO: temp
+START_OFFSET = 3.0
 EXPECTED_V = 5. #TODO: temp
 dirname = os.path.dirname(__file__)
 SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
@@ -65,7 +66,7 @@ MODE2TASK = {'dr': 'right', 'du': 'straight', 'dl': 'left',
 
 def judge_feasible(orig_x, orig_y, task):  # map dependant
     def is_in_straight_before1(orig_x, orig_y): #TODO: temp
-        return 0 < orig_x < LANE_WIDTH and orig_y <= -CROSSROAD_SIZE / 2
+        return 0 < orig_x < LANE_WIDTH and orig_y <= -CROSSROAD_SIZE / 2 - START_OFFSET
 
     # def is_in_straight_before2(orig_x, orig_y):
     #     return LANE_WIDTH < orig_x < LANE_WIDTH * 2 and orig_y <= -CROSSROAD_SIZE / 2
@@ -83,7 +84,7 @@ def judge_feasible(orig_x, orig_y, task):  # map dependant
         return -LANE_WIDTH * LANE_NUMBER < orig_y < 0 and orig_x > CROSSROAD_SIZE / 2
 
     def is_in_middle(orig_x, orig_y):
-        return True if -CROSSROAD_SIZE / 2 < orig_y < CROSSROAD_SIZE / 2 and -CROSSROAD_SIZE / 2 < orig_x < CROSSROAD_SIZE / 2 else False
+        return True if -CROSSROAD_SIZE / 2 - START_OFFSET < orig_y < CROSSROAD_SIZE / 2 and -CROSSROAD_SIZE / 2 < orig_x < CROSSROAD_SIZE / 2 else False
 
     if task == 'left':
         return True if is_in_straight_before1(orig_x, orig_y) or is_in_left(orig_x, orig_y) \
@@ -190,7 +191,7 @@ def cal_ego_info_in_transform_coordination(ego_dynamics, x, y, rotate_d):
 
 
 def xy2_edgeID_lane(x, y): #TODO: temp
-    if y < -CROSSROAD_SIZE/2:
+    if y < -CROSSROAD_SIZE/2 - START_OFFSET:
         edgeID = '1o'
         lane = 0 # int((LANE_NUMBER-1)-int(x/LANE_WIDTH))
     elif x < -CROSSROAD_SIZE/2:
