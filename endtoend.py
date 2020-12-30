@@ -255,11 +255,7 @@ class CrossroadEnd2end(gym.Env):
         action = np.clip(action, -1.05, 1.05)
         steer_norm, a_x_norm = action[0], action[1]
         scaled_steer = 0.4 * steer_norm
-        scaled_a_x = 3.*a_x_norm - 1
-        # if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
-        #     scaled_steer = 0.
-        #     scaled_a_x = -3.
-
+        scaled_a_x = 2.25*a_x_norm - 0.75  # [-3, 1.5]
         scaled_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
         return scaled_action
 
@@ -398,7 +394,8 @@ class CrossroadEnd2end(gym.Env):
 
             ur_straight = list(filter(lambda v: v['x'] < ego_x + 2 and ego_y < v['y'] < CROSSROAD_SIZE/2+10, ur))  # interest of straight
             ur_right = list(filter(lambda v: v['x'] < CROSSROAD_SIZE/2+10 and v['y'] < CROSSROAD_SIZE/2, ur))  # interest of right
-            ud = list(filter(lambda v: max(ego_y-2, -CROSSROAD_SIZE/2) < v['y'] < CROSSROAD_SIZE/2 and ego_x > v['x'], ud))  # interest of left
+            ud = list(filter(lambda v: max(ego_y-2, -CROSSROAD_SIZE/2) < v['y'] < CROSSROAD_SIZE/2
+                                       and ego_x > v['x'] and ego_y > -CROSSROAD_SIZE/2-START_OFFSET, ud))  # interest of left
             ul = list(filter(lambda v: -CROSSROAD_SIZE/2-10 < v['x'] < ego_x and v['y'] < CROSSROAD_SIZE/2, ul))  # interest of left
 
             lu = lu  # not interest in case of traffic light
