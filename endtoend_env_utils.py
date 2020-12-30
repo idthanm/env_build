@@ -14,7 +14,7 @@ import os
 L, W = 4.8, 2.0
 LANE_WIDTH = 3.5
 LANE_NUMBER = 1 #TODO: temp
-CROSSROAD_SIZE = 22.0 #TODO: temp
+CROSSROAD_SIZE = 22 #TODO: temp
 START_OFFSET = 3.0
 EXPECTED_V = 5. #TODO: temp
 dirname = os.path.dirname(__file__)
