@@ -37,9 +37,12 @@ class VehicleDynamics(object):
                                         F_zr=F_zr))
 
     def f_xu(self, states, actions, tau):  # states and actions are tensors, [[], [], ...]
-        v_x, v_y, r, x, y, phi = states[:, 0], states[:, 1], states[:, 2], states[:, 3], states[:, 4], states[:, 5]
+        v_x, v_y, r, x, y, phi, steering_wheel_steer = states[:, 0], states[:, 1], states[:, 2], states[:, 3], \
+                                                    states[:, 4], states[:, 5], states[:, 6]
+        front_wheel_steer = steering_wheel_steer / 10.0 / 180 * np.pi
+        # front_wheel_steer for front wheel steer in rad
         phi = phi * np.pi / 180.
-        steer, a_x = actions[:, 0], actions[:, 1]
+        delta_steer, a_x = actions[:, 0], actions[:, 1]
         C_f = tf.convert_to_tensor(self.vehicle_params['C_f'], dtype=tf.float32)
         C_r = tf.convert_to_tensor(self.vehicle_params['C_r'], dtype=tf.float32)
         a = tf.convert_to_tensor(self.vehicle_params['a'], dtype=tf.float32)
@@ -54,18 +57,19 @@ class VehicleDynamics(object):
         F_xr = tf.where(a_x < 0, mass * a_x / 2, mass * a_x)
         miu_f = tf.sqrt(tf.square(miu * F_zf) - tf.square(F_xf)) / F_zf
         miu_r = tf.sqrt(tf.square(miu * F_zr) - tf.square(F_xr)) / F_zr
-        alpha_f = tf.atan((v_y + a * r) / (v_x+1e-8)) - steer
+        alpha_f = tf.atan((v_y + a * r) / (v_x+1e-8)) - front_wheel_steer
         alpha_r = tf.atan((v_y - b * r) / (v_x+1e-8))
 
         next_state = [v_x + tau * (a_x + v_y * r),
                       (mass * v_y * v_x + tau * (
-                                  a * C_f - b * C_r) * r - tau * C_f * steer * v_x - tau * mass * tf.square(
+                                  a * C_f - b * C_r) * r - tau * C_f * front_wheel_steer * v_x - tau * mass * tf.square(
                           v_x) * r) / (mass * v_x - tau * (C_f + C_r)),
-                      (-I_z * r * v_x - tau * (a * C_f - b * C_r) * v_y + tau * a * C_f * steer * v_x) / (
+                      (-I_z * r * v_x - tau * (a * C_f - b * C_r) * v_y + tau * a * C_f * front_wheel_steer * v_x) / (
                                   tau * (tf.square(a) * C_f + tf.square(b) * C_r) - I_z * v_x),
                       x + tau * (v_x * tf.cos(phi) - v_y * tf.sin(phi)),
                       y + tau * (v_x * tf.sin(phi) + v_y * tf.cos(phi)),
-                      (phi + tau * r) * 180 / np.pi]
+                      (phi + tau * r) * 180 / np.pi,
+                      delta_steer]
 
         return tf.stack(next_state, 1), tf.stack([alpha_f, alpha_r, miu_f, miu_r], 1)
 
@@ -88,7 +92,7 @@ class EnvironmentModel(object):  # all tensors
         self.num_future_data = num_future_data
         self.exp_v = EXPECTED_V
         self.reward_info = None
-        self.ego_info_dim = 6
+        self.ego_info_dim = 7
         self.per_veh_info_dim = 4
         self.per_tracking_info_dim = 3
 
@@ -188,9 +192,9 @@ class EnvironmentModel(object):  # all tensors
                                                                self.num_future_data + 1)], \
                                                    obses[:, self.ego_info_dim + self.per_tracking_info_dim * (
                                                                self.num_future_data + 1):]
-            steers, a_xs = actions[:, 0], actions[:, 1]
+            delta_steers, a_xs = actions[:, 0], actions[:, 1]
             # rewards related to action
-            punish_steer = -tf.square(steers)
+            punish_delta_steer = -tf.square(delta_steers)
             punish_a_x = -tf.square(a_xs)
 
             # rewards related to ego stability
@@ -290,7 +294,7 @@ class EnvironmentModel(object):  # all tensors
                         tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), tf.zeros_like(veh_infos[:, 0]))
 
             rewards = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
-                      5 * punish_steer + 0.05 * punish_a_x
+                      5 / 100.0 * punish_delta_steer + 0.05 * punish_a_x
             punish_term_for_training = veh2veh4training + veh2road4training
             real_punish_term = veh2veh4real + veh2road4real
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
@@ -374,10 +378,10 @@ class EnvironmentModel(object):  # all tensors
 
     def ego_predict(self, ego_infos, actions):
         ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions, self.base_frequency)
-        v_xs, v_ys, rs, xs, ys, phis = ego_next_infos[:, 0], ego_next_infos[:, 1], ego_next_infos[:, 2], \
-                                       ego_next_infos[:, 3], ego_next_infos[:, 4], ego_next_infos[:, 5]
+        v_xs, v_ys, rs, xs, ys, phis, steers = ego_next_infos[:, 0], ego_next_infos[:, 1], ego_next_infos[:, 2], \
+                                       ego_next_infos[:, 3], ego_next_infos[:, 4], ego_next_infos[:, 5], ego_next_infos[:, 6]
         v_xs = tf.clip_by_value(v_xs, 0., 35.)
-        ego_next_infos = tf.stack([v_xs, v_ys, rs, xs, ys, phis], axis=1)
+        ego_next_infos = tf.stack([v_xs, v_ys, rs, xs, ys, phis, steers], axis=1)
         return ego_next_infos
 
     def tracking_error_predict(self, ego_infos, tracking_infos, actions):
@@ -558,9 +562,9 @@ class EnvironmentModel(object):  # all tensors
             plt.text(text_x, text_y_start - next(ge), 'yaw_rate: {:.2f}rad/s'.format(ego_r))
 
             if self.actions is not None:
-                steer, a_x = self.actions[0, 0], self.actions[0, 1]
+                delta_steer, a_x = self.actions[0, 0], self.actions[0, 1]
                 plt.text(text_x, text_y_start - next(ge),
-                         r'steer: {:.2f}rad (${:.2f}\degree$)'.format(steer, steer * 180 / np.pi))
+                         r'delta_steer: {:.2f}rad (${:.2f}\degree$)'.format(delta_steer, delta_steer * 180 / np.pi))
                 plt.text(text_x, text_y_start - next(ge), 'a_x: {:.2f}m/s^2'.format(a_x))
 
             text_x, text_y_start = 70, 60
