@@ -69,7 +69,7 @@ class VehicleDynamics(object):
                       x + tau * (v_x * tf.cos(phi) - v_y * tf.sin(phi)),
                       y + tau * (v_x * tf.sin(phi) + v_y * tf.cos(phi)),
                       (phi + tau * r) * 180 / np.pi,
-                      delta_steer]
+                      steering_wheel_steer + tau * delta_steer]
 
         return tf.stack(next_state, 1), tf.stack([alpha_f, alpha_r, miu_f, miu_r], 1)
 
@@ -180,7 +180,7 @@ class EnvironmentModel(object):  # all tensors
     def _action_transformation_for_end2end(self, actions):  # [-1, 1] # TODO:
         actions = tf.clip_by_value(actions, -1.05, 1.05)
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
-        steer_scale, a_xs_scale = 0.4 * steer_norm, 3. * a_xs_norm-1
+        steer_scale, a_xs_scale = 20. * steer_norm, 3. * a_xs_norm-1
         return tf.stack([steer_scale, a_xs_scale], 1)
 
     def compute_rewards(self, obses, actions): # #TODO: temp veh2road
@@ -294,7 +294,7 @@ class EnvironmentModel(object):  # all tensors
                         tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), tf.zeros_like(veh_infos[:, 0]))
 
             rewards = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
-                      5 / 100.0 * punish_delta_steer + 0.05 * punish_a_x
+                      5 / 5000.0 * punish_delta_steer + 0.05 * punish_a_x
             punish_term_for_training = veh2veh4training + veh2road4training
             real_punish_term = veh2veh4real + veh2road4real
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
@@ -377,7 +377,7 @@ class EnvironmentModel(object):  # all tensors
         return out
 
     def ego_predict(self, ego_infos, actions):
-        ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions, self.base_frequency)
+        ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :7], actions, self.base_frequency)
         v_xs, v_ys, rs, xs, ys, phis, steers = ego_next_infos[:, 0], ego_next_infos[:, 1], ego_next_infos[:, 2], \
                                        ego_next_infos[:, 3], ego_next_infos[:, 4], ego_next_infos[:, 5], ego_next_infos[:, 6]
         v_xs = tf.clip_by_value(v_xs, 0., 35.)
@@ -542,7 +542,7 @@ class EnvironmentModel(object):  # all tensors
 
             # plot own car
             delta_y, delta_phi = tracing_info[0], tracing_info[1]
-            ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi = ego_info
+            ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi, ego_steer = ego_info
 
             plot_phi_line(ego_x, ego_y, ego_phi, 'red')
             draw_rotate_rec(ego_x, ego_y, ego_phi, L, W, 'red')
@@ -556,15 +556,17 @@ class EnvironmentModel(object):  # all tensors
             plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
             plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
 
+
             plt.text(text_x, text_y_start - next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
             plt.text(text_x, text_y_start - next(ge), 'exp_v: {:.2f}m/s'.format(self.exp_v))
             plt.text(text_x, text_y_start - next(ge), 'v_y: {:.2f}m/s'.format(ego_v_y))
             plt.text(text_x, text_y_start - next(ge), 'yaw_rate: {:.2f}rad/s'.format(ego_r))
+            plt.text(text_x, text_y_start - next(ge), r'ego_steer: ${:.2f}\degree$'.format(ego_steer))
 
             if self.actions is not None:
                 delta_steer, a_x = self.actions[0, 0], self.actions[0, 1]
                 plt.text(text_x, text_y_start - next(ge),
-                         r'delta_steer: {:.2f}rad (${:.2f}\degree$)'.format(delta_steer, delta_steer * 180 / np.pi))
+                         r'delta_steer: ${:.2f}\degree$'.format(delta_steer))
                 plt.text(text_x, text_y_start - next(ge), 'a_x: {:.2f}m/s^2'.format(a_x))
 
             text_x, text_y_start = 70, 60

@@ -106,7 +106,8 @@ class CrossroadEnd2end(gym.Env):
                                                self.init_state['ego']['r'],
                                                self.init_state['ego']['x'],
                                                self.init_state['ego']['y'],
-                                               self.init_state['ego']['phi']],
+                                               self.init_state['ego']['phi'],
+                                               self.init_state['ego']['steer']],
                                               [0,
                                                0,
                                                self.dynamics.vehicle_params['miu'],
@@ -150,6 +151,7 @@ class CrossroadEnd2end(gym.Env):
                    x=next_ego_state[3],
                    y=next_ego_state[4],
                    phi=next_ego_state[5],
+                   steer=next_ego_state[6],
                    l=self.ego_l,
                    w=self.ego_w,
                    alpha_f=next_ego_params[0],
@@ -254,7 +256,7 @@ class CrossroadEnd2end(gym.Env):
     def _action_transformation_for_end2end(self, action):  # [-1, 1] # TODO: wait real car
         action = np.clip(action, -1.05, 1.05)
         steer_norm, a_x_norm = action[0], action[1]
-        scaled_steer = 0.4 * steer_norm
+        scaled_steer = 20. * steer_norm
         scaled_a_x = 3.*a_x_norm - 1
         # if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
         #     scaled_steer = 0.
@@ -270,13 +272,14 @@ class CrossroadEnd2end(gym.Env):
         current_x = self.ego_dynamics['x']
         current_y = self.ego_dynamics['y']
         current_phi = self.ego_dynamics['phi']
-        steer, a_x = trans_action
-        state = np.array([[current_v_x, current_v_y, current_r, current_x, current_y, current_phi]], dtype=np.float32)
-        action = np.array([[steer, a_x]], dtype=np.float32)
+        current_steer = self.ego_dynamics['steer']
+        delta_steer, a_x = trans_action
+        state = np.array([[current_v_x, current_v_y, current_r, current_x, current_y, current_phi, current_steer]], dtype=np.float32)
+        action = np.array([[delta_steer, a_x]], dtype=np.float32)
         next_ego_state, next_ego_params = self.dynamics.prediction(state, action, 10)
         next_ego_state, next_ego_params = next_ego_state.numpy()[0],  next_ego_params.numpy()[0]
         next_ego_state[0] = next_ego_state[0] if next_ego_state[0] >= 0 else 0.
-        next_ego_state[-1] = deal_with_phi(next_ego_state[-1])
+        next_ego_state[-2] = deal_with_phi(next_ego_state[-2])
         return next_ego_state, next_ego_params
 
     def _get_obs(self, exit_='D', func='tracking'):
@@ -305,7 +308,7 @@ class CrossroadEnd2end(gym.Env):
                                                          self.num_future_data + 1)], \
                                                obs_abso[self.ego_info_dim + self.per_tracking_info_dim * (
                                                            self.num_future_data + 1):]
-        ego_vx, ego_vy, ego_r, ego_x, ego_y, ego_phi = ego_infos
+        ego_vx, ego_vy, ego_r, ego_x, ego_y, ego_phi, ego_steer = ego_infos
         ego = np.array([ego_x, ego_y, 0, 0]*int(len(veh_infos)/self.per_veh_info_dim), dtype=np.float32)
         vehs_rela = veh_infos - ego
         out = np.concatenate((ego_infos, tracking_infos, vehs_rela), axis=0)
@@ -317,7 +320,7 @@ class CrossroadEnd2end(gym.Env):
                                                        self.num_future_data + 1)], \
                                                obs_rela[self.ego_info_dim + self.per_tracking_info_dim * (
                                                        self.num_future_data + 1):]
-        ego_vx, ego_vy, ego_r, ego_x, ego_y, ego_phi = ego_infos
+        ego_vx, ego_vy, ego_r, ego_x, ego_y, ego_phi, ego_steer = ego_infos
         ego = np.array([ego_x, ego_y, 0, 0]*int(len(veh_rela)/self.per_veh_info_dim), dtype=np.float32)
         vehs_abso = veh_rela + ego
         out = np.concatenate((ego_infos, tracking_infos, vehs_abso), axis=0)
@@ -330,8 +333,9 @@ class CrossroadEnd2end(gym.Env):
         ego_x = self.ego_dynamics['x']
         ego_y = self.ego_dynamics['y']
         ego_phi = self.ego_dynamics['phi']
-        ego_feature = [ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi]
-        self.ego_info_dim = 6
+        ego_steer = self.ego_dynamics['steer']
+        ego_feature = [ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi, ego_steer]
+        self.ego_info_dim = 7
         return np.array(ego_feature, dtype=np.float32)
 
     def _construct_veh_vector_short(self, exit_='D'): #TODO: temp mht
@@ -503,6 +507,7 @@ class CrossroadEnd2end(gym.Env):
                              x=x.numpy(),
                              y=y.numpy(),
                              phi=phi.numpy(),
+                             steer=0,
                              l=self.ego_l,
                              w=self.ego_w,
                              routeID=routeID,
@@ -623,7 +628,7 @@ class CrossroadEnd2end(gym.Env):
                     tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), 0.)
 
         reward = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
-                 5 * punish_steer + 0.05 * punish_a_x
+                 5/5000.0 * punish_steer + 0.05 * punish_a_x
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
@@ -827,6 +832,7 @@ class CrossroadEnd2end(gym.Env):
             ego_x = self.ego_dynamics['x']
             ego_y = self.ego_dynamics['y']
             ego_phi = self.ego_dynamics['phi']
+            ego_steer = self.ego_dynamics['steer']
             ego_l = self.ego_dynamics['l']
             ego_w = self.ego_dynamics['w']
             ego_alpha_f = self.ego_dynamics['alpha_f']
@@ -891,6 +897,7 @@ class CrossroadEnd2end(gym.Env):
             plt.text(text_x, text_y_start - next(ge), 'exp_v: {:.2f}m/s'.format(self.exp_v))
             plt.text(text_x, text_y_start - next(ge), 'v_y: {:.2f}m/s'.format(ego_v_y))
             plt.text(text_x, text_y_start - next(ge), 'yaw_rate: {:.2f}rad/s'.format(ego_r))
+            plt.text(text_x, text_y_start - next(ge), r'ego_steer: ${:.2f}\degree$'.format(ego_steer))
             plt.text(text_x, text_y_start - next(ge), 'yaw_rate bound: [{:.2f}, {:.2f}]'.format(-r_bound, r_bound))
 
             plt.text(text_x, text_y_start - next(ge), r'$\alpha_f$: {:.2f} rad'.format(ego_alpha_f))
@@ -901,7 +908,7 @@ class CrossroadEnd2end(gym.Env):
                                                                                                         alpha_r_bound))
             if self.action is not None:
                 steer, a_x = self.action[0], self.action[1]
-                plt.text(text_x, text_y_start - next(ge), r'steer: {:.2f}rad (${:.2f}\degree$)'.format(steer, steer * 180 / np.pi))
+                plt.text(text_x, text_y_start - next(ge), r'delta_steer: ${:.2f}\degree$'.format(steer))
                 plt.text(text_x, text_y_start - next(ge), 'a_x: {:.2f}m/s^2'.format(a_x))
 
             text_x, text_y_start = 70, 60
