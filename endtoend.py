@@ -256,7 +256,7 @@ class CrossroadEnd2end(gym.Env):
     def _action_transformation_for_end2end(self, action):  # [-1, 1] # TODO: wait real car
         action = np.clip(action, -1.05, 1.05)
         steering_wheel_v_norm, a_x_norm = action[0], action[1]
-        steering_wheel_v = 50. * steering_wheel_v_norm
+        steering_wheel_v = 100. * steering_wheel_v_norm
         a_x = 2.25*a_x_norm - 0.75
         # if self.v_light != 0 and self.ego_dynamics['y'] < -18 and self.training_task != 'right':
         #     scaled_steer = 0.
@@ -630,14 +630,14 @@ class CrossroadEnd2end(gym.Env):
                     tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), 0.)
 
         reward = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
-                 5/5000.0 * punish_steer_wheel_v + 0.05 * punish_a_x
+                 1 / 20000.0 * punish_steer_wheel_v + 0.05 * punish_a_x
         reward_dict = dict(punish_steer=punish_steer_wheel_v.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
                            devi_v=devi_v.numpy(),
                            devi_y=devi_y.numpy(),
                            devi_phi=devi_phi.numpy(),
-                           scaled_punish_steer=5/5000.0 * punish_steer_wheel_v.numpy(),
+                           scaled_punish_steer=1 / 20000.0 * punish_steer_wheel_v.numpy(),
                            scaled_punish_a_x=0.05 * punish_a_x.numpy(),
                            scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
                            scaled_devi_v=0.05 * devi_v.numpy(),
