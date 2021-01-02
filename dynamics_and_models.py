@@ -180,9 +180,9 @@ class EnvironmentModel(object):  # all tensors
     def _action_transformation_for_end2end(self, actions):  # [-1, 1] # TODO:
         actions = tf.clip_by_value(actions, -1.05, 1.05)
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
-        steer_scale, a_xs_scale = 50. * steer_norm, 2.25 * a_xs_norm-0.75
+        steer_scale, a_xs_scale = 100. * steer_norm, 2.25 * a_xs_norm - 0.75
         return tf.stack([steer_scale, a_xs_scale], 1)
-
+    
     def compute_rewards(self, obses, actions): # #TODO: temp veh2road
         obses = self.convert_vehs_to_abso(obses)
         with tf.name_scope('compute_reward') as scope:
@@ -294,7 +294,7 @@ class EnvironmentModel(object):  # all tensors
                         tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), tf.zeros_like(veh_infos[:, 0]))
 
             rewards = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
-                      5 / 5000.0 * punish_steering_wheel_v + 0.05 * punish_a_x
+                      1 / 20000.0 * punish_steering_wheel_v + 0.05 * punish_a_x
             punish_term_for_training = veh2veh4training + veh2road4training
             real_punish_term = veh2veh4real + veh2road4real
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
