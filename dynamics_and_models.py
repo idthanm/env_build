@@ -312,8 +312,9 @@ class EnvironmentModel(object):  # all tensors
 
     def compute_next_obses(self, obses, actions):
         obses = self.convert_vehs_to_abso(obses)
-        ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], obses[:,
-                                                                             self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
+        ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim],\
+                                               obses[:, self.ego_info_dim:
+                                                        self.ego_info_dim + self.per_tracking_info_dim * (
                                                                                          self.num_future_data + 1)], \
                                                obses[:, self.ego_info_dim + self.per_tracking_info_dim * (
                                                            self.num_future_data + 1):]
