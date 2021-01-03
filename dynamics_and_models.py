@@ -289,7 +289,7 @@ class EnvironmentModel(object):  # all tensors
                         logical_and(ego_point[0] > CROSSROAD_SIZE / 2, ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) < 1),
                         tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), tf.zeros_like(veh_infos[:, 0]))
 
-            rewards = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
+            rewards = 0.2 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
                       5 * punish_steer + 0.05 * punish_a_x
             punish_term_for_training = veh2veh4training + veh2road4training
             real_punish_term = veh2veh4real + veh2road4real
@@ -670,7 +670,7 @@ class ReferencePath(object):
 
         else:
             assert task == 'right'
-            control_ext = CROSSROAD_SIZE/5.
+            control_ext = CROSSROAD_SIZE/5. + 3.
             end_offsets = [-LANE_WIDTH * 0.5]
             start_offsets = [LANE_WIDTH*(LANE_NUMBER-0.5)]
 
