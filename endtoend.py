@@ -58,6 +58,7 @@ class CrossroadEnd2end(gym.Env):
         self.detected_vehicles = None
         self.all_vehicles = None
         self.ego_dynamics = None
+        self.virtual_red_light_vehicle = None
         self.num_future_data = num_future_data
         self.init_state = {}
         self.action_number = 2
@@ -117,6 +118,10 @@ class CrossroadEnd2end(gym.Env):
         self.action = None
         self.reward_info = None
         self.done_type = 'not_done_yet'
+        if np.random.random() > 0.9:
+            self.virtual_red_light_vehicle = True
+        else:
+            self.virtual_red_light_vehicle = False
         return self.obs
 
     def close(self):
@@ -376,7 +381,7 @@ class CrossroadEnd2end(gym.Env):
                     lr.append(v)
                 elif start == name_setting['lo'] and end == name_setting['di']:
                     ld.append(v)
-            if v_light != 0 and ego_y < -CROSSROAD_SIZE/2:
+            if v_light != 0 and ego_y < -CROSSROAD_SIZE/2 - START_OFFSET or self.virtual_red_light_vehicle :
                 dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
                 dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None))
                 du.append(dict(x=LANE_WIDTH*1.5, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
@@ -438,7 +443,7 @@ class CrossroadEnd2end(gym.Env):
             fill_value_for_ud = dict(x=-LANE_WIDTH*0.5, y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '1i'))
             fill_value_for_ul = dict(x=-LANE_WIDTH*(LANE_NUMBER-0.5), y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '4i'))
 
-            fill_value_for_lr = dict(x=-(CROSSROAD_SIZE/2+20), y=-LANE_WIDTH*1.5, v=0, phi=0, w=2.5, l=5, route=('4o', '2i'))
+            fill_value_for_lr = dict(x=-(CROSSROAD_SIZE/2+20), y=-LANE_WIDTH*0.5, v=0, phi=0, w=2.5, l=5, route=('4o', '2i'))
 
             tmp = OrderedDict()
             if task == 'left':
@@ -477,12 +482,7 @@ class CrossroadEnd2end(gym.Env):
         return orig_x, orig_y
 
     def _reset_init_state(self): # TODO: temp
-        if self.training_task == 'left':
-            random_index = int(np.random.random()*(560)) + 700 # 900+500
-        elif self.training_task == 'straight':
-            random_index = int(np.random.random()*(680)) + 700 # 1200+500
-        else:
-            random_index = int(np.random.random()*(360)) + 700 # 420+500
+        random_index = int(np.random.random()*(500)) + 600
 
         x, y, phi = self.ref_path.indexs2points(random_index)
         # v = 7 + 6 * np.random.random()
@@ -619,7 +619,7 @@ class CrossroadEnd2end(gym.Env):
                     logical_and(ego_point[0] > CROSSROAD_SIZE / 2, ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) < 1),
                     tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), 0.)
 
-        reward = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
+        reward = 0.2 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
                  5 * punish_steer + 0.05 * punish_a_x
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
@@ -630,7 +630,7 @@ class CrossroadEnd2end(gym.Env):
                            scaled_punish_steer=5 * punish_steer.numpy(),
                            scaled_punish_a_x=0.05 * punish_a_x.numpy(),
                            scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
-                           scaled_devi_v=0.05 * devi_v.numpy(),
+                           scaled_devi_v=0.2 * devi_v.numpy(),
                            scaled_devi_y=0.8 * devi_y.numpy(),
                            scaled_devi_phi=30 * devi_phi.numpy(),
                            veh2veh4training=veh2veh4training.numpy(),
