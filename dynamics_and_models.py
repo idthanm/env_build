@@ -116,7 +116,7 @@ class EnvironmentModel(object):  # all tensors
         # judge collision
         actions = self._action_transformation_for_end2end(actions)
         obs_next = self.compute_next_obses(obs, actions)           # for relative state
-        obs_next = self.convert_vehs_to_abso(obs_next)             # for absolute state
+        # obs_next = self.convert_vehs_to_abso(obs_next)             # for absolute state
         with tf.name_scope('compute_reward') as scope:
             ego_infos, tracking_infos, veh_infos = obs_next[:, :self.ego_info_dim], \
                                                    obs_next[:,
@@ -170,8 +170,8 @@ class EnvironmentModel(object):  # all tensors
 
             # punish_term_for_training = veh2veh4training + veh2road4training
             # real_punish_term  = veh2veh4real + veh2road4real
-        obs_next_final = self.convert_vehs_to_rela(obs_next)
-        return obs_next_final, veh2veh4real
+        # obs_next = self.convert_vehs_to_rela(obs_next)
+        return obs_next, veh2veh4real
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1] # TODO:
         actions = tf.clip_by_value(actions, -1.05, 1.05)
@@ -180,7 +180,7 @@ class EnvironmentModel(object):  # all tensors
         return tf.stack([steer_scale, a_xs_scale], 1)
 
     def compute_rewards(self, obses, actions): # #TODO: temp veh2road
-        obses = self.convert_vehs_to_abso(obses)
+        # obses = self.convert_vehs_to_abso(obses)
         with tf.name_scope('compute_reward') as scope:
             ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
                                                    obses[:,
@@ -311,7 +311,7 @@ class EnvironmentModel(object):  # all tensors
             return rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real
 
     def compute_next_obses(self, obses, actions):
-        obses = self.convert_vehs_to_abso(obses)
+        # obses = self.convert_vehs_to_abso(obses)
         ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim],\
                                                obses[:, self.ego_info_dim:
                                                         self.ego_info_dim + self.per_tracking_info_dim * (
@@ -344,7 +344,7 @@ class EnvironmentModel(object):  # all tensors
 
         next_veh_infos = self.veh_predict(veh_infos)
         next_obses = tf.concat([next_ego_infos, next_tracking_infos, next_veh_infos], 1)
-        next_obses = self.convert_vehs_to_rela(next_obses)
+        # next_obses = self.convert_vehs_to_rela(next_obses)
         return next_obses
 
     def convert_vehs_to_rela(self, obs_abso):
@@ -521,8 +521,8 @@ class EnvironmentModel(object):  # all tensors
                                  y + line_length * sin(phi * pi / 180.)
                 plt.plot([x, x_forw], [y, y_forw], color=color, linewidth=0.5)
 
-            abso_obs = self.convert_vehs_to_abso(self.obses)
-            obses = abso_obs.numpy()
+            # abso_obs = self.convert_vehs_to_abso(self.obses)
+            obses = self.obses.numpy()
             ego_info, tracing_info, vehs_info = obses[0, :self.ego_info_dim], \
                                                 obses[0, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
                                                                                           self.num_future_data + 1)], \

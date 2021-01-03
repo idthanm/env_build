@@ -296,7 +296,7 @@ class CrossroadEnd2end(gym.Env):
         self.per_tracking_info_dim = 3
 
         vector = np.concatenate((ego_vector, tracking_error, vehs_vector), axis=0)
-        vector = self.convert_vehs_to_rela(vector)
+        # vector = self.convert_vehs_to_rela(vector)
 
         return vector
 
@@ -519,7 +519,7 @@ class CrossroadEnd2end(gym.Env):
                              ))
 
     def compute_reward(self, obs, action): #TODO: temp veh2road
-        obs = self.convert_vehs_to_abso(obs)
+        # obs = self.convert_vehs_to_abso(obs)
         ego_infos, tracking_infos, veh_infos = obs[:self.ego_info_dim], obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
                                                obs[self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1):]
         steers, a_xs = action[0], action[1]
