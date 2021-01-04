@@ -249,7 +249,7 @@ class CrossroadEnd2end(gym.Env):
         x = self.ego_dynamics['x']
         y = self.ego_dynamics['y']
         if self.training_task == 'left':
-            return True if x < -CROSSROAD_SIZE/2 - 6 and 0 < y < LANE_NUMBER*LANE_WIDTH else False
+            return True if x < -CROSSROAD_SIZE/2 - 30 and 0 < y < LANE_NUMBER*LANE_WIDTH else False
         elif self.training_task == 'right':
             return True if x > CROSSROAD_SIZE/2 + 6 and -LANE_NUMBER*LANE_WIDTH < y < 0 else False
         else:
@@ -498,6 +498,9 @@ class CrossroadEnd2end(gym.Env):
         random_index = int(np.random.random()*(500)) + 600
 
         x, y, phi = self.ref_path.indexs2points(random_index)
+        x += 1.0 * np.random.random() - 0.5
+        y += 1.0 * np.random.random() - 0.5
+        phi += 16.0 * np.random.random() - 8.0
         # v = 7 + 6 * np.random.random()
         v = EXPECTED_V * np.random.random()
         if self.training_task == 'left':
