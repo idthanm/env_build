@@ -277,7 +277,11 @@ class CrossroadEnd2end(gym.Env):
         next_ego_state, next_ego_params = self.dynamics.prediction(state, action, 10)
         next_ego_state, next_ego_params = next_ego_state.numpy()[0],  next_ego_params.numpy()[0]
         next_ego_state[0] = next_ego_state[0] if next_ego_state[0] >= 0 else 0.
-        next_ego_state[-1] = deal_with_phi(next_ego_state[-1])
+        next_ego_phi = next_ego_state[-1]
+        next_ego_phi = deal_with_phi(next_ego_phi)
+        if -180.<next_ego_phi<-90.:
+            next_ego_phi += 360.
+        next_ego_state[-1] = next_ego_phi
         return next_ego_state, next_ego_params
 
     def _get_obs(self, exit_='D', func='tracking'):
