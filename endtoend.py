@@ -506,6 +506,7 @@ class CrossroadEnd2end(gym.Env):
         y += 1.0 * np.random.random() - 0.5
         phi += 16.0 * np.random.random() - 8.0
         r = 0.4 * np.random.random() - 0.2
+        v_y = 0.5 * np.random.random() - 0.25
         # v = 7 + 6 * np.random.random()
         v = EXPECTED_V * np.random.random()
         if self.training_task == 'left':
@@ -516,7 +517,7 @@ class CrossroadEnd2end(gym.Env):
             assert self.training_task == 'right'
             routeID = 'dr'
         return dict(ego=dict(v_x=v,
-                             v_y=0,
+                             v_y=v_y,
                              r=r,
                              x=x.numpy(),
                              y=y.numpy(),
