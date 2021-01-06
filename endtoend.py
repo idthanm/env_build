@@ -532,12 +532,14 @@ class CrossroadEnd2end(gym.Env):
         ego_infos, tracking_infos, veh_infos = obs[:self.ego_info_dim], obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
                                                obs[self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1):]
         steers, a_xs = action[0], action[1]
+        ego_v = ego_infos([0])
 
         # rewards related to action
         punish_steer = -tf.square(steers)
         punish_a_x = -tf.square(a_xs)
 
         # rewards related to ego stability
+        punish_absolute_v = tf.where(ego_v > EXPECTED_V, -tf.square(ego_infos[0]), tf.zeros_like(ego_v))
         punish_yaw_rate = -tf.square(ego_infos[2])
 
         # rewards related to tracking error
@@ -642,19 +644,21 @@ class CrossroadEnd2end(gym.Env):
                     tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), 0.)
 
         reward = 0.2 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
-                 5 * punish_steer + 0.05 * punish_a_x
+                 5 * punish_steer + 0.05 * punish_a_x + 0.01 * punish_absolute_v
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
                            devi_v=devi_v.numpy(),
                            devi_y=devi_y.numpy(),
                            devi_phi=devi_phi.numpy(),
+                           abs_v = punish_absolute_v.numpy(),
                            scaled_punish_steer=5 * punish_steer.numpy(),
                            scaled_punish_a_x=0.05 * punish_a_x.numpy(),
                            scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy(),
                            scaled_devi_v=0.2 * devi_v.numpy(),
                            scaled_devi_y=0.8 * devi_y.numpy(),
                            scaled_devi_phi=30 * devi_phi.numpy(),
+                           scaled_abs_v = 0.01 * punish_absolute_v.numpy(),
                            veh2veh4training=veh2veh4training.numpy(),
                            veh2road4training=veh2road4training.numpy(),
                            veh2veh4real=veh2veh4real.numpy(),

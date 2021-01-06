@@ -194,6 +194,9 @@ class EnvironmentModel(object):  # all tensors
             punish_a_x = -tf.square(a_xs)
 
             # rewards related to ego stability
+            ego_v = ego_infos[:, 0]
+
+            punish_absolute_v = tf.where(ego_v>EXPECTED_V, -tf.square(ego_infos[:, 0]), tf.zeros_like(ego_v) )
             punish_yaw_rate = -tf.square(ego_infos[:, 2])
 
             # rewards related to tracking error
@@ -290,7 +293,7 @@ class EnvironmentModel(object):  # all tensors
                         tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), tf.zeros_like(veh_infos[:, 0]))
 
             rewards = 0.2 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
-                      5 * punish_steer + 0.05 * punish_a_x
+                      5 * punish_steer + 0.05 * punish_a_x + 0.01 * punish_absolute_v
             punish_term_for_training = veh2veh4training + veh2road4training
             real_punish_term = veh2veh4real + veh2road4real
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
