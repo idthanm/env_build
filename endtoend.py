@@ -148,6 +148,7 @@ class CrossroadEnd2end(gym.Env):
         self.observation_space = convert_observation_to_space(observation)
         return self.observation_space
 
+
     def _get_ego_dynamics(self, next_ego_state, next_ego_params):
         out = dict(v_x=next_ego_state[0],
                    v_y=next_ego_state[1],
