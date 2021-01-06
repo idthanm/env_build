@@ -963,11 +963,11 @@ def test_end2end():
     i = 0
     done = 0
     while i < 100000:
-        for j in range(80):
+        for j in range(60):
             # print(i)
             i += 1
             # action=2*np.random.random(2)-1
-            if obs[4]<-18:
+            if obs[4]<-11:
                 action = np.array([0, 1], dtype=np.float32)
             else:
                 action = np.array([0.5, 0.33], dtype=np.float32)
