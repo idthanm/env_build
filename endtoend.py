@@ -249,12 +249,12 @@ class CrossroadEnd2end(gym.Env):
         x = self.ego_dynamics['x']
         y = self.ego_dynamics['y']
         if self.training_task == 'left':
-            return True if x < -CROSSROAD_SIZE/2 - 6 and 0 < y < LANE_NUMBER*LANE_WIDTH else False
+            return True if x < -CROSSROAD_SIZE/2 - 30 and 0 < y < LANE_NUMBER*LANE_WIDTH else False
         elif self.training_task == 'right':
-            return True if x > CROSSROAD_SIZE/2 + 6 and -LANE_NUMBER*LANE_WIDTH < y < 0 else False
+            return True if x > CROSSROAD_SIZE/2 + 30 and -LANE_NUMBER*LANE_WIDTH < y < 0 else False
         else:
             assert self.training_task == 'straight'
-            return True if y > CROSSROAD_SIZE/2 + 6 and 0 < x < LANE_NUMBER*LANE_WIDTH else False
+            return True if y > CROSSROAD_SIZE/2 + 30 and 0 < x < LANE_NUMBER*LANE_WIDTH else False
 
     def _action_transformation_for_end2end(self, action):  # [-1, 1] # TODO: wait real car
         action = np.clip(action, -1.05, 1.05)
@@ -502,6 +502,11 @@ class CrossroadEnd2end(gym.Env):
         random_index = int(np.random.random()*(500)) + 600
 
         x, y, phi = self.ref_path.indexs2points(random_index)
+        x += 1.0 * np.random.random() - 0.5
+        y += 1.0 * np.random.random() - 0.5
+        phi += 16.0 * np.random.random() - 8.0
+        r = 0.4 * np.random.random() - 0.2
+        v_y = 0.5 * np.random.random() - 0.25
         # v = 7 + 6 * np.random.random()
         v = EXPECTED_V * np.random.random()
         if self.training_task == 'left':
@@ -512,8 +517,8 @@ class CrossroadEnd2end(gym.Env):
             assert self.training_task == 'right'
             routeID = 'dr'
         return dict(ego=dict(v_x=v,
-                             v_y=0,
-                             r=0,
+                             v_y=v_y,
+                             r=r,
                              x=x.numpy(),
                              y=y.numpy(),
                              phi=phi.numpy(),
