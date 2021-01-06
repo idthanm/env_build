@@ -21,13 +21,13 @@ from endtoend_env_utils import rotate_coordination, L, W, CROSSROAD_SIZE, LANE_W
 
 class VehicleDynamics(object):
     def __init__(self, ):
-        self.vehicle_params = dict(C_f=-128915.5,  # front wheel cornering stiffness [N/rad]
-                                   C_r=-85943.6,  # rear wheel cornering stiffness [N/rad]
-                                   a=1.06,  # distance from CG to front axle [m]
-                                   b=1.85,  # distance from CG to rear axle [m]
-                                   mass=1412.,  # mass [kg]
-                                   I_z=1536.7,  # Polar moment of inertia at CG [kg*m^2]
-                                   miu=1.0,  # tire-road friction coefficient
+        self.vehicle_params = dict(C_f=-155495.0,  # front wheel cornering stiffness [N/rad]
+                                   C_r=-155495.0,  # rear wheel cornering stiffness [N/rad]
+                                   a=1.19,  # distance from CG to front axle [m]
+                                   b=1.46,  # distance from CG to rear axle [m]
+                                   mass=1520.,  # mass [kg]
+                                   I_z=2642.,  # Polar moment of inertia at CG [kg*m^2]
+                                   miu=0.8,  # tire-road friction coefficient
                                    g=9.81,  # acceleration of gravity [m/s^2]
                                    )
         a, b, mass, g = self.vehicle_params['a'], self.vehicle_params['b'], \
