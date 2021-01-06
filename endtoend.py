@@ -532,9 +532,9 @@ class CrossroadEnd2end(gym.Env):
         ego_infos, tracking_infos, veh_infos = obs[:self.ego_info_dim], obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)], \
                                                obs[self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1):]
         steers, a_xs = action[0], action[1]
-        ego_v = ego_infos([0])
 
         # rewards related to action
+        ego_v = ego_infos[0]
         punish_steer = -tf.square(steers)
         punish_a_x = -tf.square(a_xs)
 
