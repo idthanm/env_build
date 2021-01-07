@@ -18,6 +18,8 @@ from tensorflow import logical_and
 # gym.envs.user_defined.toyota_env.
 from endtoend_env_utils import rotate_coordination, L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, VEHICLE_MODE_LIST, EXPECTED_V, START_OFFSET
 
+# BARRIER_LINEUP_LOC = 10
+# BARRIER_LAMBDA = 0.6
 
 class VehicleDynamics(object):
     def __init__(self, ):
@@ -180,13 +182,13 @@ class EnvironmentModel(object):  # all tensors
         # obs_next = self.convert_vehs_to_rela(obs_next)
         return obs_next, veh2veh4real
 
-    def _action_transformation_for_end2end(self, actions):  # [-1, 1] # TODO:
+    def _action_transformation_for_end2end(self, actions):
         actions = tf.clip_by_value(actions, -1.05, 1.05)
         steer_norm, a_xs_norm = actions[:, 0], actions[:, 1]
         steer_scale, a_xs_scale = 0.4 * steer_norm, 2.25 * a_xs_norm-0.75
         return tf.stack([steer_scale, a_xs_scale], 1)
 
-    def compute_rewards(self, obses, actions): # #TODO: temp veh2road
+    def compute_rewards(self, obses, actions):
         # obses = self.convert_vehs_to_abso(obses)
         with tf.name_scope('compute_reward') as scope:
             ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
@@ -236,7 +238,7 @@ class EnvironmentModel(object):  # all tensors
                     for veh_point in [veh_front_points, veh_rear_points]:
                         if self.rewards_mode == 'barrier':
                             veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
-                            scale = self.args.barrier_lineup_loc / (tf.math.log(self.args.barrier_lineup_loc)+1.0)
+                            scale = self.args.barrier_lineup_loc / (tf.math.log(self.args.barrier_lineup_loc)+1.0) # TODO: check args into model
                             veh2veh_barrier_last = (1 - self.barrier_lambda) * scale * tf.math.log1p(tf.nn.relu(self.realveh2vehAlast[:, veh2veh_dist_index] - 2.5))
                             veh2veh4training += tf.where(veh2veh_dist - 2.5 - veh2veh_barrier_last < 0,
                                                     tf.exp(-veh2veh_dist + 2.5 + tf.stop_gradient(veh2veh_barrier_last)),
