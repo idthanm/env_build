@@ -15,12 +15,9 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import logical_and
 
-# gym.envs.user_defined.toyota_env.
+# gym.envs.user_defined.toyota_env_cbf.
 from endtoend_env_utils import rotate_coordination, L, W, CROSSROAD_SIZE, \
     LANE_WIDTH, LANE_NUMBER, VEHICLE_MODE_LIST, EXPECTED_V, START_OFFSET, VEH_NUM
-
-# BARRIER_LINEUP_LOC = 10
-# BARRIER_LAMBDA = 0.6
 
 class VehicleDynamics(object):
     def __init__(self, ):
@@ -79,7 +76,7 @@ class VehicleDynamics(object):
 
 
 class EnvironmentModel(object):  # all tensors
-    def __init__(self, training_task, num_future_data=0, rewards_mode='barrier'):
+    def __init__(self, training_task, num_future_data=0):
         self.task = training_task
         self.mode = None
         self.vehicle_dynamics = VehicleDynamics()
@@ -96,7 +93,6 @@ class EnvironmentModel(object):  # all tensors
         self.per_veh_info_dim = 4
         self.per_tracking_info_dim = 3
         self.per_veh_constraint_dim = 4
-        self.rewards_mode = rewards_mode
         self.realveh2vehAlast = None
         self.vehicle_num = VEH_NUM[self.task]
 
@@ -115,17 +111,10 @@ class EnvironmentModel(object):  # all tensors
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
             self.actions = self._action_transformation_for_end2end(actions)
-            if self.rewards_mode == 'barrier':
-                rewards, veh2veh4training, veh2road4training, veh2veh4real, veh2road4real = self.compute_rewards(
-                    self.obses, self.actions)
-                self.obses = self.compute_next_obses(self.obses, self.actions)
-                return self.obses, rewards, veh2veh4training, veh2road4training, veh2veh4real, veh2road4real
-            elif not self.rewards_mode == 'barrier':
-                rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real = self.compute_rewards(
-                    self.obses, self.actions)
-                self.obses = self.compute_next_obses(self.obses, self.actions)
-                return self.obses, rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real
-            ## self.reward_info.update({'final_rew': rewards.numpy()[0]})
+            rewards, veh2veh4training, veh2road4training, veh2veh4real, veh2road4real = self.compute_rewards(
+                self.obses, self.actions)
+            self.obses = self.compute_next_obses(self.obses, self.actions)
+            return self.obses, rewards, veh2veh4training, veh2road4training, veh2veh4real, veh2road4real
 
     def safety_calculation(self, obs, actions):
         # judge collision
