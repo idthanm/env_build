@@ -75,7 +75,7 @@ class VehicleDynamics(object):
 
 
 class EnvironmentModel(object):  # all tensors
-    def __init__(self, training_task, num_future_data=0):
+    def __init__(self, training_task, num_future_data=0, rewards_mode='barrier'):
         self.task = training_task
         self.mode = None
         self.vehicle_dynamics = VehicleDynamics()
@@ -91,6 +91,7 @@ class EnvironmentModel(object):  # all tensors
         self.ego_info_dim = 6
         self.per_veh_info_dim = 4
         self.per_tracking_info_dim = 3
+        self.rewards_mode = rewards_mode
 
     def reset(self, obses, ref_indexes=None):  # input are all tensors
         self.obses = obses
@@ -106,11 +107,17 @@ class EnvironmentModel(object):  # all tensors
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
             self.actions = self._action_transformation_for_end2end(actions)
-            rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real = self.compute_rewards(self.obses, self.actions)
-            self.obses = self.compute_next_obses(self.obses, self.actions)
-            # self.reward_info.update({'final_rew': rewards.numpy()[0]})
-
-        return self.obses, rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real
+            if self.rewards_mode == 'barrier':
+                rewards, veh2veh4training, veh2road4training, veh2veh4real, veh2road4real = self.compute_rewards(
+                    self.obses, self.actions)
+                self.obses = self.compute_next_obses(self.obses, self.actions)
+                return self.obses, rewards, veh2veh4training, veh2road4training, veh2veh4real, veh2road4real
+            elif not self.rewards_mode == 'barrier':
+                rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real = self.compute_rewards(
+                    self.obses, self.actions)
+                self.obses = self.compute_next_obses(self.obses, self.actions)
+                return self.obses, rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real
+            ## self.reward_info.update({'final_rew': rewards.numpy()[0]})
 
     def safety_calculation(self, obs, actions):
         # judge collision
@@ -212,7 +219,12 @@ class EnvironmentModel(object):  # all tensors
                               tf.cast(ego_infos[:, 4] - ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
             veh2veh4real = tf.zeros_like(veh_infos[:, 0])
             veh2veh4training = tf.zeros_like(veh_infos[:, 0])
+            veh2veh_dist = tf.zeros_like(veh_infos[:, 0])
+            realveh2vehAlast = tf.expand_dims(tf.zeros_like(veh_infos[:, 0]),1)
+            if self.realveh2vehAlast is None:
+                self.realveh2vehAlast = 2.5 * tf.ones_like(veh_infos)
 
+            veh2veh_dist_index = 0
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
                 veh_lws = (L - W) / 2.
@@ -222,9 +234,29 @@ class EnvironmentModel(object):  # all tensors
                                   tf.cast(vehs[:, 1] - veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
                 for ego_point in [ego_front_points, ego_rear_points]:
                     for veh_point in [veh_front_points, veh_rear_points]:
-                        veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
-                        veh2veh4training += tf.where(veh2veh_dist-3.5 < 0, tf.square(veh2veh_dist-3.5), tf.zeros_like(veh_infos[:, 0]))
-                        veh2veh4real += tf.where(veh2veh_dist-2.5 < 0, tf.square(veh2veh_dist-2.5), tf.zeros_like(veh_infos[:, 0]))
+                        if self.rewards_mode == 'barrier':
+                            veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
+                            scale = self.args.barrier_lineup_loc / (tf.math.log(self.args.barrier_lineup_loc)+1.0)
+                            veh2veh_barrier_last = (1 - self.barrier_lambda) * scale * tf.math.log1p(tf.nn.relu(self.realveh2vehAlast[:, veh2veh_dist_index] - 2.5))
+                            veh2veh4training += tf.where(veh2veh_dist - 2.5 - veh2veh_barrier_last < 0,
+                                                    tf.exp(-veh2veh_dist + 2.5 + tf.stop_gradient(veh2veh_barrier_last)),
+                                                    tf.zeros_like(veh_infos[:, 0]))
+
+                            veh2veh4real += tf.where(veh2veh_dist - 2.5 < 0, tf.square(veh2veh_dist - 2.5),
+                                                     tf.zeros_like(veh_infos[:, 0]))
+                            # update veh2veh dist last
+
+                            if veh2veh_dist_index == 0:
+                                temp_1 = self.realveh2vehAlast[:,1:]
+                                self.realveh2vehAlast = tf.concat([tf.expand_dims(veh2veh_dist, 1), temp_1], 1)
+                            elif veh2veh_dist_index <= self.realveh2vehAlast.get_shape()[1] - 2:
+                                temp_1 = self.realveh2vehAlast[:, 0:veh2veh_dist_index]
+                                temp_2 = self.realveh2vehAlast[:, veh2veh_dist_index + 1:]
+                                self.realveh2vehAlast = tf.concat([temp_1, tf.expand_dims(veh2veh_dist, 1), temp_2], 1)
+                            else:
+                                temp_1 = self.realveh2vehAlast[:, 0:veh2veh_dist_index]
+                                self.realveh2vehAlast = tf.concat([temp_1, tf.expand_dims(veh2veh_dist, 1)], 1)
+                            veh2veh_dist_index += 1
 
             veh2road4real = tf.zeros_like(veh_infos[:, 0])
             veh2road4training = tf.zeros_like(veh_infos[:, 0])
@@ -296,22 +328,9 @@ class EnvironmentModel(object):  # all tensors
                       5 * punish_steer + 0.05 * punish_a_x + 0.05 * punish_absolute_v
             punish_term_for_training = veh2veh4training + veh2road4training
             real_punish_term = veh2veh4real + veh2road4real
-            # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
-            #                         punish_a_x=punish_a_x.numpy()[0],
-            #                         punish_yaw_rate=punish_yaw_rate.numpy()[0],
-            #                         devi_v=devi_v.numpy()[0],
-            #                         devi_y=devi_y.numpy()[0],
-            #                         devi_phi=devi_phi.numpy()[0],
-            #                         veh2veh=veh2veh.numpy()[0],
-            #                         scaled_punish_steer=5 * punish_steer.numpy()[0],
-            #                         scaled_punish_a_x=0.05 * punish_a_x.numpy()[0],
-            #                         scaled_punish_yaw_rate=0.02 * punish_yaw_rate.numpy()[0],
-            #                         scaled_devi_v=0.01 * devi_v.numpy()[0],
-            #                         scaled_devi_y=0.04 * devi_y.numpy()[0],
-            #                         scaled_devi_phi=0.1 * devi_phi.numpy()[0],
-            #                         scaled_veh2veh=0.5 * veh2veh.numpy()[0],
-            #                         reward=rewards.numpy()[0])
-            return rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real
+
+            # return rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real
+            return rewards, veh2veh4training, veh2road4training, veh2veh4real, veh2road4real
 
     def compute_next_obses(self, obses, actions):
         # obses = self.convert_vehs_to_abso(obses)
