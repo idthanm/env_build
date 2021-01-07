@@ -15,7 +15,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import logical_and
 
-# gym.envs.user_defined.toyota_env_cbf.
+# gym.envs.user_defined.toyota_exp_cbf.
 from endtoend_env_utils import rotate_coordination, L, W, CROSSROAD_SIZE, \
     LANE_WIDTH, LANE_NUMBER, VEHICLE_MODE_LIST, EXPECTED_V, START_OFFSET, VEH_NUM
 
@@ -233,7 +233,7 @@ class EnvironmentModel(object):  # all tensors
                     for veh_index, veh_point in enumerate([veh_front_points, veh_rear_points]):
                         veh2veh_dist_index = veh_index * self.per_veh_constraint_dim + ego_index * 2 + veh_index
                         veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
-                        scale = self.args.barrier_lineup_loc / (tf.math.log(self.args.barrier_lineup_loc)+1.0) # TODO: check args into model
+                        scale = self.args.barrier_lineup_loc / (tf.math.log1p(self.args.barrier_lineup_loc)) # TODO: check args into model
                         veh2veh_barrier_last = (1 - self.barrier_lambda) * scale * tf.math.log1p(tf.nn.relu(self.realveh2vehAlast[:, veh2veh_dist_index] - 2.5))
                         veh2veh4training += tf.where(veh2veh_dist - 2.5 - veh2veh_barrier_last < 0,
                                                 tf.exp(-veh2veh_dist + 2.5 + tf.stop_gradient(veh2veh_barrier_last)),
