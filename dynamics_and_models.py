@@ -16,7 +16,8 @@ import tensorflow as tf
 from tensorflow import logical_and
 
 # gym.envs.user_defined.toyota_env.
-from endtoend_env_utils import rotate_coordination, L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, VEHICLE_MODE_LIST, EXPECTED_V, START_OFFSET
+from endtoend_env_utils import rotate_coordination, L, W, CROSSROAD_SIZE, \
+    LANE_WIDTH, LANE_NUMBER, VEHICLE_MODE_LIST, EXPECTED_V, START_OFFSET, VEH_NUM
 
 # BARRIER_LINEUP_LOC = 10
 # BARRIER_LAMBDA = 0.6
@@ -37,6 +38,7 @@ class VehicleDynamics(object):
         F_zf, F_zr = b * mass * g / (a + b), a * mass * g / (a + b)
         self.vehicle_params.update(dict(F_zf=F_zf,
                                         F_zr=F_zr))
+        
 
     def f_xu(self, states, actions, tau):  # states and actions are tensors, [[], [], ...]
         v_x, v_y, r, x, y, phi = states[:, 0], states[:, 1], states[:, 2], states[:, 3], states[:, 4], states[:, 5]
@@ -93,13 +95,17 @@ class EnvironmentModel(object):  # all tensors
         self.ego_info_dim = 6
         self.per_veh_info_dim = 4
         self.per_tracking_info_dim = 3
+        self.per_veh_constraint_dim = 4
         self.rewards_mode = rewards_mode
+        self.realveh2vehAlast = None
+        self.vehicle_num = VEH_NUM[self.task]
 
     def reset(self, obses, ref_indexes=None):  # input are all tensors
         self.obses = obses
         self.ref_indexes = ref_indexes
         self.actions = None
         self.reward_info = None
+        self.realveh2vehAlast = None
 
     def add_traj(self, obses, trajectory, mode=None):
         self.obses = obses
@@ -234,31 +240,30 @@ class EnvironmentModel(object):  # all tensors
                                    tf.cast(vehs[:, 1] + veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
                 veh_rear_points = tf.cast(vehs[:, 0] - veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
                                   tf.cast(vehs[:, 1] - veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
-                for ego_point in [ego_front_points, ego_rear_points]:
-                    for veh_point in [veh_front_points, veh_rear_points]:
-                        if self.rewards_mode == 'barrier':
-                            veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
-                            scale = self.args.barrier_lineup_loc / (tf.math.log(self.args.barrier_lineup_loc)+1.0) # TODO: check args into model
-                            veh2veh_barrier_last = (1 - self.barrier_lambda) * scale * tf.math.log1p(tf.nn.relu(self.realveh2vehAlast[:, veh2veh_dist_index] - 2.5))
-                            veh2veh4training += tf.where(veh2veh_dist - 2.5 - veh2veh_barrier_last < 0,
-                                                    tf.exp(-veh2veh_dist + 2.5 + tf.stop_gradient(veh2veh_barrier_last)),
-                                                    tf.zeros_like(veh_infos[:, 0]))
+                for ego_index, ego_point in enumerate([ego_front_points, ego_rear_points]):
+                    for veh_index, veh_point in enumerate([veh_front_points, veh_rear_points]):
+                        veh2veh_dist_index = veh_index * self.per_veh_constraint_dim + ego_index * 2 + veh_index
+                        veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
+                        scale = self.args.barrier_lineup_loc / (tf.math.log(self.args.barrier_lineup_loc)+1.0) # TODO: check args into model
+                        veh2veh_barrier_last = (1 - self.barrier_lambda) * scale * tf.math.log1p(tf.nn.relu(self.realveh2vehAlast[:, veh2veh_dist_index] - 2.5))
+                        veh2veh4training += tf.where(veh2veh_dist - 2.5 - veh2veh_barrier_last < 0,
+                                                tf.exp(-veh2veh_dist + 2.5 + tf.stop_gradient(veh2veh_barrier_last)),
+                                                tf.zeros_like(veh_infos[:, 0]))
 
-                            veh2veh4real += tf.where(veh2veh_dist - 2.5 < 0, tf.square(veh2veh_dist - 2.5),
-                                                     tf.zeros_like(veh_infos[:, 0]))
-                            # update veh2veh dist last
-
-                            if veh2veh_dist_index == 0:
-                                temp_1 = self.realveh2vehAlast[:,1:]
-                                self.realveh2vehAlast = tf.concat([tf.expand_dims(veh2veh_dist, 1), temp_1], 1)
-                            elif veh2veh_dist_index <= self.realveh2vehAlast.get_shape()[1] - 2:
-                                temp_1 = self.realveh2vehAlast[:, 0:veh2veh_dist_index]
-                                temp_2 = self.realveh2vehAlast[:, veh2veh_dist_index + 1:]
-                                self.realveh2vehAlast = tf.concat([temp_1, tf.expand_dims(veh2veh_dist, 1), temp_2], 1)
-                            else:
-                                temp_1 = self.realveh2vehAlast[:, 0:veh2veh_dist_index]
-                                self.realveh2vehAlast = tf.concat([temp_1, tf.expand_dims(veh2veh_dist, 1)], 1)
-                            veh2veh_dist_index += 1
+                        veh2veh4real += tf.where(veh2veh_dist - 2.5 < 0, tf.square(veh2veh_dist - 2.5),
+                                                 tf.zeros_like(veh_infos[:, 0]))
+                        # update veh2veh dist last
+                        if veh2veh_dist_index == 0:
+                            temp_1 = self.realveh2vehAlast[:,1:]
+                            self.realveh2vehAlast = tf.concat([tf.expand_dims(veh2veh_dist, 1), temp_1], 1)
+                        elif veh2veh_dist_index <= self.per_veh_constraint_dim * self.vehicle_num - 2: # todo: get shape and tf function
+                            temp_1 = self.realveh2vehAlast[:, 0:veh2veh_dist_index]
+                            temp_2 = self.realveh2vehAlast[:, veh2veh_dist_index + 1:]
+                            self.realveh2vehAlast = tf.concat([temp_1, tf.expand_dims(veh2veh_dist, 1), temp_2], 1)
+                        else:
+                            temp_1 = self.realveh2vehAlast[:, 0:veh2veh_dist_index]
+                            self.realveh2vehAlast = tf.concat([temp_1, tf.expand_dims(veh2veh_dist, 1)], 1)
+                        # veh2veh_dist_index += 1
 
             veh2road4real = tf.zeros_like(veh_infos[:, 0])
             veh2road4training = tf.zeros_like(veh_infos[:, 0])
