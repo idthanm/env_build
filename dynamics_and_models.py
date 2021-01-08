@@ -220,10 +220,11 @@ class EnvironmentModel(object):  # all tensors
                                    tf.cast(vehs[:, 1] + veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
                 veh_rear_points = tf.cast(vehs[:, 0] - veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
                                   tf.cast(vehs[:, 1] - veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
-                for ego_point in [ego_front_points, ego_rear_points]:
-                    for veh_point in [veh_front_points, veh_rear_points]:
+                for ego_idx, ego_point in enumerate([ego_front_points, ego_rear_points]):
+                    for veh_idx, veh_point in enumerate([veh_front_points, veh_rear_points]):
+                        safe_dist = 4.5 if ego_idx == 0 and veh_idx == 1 else 3.5
                         veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
-                        veh2veh4training += tf.where(veh2veh_dist-3.5 < 0, tf.square(veh2veh_dist-3.5), tf.zeros_like(veh_infos[:, 0]))
+                        veh2veh4training += tf.where(veh2veh_dist-safe_dist < 0, tf.square(veh2veh_dist-safe_dist), tf.zeros_like(veh_infos[:, 0]))
                         veh2veh4real += tf.where(veh2veh_dist-2.5 < 0, tf.square(veh2veh_dist-2.5), tf.zeros_like(veh_infos[:, 0]))
 
             veh2road4real = tf.zeros_like(veh_infos[:, 0])
