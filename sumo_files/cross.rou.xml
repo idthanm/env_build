@@ -34,7 +34,7 @@
     <flow id="carflow_2.3" type="car_2" beg="0" from="3o" to="1i" departLane="best"
           departPos="random" departSpeed="random" vehsPerHour="200"/>
     <flow id="carflow_3.3" type="car_3" beg="0" from="3o" to="4i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="200"/>
+          departPos="random" departSpeed="random" vehsPerHour="600"/>
 
     <flow id="carflow_1.4" type="car_1" beg="0" from="4o" to="3i" departLane="best"
           departPos="random" departSpeed="random" vehsPerHour="200"/>
