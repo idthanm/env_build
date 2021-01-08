@@ -118,7 +118,7 @@ class CrossroadEnd2end(gym.Env):
         self.action = None
         self.reward_info = None
         self.done_type = 'not_done_yet'
-        if np.random.random() > 0.7:
+        if np.random.random() > 0.9:
             self.virtual_red_light_vehicle = True
         else:
             self.virtual_red_light_vehicle = False
