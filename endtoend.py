@@ -386,11 +386,11 @@ class CrossroadEnd2end(gym.Env):
                     lr.append(v)
                 elif start == name_setting['lo'] and end == name_setting['di']:
                     ld.append(v)
-            if (v_light != 0 and ego_y < -CROSSROAD_SIZE/2 - START_OFFSET) or self.virtual_red_light_vehicle :
+            if (v_light != 0 and ego_y < -CROSSROAD_SIZE/2 - START_OFFSET and self.training_task != 'right') \
+                    or self.virtual_red_light_vehicle :
                 dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
-                dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None))
-                du.append(dict(x=LANE_WIDTH*1.5, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
-                du.append(dict(x=LANE_WIDTH*1.5, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None))
+                du.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
+                dr.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
 
             # fetch veh in range
             if task == 'left':
@@ -645,7 +645,7 @@ class CrossroadEnd2end(gym.Env):
                     tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), 0.)
 
         reward = 0.2 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
-                 5 * punish_steer + 0.05 * punish_a_x + 0.05 * punish_absolute_v
+                 5 * punish_steer + 0.05 * punish_a_x + 0.5 * punish_absolute_v
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
@@ -659,7 +659,7 @@ class CrossroadEnd2end(gym.Env):
                            scaled_devi_v=0.2 * devi_v.numpy(),
                            scaled_devi_y=0.8 * devi_y.numpy(),
                            scaled_devi_phi=30 * devi_phi.numpy(),
-                           scaled_abs_v = 0.05 * punish_absolute_v.numpy(),
+                           scaled_abs_v=0.5 * punish_absolute_v.numpy(),
                            veh2veh4training=veh2veh4training.numpy(),
                            veh2road4training=veh2road4training.numpy(),
                            veh2veh4real=veh2veh4real.numpy(),
