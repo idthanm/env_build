@@ -19,7 +19,7 @@ START_OFFSET = 3.0
 EXPECTED_V = 3. #TODO: temp
 dirname = os.path.dirname(__file__)
 SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
-VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=1, du=1, dr=1, ud=2, ul=1), # dl=2, du=2, ud=2, ul=2
+VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=1, du=1, dr=1, ud=2, ul=2), # dl=2, du=2, ud=2, ul=2
                          straight=OrderedDict(dl=1, du=1, dr=1, ud=1, ru=2, ur=2), #vdl=1, du=2, ud=2, ru=2, ur=2
                          right=OrderedDict(dl=1, du=1, dr=1, ur=2, lr=2)) #TODO: temp relevant to filter interested vehicle
 
