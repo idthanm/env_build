@@ -386,11 +386,11 @@ class CrossroadEnd2end(gym.Env):
                     lr.append(v)
                 elif start == name_setting['lo'] and end == name_setting['di']:
                     ld.append(v)
-            if (v_light != 0 and ego_y < -CROSSROAD_SIZE/2 - START_OFFSET) or self.virtual_red_light_vehicle :
+            if (v_light != 0 and ego_y < -CROSSROAD_SIZE/2 - START_OFFSET and self.training_task != 'right') \
+                    or (self.virtual_red_light_vehicle and ego_y < -CROSSROAD_SIZE/2 - START_OFFSET):
                 dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
-                dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None))
-                du.append(dict(x=LANE_WIDTH*1.5, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
-                du.append(dict(x=LANE_WIDTH*1.5, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None))
+                du.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
+                dr.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
 
             # fetch veh in range
             if task == 'left':
@@ -500,12 +500,18 @@ class CrossroadEnd2end(gym.Env):
         return orig_x, orig_y
 
     def _reset_init_state(self): # TODO: temp
-        random_index = int(np.random.random()*(500)) + 600
+        if self.training_task == 'left':
+            random_index = int(np.random.random()*1000) + 600
+        elif self.training_task == 'straight':
+            random_index = int(np.random.random()*1060) + 600
+        else:
+            assert self.training_task == 'right'
+            random_index = int(np.random.random() * 850) + 600
 
         x, y, phi = self.ref_path.indexs2points(random_index)
         x += 1.0 * np.random.random() - 0.5
         y += 1.0 * np.random.random() - 0.5
-        phi += 16.0 * np.random.random() - 8.0
+        phi += 10.0 * np.random.random() - 5.0
         r = 0.4 * np.random.random() - 0.2
         v_y = 0.5 * np.random.random() - 0.25
         # v = 7 + 6 * np.random.random()
@@ -958,7 +964,7 @@ class CrossroadEnd2end(gym.Env):
 
 
 def test_end2end():
-    env = CrossroadEnd2end(training_task='left', num_future_data=5)
+    env = CrossroadEnd2end(training_task='straight', num_future_data=5)
     obs = env.reset()
     i = 0
     done = 0
