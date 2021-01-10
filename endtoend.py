@@ -390,7 +390,6 @@ class CrossroadEnd2end(gym.Env):
                     or (self.virtual_red_light_vehicle and ego_y < -CROSSROAD_SIZE/2 - START_OFFSET):
                 dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
                 du.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
-                dr.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
 
             # fetch veh in range
             if task == 'left':
