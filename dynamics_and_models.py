@@ -233,7 +233,10 @@ class EnvironmentModel(object):  # all tensors
                     for veh_index, veh_point in enumerate([veh_front_points, veh_rear_points]):
                         veh2veh_dist_index = veh_index * self.per_veh_constraint_dim + ego_index * 2 + veh_index
                         veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
-                        scale = self.args.barrier_lineup_loc / (tf.math.log1p(self.args.barrier_lineup_loc)) # TODO: check args into model
+                        if self.args.if_log_barrer == True:
+                            scale = self.args.barrier_lineup_loc / (tf.math.log1p(self.args.barrier_lineup_loc)) # TODO: check args into model
+                        else:
+                            scale = 1.0
                         veh2veh_barrier_last = (1 - self.barrier_lambda) * scale * tf.math.log1p(tf.nn.relu(self.realveh2vehAlast[:, veh2veh_dist_index] - 2.5))
                         veh2veh4training += tf.where(veh2veh_dist - 2.5 - veh2veh_barrier_last < 0,
                                                 tf.exp(-veh2veh_dist + 2.5 + tf.stop_gradient(veh2veh_barrier_last)),
