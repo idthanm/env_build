@@ -233,7 +233,7 @@ class EnvironmentModel(object):  # all tensors
                     for veh_index, veh_point in enumerate([veh_front_points, veh_rear_points]):
                         veh2veh_dist_index = veh_index * self.per_veh_constraint_dim + ego_index * 2 + veh_index
                         veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
-                        if self.args.if_log_barrer == True:
+                        if self.args.if_log_barrier == True:
                             scale = self.args.barrier_lineup_loc / (tf.math.log1p(self.args.barrier_lineup_loc)) # TODO: check args into model
                         else:
                             scale = 1.0
