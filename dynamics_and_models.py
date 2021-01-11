@@ -272,7 +272,7 @@ class EnvironmentModel(object):  # all tensors
                 assert self.task == 'right'
                 for ego_point in [ego_front_points, ego_rear_points]:
                     veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2-START_OFFSET, ego_point[0] -0 < 1),
-                                         tf.square(ego_point[0] - 2*LANE_WIDTH-1), tf.zeros_like(veh_infos[:, 0]))
+                                         tf.square(ego_point[0] -1), tf.zeros_like(veh_infos[:, 0]))
                     veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2-START_OFFSET, LANE_NUMBER*LANE_WIDTH-ego_point[0] < 1),
                                          tf.square(LANE_NUMBER*LANE_WIDTH-ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
                     veh2road4training += tf.where(logical_and(ego_point[0] > CROSSROAD_SIZE/2, 0 - ego_point[1] < 1),
@@ -282,7 +282,7 @@ class EnvironmentModel(object):  # all tensors
 
                     veh2road4real += tf.where(
                         logical_and(ego_point[1] < -CROSSROAD_SIZE / 2-START_OFFSET, ego_point[0] - 0 < 1),
-                        tf.square(ego_point[0] - 2 * LANE_WIDTH - 1), tf.zeros_like(veh_infos[:, 0]))
+                        tf.square(ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
                     veh2road4real += tf.where(
                         logical_and(ego_point[1] < -CROSSROAD_SIZE / 2-START_OFFSET, LANE_NUMBER * LANE_WIDTH - ego_point[0] < 1),
                         tf.square(LANE_NUMBER * LANE_WIDTH - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
@@ -292,8 +292,9 @@ class EnvironmentModel(object):  # all tensors
                         logical_and(ego_point[0] > CROSSROAD_SIZE / 2, ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) < 1),
                         tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), tf.zeros_like(veh_infos[:, 0]))
 
+            abs_v_coeffi = 0.5 if self.task == 'right' else 0.05
             rewards = 0.2 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
-                      5 * punish_steer + 0.05 * punish_a_x + 0.05 * punish_absolute_v
+                      5 * punish_steer + 0.05 * punish_a_x + abs_v_coeffi * punish_absolute_v
             punish_term_for_training = veh2veh4training + veh2road4training
             real_punish_term = veh2veh4real + veh2road4real
             # self.reward_info = dict(punish_steer=punish_steer.numpy()[0],
