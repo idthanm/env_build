@@ -461,19 +461,15 @@ class CrossroadEnd2end(gym.Env):
             if task == 'left':
                 tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, VEHICLE_MODE_DICT['left']['dl'])
                 tmp['du'] = slice_or_fill(du, fill_value_for_du, VEHICLE_MODE_DICT['left']['du'])
-                tmp['dr'] = slice_or_fill(dr, fill_value_for_dr, VEHICLE_MODE_DICT['left']['dr'])
                 tmp['ud'] = slice_or_fill(ud, fill_value_for_ud, VEHICLE_MODE_DICT['left']['ud'])
                 tmp['ul'] = slice_or_fill(ul, fill_value_for_ul, VEHICLE_MODE_DICT['left']['ul'])
             elif task == 'straight':
                 tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, VEHICLE_MODE_DICT['straight']['dl'])
                 tmp['du'] = slice_or_fill(du, fill_value_for_du, VEHICLE_MODE_DICT['straight']['du'])
-                tmp['dr'] = slice_or_fill(dr, fill_value_for_dr, VEHICLE_MODE_DICT['straight']['dr'])
                 tmp['ud'] = slice_or_fill(ud, fill_value_for_ud, VEHICLE_MODE_DICT['straight']['ud'])
                 tmp['ru'] = slice_or_fill(ru, fill_value_for_ru, VEHICLE_MODE_DICT['straight']['ru'])
                 tmp['ur'] = slice_or_fill(ur_straight, fill_value_for_ur_straight, VEHICLE_MODE_DICT['straight']['ur'])
             elif task == 'right':
-                tmp['dl'] = slice_or_fill(dl, fill_value_for_dl, VEHICLE_MODE_DICT['right']['dl'])
-                tmp['du'] = slice_or_fill(du, fill_value_for_du, VEHICLE_MODE_DICT['right']['du'])
                 tmp['dr'] = slice_or_fill(dr, fill_value_for_dr, VEHICLE_MODE_DICT['right']['dr'])
                 tmp['ur'] = slice_or_fill(ur_right, fill_value_for_ur_right, VEHICLE_MODE_DICT['right']['ur'])
                 tmp['lr'] = slice_or_fill(lr, fill_value_for_lr, VEHICLE_MODE_DICT['right']['lr'])
@@ -541,7 +537,7 @@ class CrossroadEnd2end(gym.Env):
         obses, actions = obs[np.newaxis, :], action[np.newaxis, :]
         reward, _, _, _, _, reward_dict = \
             self.env_model.compute_rewards(obses, actions)
-        for k, v in reward_dict.item():
+        for k, v in reward_dict.items():
             reward_dict[k] = v.numpy()[0]
         return reward.numpy()[0], reward_dict
 
@@ -586,13 +582,13 @@ class CrossroadEnd2end(gym.Env):
             #
             for i in range(1, LANE_NUMBER_UD + 1):
                 linestyle = dotted_line_style if i < LANE_NUMBER_UD else solid_line_style
-                plt.plot([i * LANE_NUMBER_UD, i * LANE_NUMBER_UD], [-CROSSROAD_D_HEIGHT - extension, -CROSSROAD_D_HEIGHT],
+                plt.plot([i * LANE_WIDTH_UD, i * LANE_WIDTH_UD], [-CROSSROAD_D_HEIGHT - extension, -CROSSROAD_D_HEIGHT],
                          linestyle=linestyle, color='black')
-                plt.plot([i * LANE_NUMBER_UD, i * LANE_NUMBER_UD], [CROSSROAD_U_HEIGHT + extension, CROSSROAD_U_HEIGHT],
+                plt.plot([i * LANE_WIDTH_UD, i * LANE_WIDTH_UD], [CROSSROAD_U_HEIGHT + extension, CROSSROAD_U_HEIGHT],
                          linestyle=linestyle, color='black')
-                plt.plot([-i * LANE_NUMBER_UD, -i * LANE_NUMBER_UD], [-CROSSROAD_D_HEIGHT - extension, -CROSSROAD_D_HEIGHT],
+                plt.plot([-i * LANE_WIDTH_UD, -i * LANE_WIDTH_UD], [-CROSSROAD_D_HEIGHT - extension, -CROSSROAD_D_HEIGHT],
                          linestyle=linestyle, color='black')
-                plt.plot([-i * LANE_NUMBER_UD, -i * LANE_NUMBER_UD], [CROSSROAD_U_HEIGHT + extension, CROSSROAD_U_HEIGHT],
+                plt.plot([-i * LANE_WIDTH_UD, -i * LANE_WIDTH_UD], [CROSSROAD_U_HEIGHT + extension, CROSSROAD_U_HEIGHT],
                          linestyle=linestyle, color='black')
 
             # ----------stop line--------------
@@ -638,13 +634,13 @@ class CrossroadEnd2end(gym.Env):
                      [-CROSSROAD_D_HEIGHT, -LANE_NUMBER_LR * LANE_WIDTH_LR],
                      color='black')
             plt.plot([LANE_NUMBER_UD * LANE_WIDTH_UD, CROSSROAD_HALF_WIDTH],
-                     [CROSSROAD_D_HEIGHT, LANE_NUMBER_LR * LANE_WIDTH_LR],
+                     [CROSSROAD_U_HEIGHT, LANE_NUMBER_LR * LANE_WIDTH_LR],
                      color='black')
             plt.plot([-LANE_NUMBER_UD * LANE_WIDTH_UD, -CROSSROAD_HALF_WIDTH],
                      [-CROSSROAD_D_HEIGHT, -LANE_NUMBER_LR * LANE_WIDTH_LR],
                      color='black')
             plt.plot([-LANE_NUMBER_UD * LANE_WIDTH_UD, -CROSSROAD_HALF_WIDTH],
-                     [CROSSROAD_D_HEIGHT, LANE_NUMBER_LR * LANE_WIDTH_LR],
+                     [CROSSROAD_U_HEIGHT, LANE_NUMBER_LR * LANE_WIDTH_LR],
                      color='black')
 
             def is_in_plot_area(x, y, tolerance=5):
