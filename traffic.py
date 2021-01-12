@@ -77,7 +77,7 @@ class Traffic(object):
             traci.start(
                 [SUMO_BINARY, "-c", SUMOCFG_DIR,
                  "--step-length", self.step_time_str,
-                 "--lateral-resolution", "1.25",
+                 "--lateral-resolution", "3.5",
                  "--random",
                  # "--start",
                  # "--quit-on-end",
@@ -133,7 +133,7 @@ class Traffic(object):
             traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
                                     depart=0, pos=20, lane=0, speed=ego_dict['v_x'],
                                     typeID='self_car')
-            if random.random() > 0.5:
+            if random.random() > 0.5:  # todo: use for resolve other vehicles waiting ego, not always useful
                 traci.vehicle.setRouteID(egoID, 'dr')
             else:
                 traci.vehicle.setRouteID(egoID, self.ego_route)

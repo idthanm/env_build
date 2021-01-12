@@ -386,11 +386,12 @@ class CrossroadEnd2end(gym.Env):
                     lr.append(v)
                 elif start == name_setting['lo'] and end == name_setting['di']:
                     ld.append(v)
-            if (v_light != 0 and ego_y < -CROSSROAD_SIZE/2 - START_OFFSET) or self.virtual_red_light_vehicle :
-                dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
-                dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None))
-                du.append(dict(x=LANE_WIDTH*1.5, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
-                du.append(dict(x=LANE_WIDTH*1.5, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None))
+            if self.training_task != 'right':
+                if (v_light != 0 and ego_y < -CROSSROAD_SIZE/2 - START_OFFSET) \
+                        or (self.virtual_red_light_vehicle and ego_y < -CROSSROAD_SIZE/2 - START_OFFSET):
+                    dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
+                    du.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
+            # todo: whether add dr for left and straight; right task has no virtual front car
 
             # fetch veh in range
             if task == 'left':
@@ -499,13 +500,24 @@ class CrossroadEnd2end(gym.Env):
         orig_x, orig_y = shift_coordination(transformed_x, transformed_y, -x, -y)
         return orig_x, orig_y
 
-    def _reset_init_state(self): # TODO: temp
-        random_index = int(np.random.random()*(500)) + 600
+    def _reset_init_state(self):
+        random_index = int(np.random.random() * 500) + 600
+        # todo: only init before intersection, maybe problematic
+        #  because other vehicles will always wait for ego to pass first,
+        #  need to use with setRouteID('dr')
+
+        # if self.training_task == 'left':
+        #     random_index = int(np.random.random()*1000) + 600
+        # elif self.training_task == 'straight':
+        #     random_index = int(np.random.random()*1060) + 600
+        # else:
+        #     assert self.training_task == 'right'
+        #     random_index = int(np.random.random() * 850) + 600
 
         x, y, phi = self.ref_path.indexs2points(random_index)
         x += 1.0 * np.random.random() - 0.5
         y += 1.0 * np.random.random() - 0.5
-        phi += 16.0 * np.random.random() - 8.0
+        phi += 10.0 * np.random.random() - 5.0
         r = 0.4 * np.random.random() - 0.2
         v_y = 0.5 * np.random.random() - 0.25
         # v = 7 + 6 * np.random.random()
@@ -643,9 +655,9 @@ class CrossroadEnd2end(gym.Env):
                 veh2road4real += tf.where(
                     logical_and(ego_point[0] > CROSSROAD_SIZE / 2, ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) < 1),
                     tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), 0.)
-
+        abs_v_coeffi = 0.5 if self.training_task == 'right' else 0.05
         reward = 0.2 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
-                 5 * punish_steer + 0.05 * punish_a_x + 0.05 * punish_absolute_v
+                 5 * punish_steer + 0.05 * punish_a_x + abs_v_coeffi * punish_absolute_v
         reward_dict = dict(punish_steer=punish_steer.numpy(),
                            punish_a_x=punish_a_x.numpy(),
                            punish_yaw_rate=punish_yaw_rate.numpy(),
@@ -659,7 +671,7 @@ class CrossroadEnd2end(gym.Env):
                            scaled_devi_v=0.2 * devi_v.numpy(),
                            scaled_devi_y=0.8 * devi_y.numpy(),
                            scaled_devi_phi=30 * devi_phi.numpy(),
-                           scaled_abs_v = 0.05 * punish_absolute_v.numpy(),
+                           scaled_abs_v=abs_v_coeffi * punish_absolute_v.numpy(),
                            veh2veh4training=veh2veh4training.numpy(),
                            veh2road4training=veh2road4training.numpy(),
                            veh2veh4real=veh2veh4real.numpy(),
