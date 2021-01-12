@@ -14,15 +14,14 @@ from math import cos, sin, pi
 import gym
 import matplotlib.pyplot as plt
 import numpy as np
-import tensorflow as tf
-from tensorflow import logical_and
 from gym.utils import seeding
 
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath, EnvironmentModel
 from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination, deal_with_phi, \
-    L, W,  judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, VEH_NUM, EXPECTED_V, \
-    CROSSROAD_D_HEIGHT,CROSSROAD_U_HEIGHT,CROSSROAD_HALF_WIDTH,LANE_WIDTH_LR,LANE_WIDTH_UD, LANE_NUMBER_LR, LANE_NUMBER_UD
+    L, W, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, VEH_NUM, EXPECTED_V, \
+    CROSSROAD_D_HEIGHT, CROSSROAD_U_HEIGHT, CROSSROAD_HALF_WIDTH, LANE_WIDTH_LR, LANE_WIDTH_UD, LANE_NUMBER_LR, \
+    LANE_NUMBER_UD
 from traffic import Traffic
 
 warnings.filterwarnings("ignore")
