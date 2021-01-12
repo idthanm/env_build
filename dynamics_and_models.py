@@ -107,7 +107,8 @@ class EnvironmentModel(object):  # all tensors
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
             self.actions = self._action_transformation_for_end2end(actions)
-            rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real = self.compute_rewards(self.obses, self.actions)
+            rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, _ \
+                = self.compute_rewards(self.obses, self.actions)
             self.obses = self.compute_next_obses(self.obses, self.actions)
             # self.reward_info.update({'final_rew': rewards.numpy()[0]})
 
@@ -248,8 +249,8 @@ class EnvironmentModel(object):  # all tensors
             else:
                 assert self.task == 'right'
                 for ego_point in [ego_front_points, ego_rear_points]:
-                    veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_D_HEIGHT, ego_point[0] - 1 * LANE_WIDTH_UD < 1),
-                                         tf.square(ego_point[0] - 1 * LANE_WIDTH_UD - 1), tf.zeros_like(veh_infos[:, 0]))
+                    veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_D_HEIGHT, ego_point[0] - (LANE_NUMBER_UD-1) * LANE_WIDTH_UD < 1),
+                                         tf.square(ego_point[0] - (LANE_NUMBER_UD-1) * LANE_WIDTH_UD - 1), tf.zeros_like(veh_infos[:, 0]))
                     veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_D_HEIGHT, LANE_NUMBER_UD * LANE_WIDTH_UD-ego_point[0] < 1),
                                          tf.square(LANE_NUMBER_UD * LANE_WIDTH_UD-ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
                     veh2road4training += tf.where(logical_and(ego_point[0] > CROSSROAD_HALF_WIDTH, 0 - ego_point[1] < 1),
@@ -258,8 +259,8 @@ class EnvironmentModel(object):  # all tensors
                                          tf.square(ego_point[1] - (-LANE_WIDTH_LR * LANE_NUMBER_LR) - 1), tf.zeros_like(veh_infos[:, 0]))
 
                     veh2road4real += tf.where(
-                        logical_and(ego_point[1] < -CROSSROAD_D_HEIGHT, ego_point[0] - 1 * LANE_WIDTH_UD < 1),
-                        tf.square(ego_point[0] - 1 * LANE_WIDTH_UD), tf.zeros_like(veh_infos[:, 0]))
+                        logical_and(ego_point[1] < -CROSSROAD_D_HEIGHT, ego_point[0] - (LANE_NUMBER_UD-1) * LANE_WIDTH_UD < 1),
+                        tf.square(ego_point[0] - (LANE_NUMBER_UD-1) * LANE_WIDTH_UD), tf.zeros_like(veh_infos[:, 0]))
                     veh2road4real += tf.where(
                         logical_and(ego_point[1] < -CROSSROAD_D_HEIGHT, LANE_NUMBER_UD * LANE_WIDTH_UD - ego_point[0] < 1),
                         tf.square(LANE_NUMBER_UD * LANE_WIDTH_UD - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
@@ -275,7 +276,27 @@ class EnvironmentModel(object):  # all tensors
             punish_term_for_training = veh2veh4training + veh2road4training
             real_punish_term = veh2veh4real + veh2road4real
 
-            return rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real
+            reward_dict = dict(punish_steer=punish_steer,
+                               punish_a_x=punish_a_x,
+                               punish_yaw_rate=punish_yaw_rate,
+                               devi_v=devi_v,
+                               devi_y=devi_y,
+                               devi_phi=devi_phi,
+                               abs_v=punish_absolute_v,
+                               scaled_punish_steer=5 * punish_steer,
+                               scaled_punish_a_x=0.05 * punish_a_x,
+                               scaled_punish_yaw_rate=0.02 * punish_yaw_rate,
+                               scaled_devi_v=0.2 * devi_v,
+                               scaled_devi_y=0.8 * devi_y,
+                               scaled_devi_phi=30 * devi_phi,
+                               scaled_abs_v=abs_v_coeffi * punish_absolute_v,
+                               veh2veh4training=veh2veh4training,
+                               veh2road4training=veh2road4training,
+                               veh2veh4real=veh2veh4real,
+                               veh2road4real=veh2road4real,
+                               )
+
+            return rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, reward_dict
 
     def compute_next_obses(self, obses, actions):
         # obses = self.convert_vehs_to_abso(obses)
