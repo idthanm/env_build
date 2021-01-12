@@ -133,6 +133,10 @@ class Traffic(object):
             traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
                                     depart=0, pos=20, lane=0, speed=ego_dict['v_x'],
                                     typeID='self_car')
+            if random.random() > 0.5:  # todo: use for resolve other vehicles waiting ego, not always useful
+                traci.vehicle.setRouteID(egoID, 'dr')
+            else:
+                traci.vehicle.setRouteID(egoID, self.ego_route)
             traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=1)
             traci.vehicle.setLength(egoID, ego_dict['l'])
             traci.vehicle.setWidth(egoID, ego_dict['w'])

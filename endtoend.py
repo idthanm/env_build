@@ -391,6 +391,7 @@ class CrossroadEnd2end(gym.Env):
                         or (self.virtual_red_light_vehicle and ego_y < -CROSSROAD_SIZE/2 - START_OFFSET):
                     dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
                     du.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2, v=0., phi=90, l=5, w=2.5, route=None))
+            # todo: whether add dr for left and straight; right task has no virtual front car
 
             # fetch veh in range
             if task == 'left':
@@ -499,14 +500,19 @@ class CrossroadEnd2end(gym.Env):
         orig_x, orig_y = shift_coordination(transformed_x, transformed_y, -x, -y)
         return orig_x, orig_y
 
-    def _reset_init_state(self): # TODO: temp
-        if self.training_task == 'left':
-            random_index = int(np.random.random()*1000) + 600
-        elif self.training_task == 'straight':
-            random_index = int(np.random.random()*1060) + 600
-        else:
-            assert self.training_task == 'right'
-            random_index = int(np.random.random() * 850) + 600
+    def _reset_init_state(self):
+        random_index = int(np.random.random() * 500) + 600
+        # todo: only init before intersection, maybe problematic
+        #  because other vehicles will always wait for ego to pass first,
+        #  need to use with setRouteID('dr')
+
+        # if self.training_task == 'left':
+        #     random_index = int(np.random.random()*1000) + 600
+        # elif self.training_task == 'straight':
+        #     random_index = int(np.random.random()*1060) + 600
+        # else:
+        #     assert self.training_task == 'right'
+        #     random_index = int(np.random.random() * 850) + 600
 
         x, y, phi = self.ref_path.indexs2points(random_index)
         x += 1.0 * np.random.random() - 0.5
