@@ -494,7 +494,7 @@ class CrossroadEnd2end(gym.Env):
         return orig_x, orig_y
 
     def _reset_init_state(self):
-        random_index = int(np.random.random() * 500) + 600
+        random_index = int(np.random.random() * 900) + 600
         # todo: only init before intersection, maybe problematic
         #  because other vehicles will always wait for ego to pass first,
         #  need to use with setRouteID('dr')
