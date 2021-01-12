@@ -67,7 +67,7 @@ MODE2TASK = {'dr': 'right', 'du': 'straight', 'dl': 'left',
 
 def judge_feasible(orig_x, orig_y, task):  # map dependant
     def is_in_straight_before1(orig_x, orig_y): #TODO: temp
-        return 0 < orig_x < LANE_WIDTH and orig_y <= -CROSSROAD_SIZE / 2 - START_OFFSET
+        return 0 < orig_x < LANE_WIDTH_UD * LANE_NUMBER_UD and orig_y <= -CROSSROAD_D_HEIGHT
 
     # def is_in_straight_before2(orig_x, orig_y):
     #     return LANE_WIDTH < orig_x < LANE_WIDTH * 2 and orig_y <= -CROSSROAD_SIZE / 2
@@ -76,16 +76,16 @@ def judge_feasible(orig_x, orig_y, task):  # map dependant
     #     return LANE_WIDTH * 2 < orig_x < LANE_WIDTH * 3 and orig_y <= -CROSSROAD_SIZE / 2
 
     def is_in_straight_after(orig_x, orig_y):
-        return 0 < orig_x < LANE_WIDTH * LANE_NUMBER and orig_y >= CROSSROAD_SIZE / 2
+        return 0 < orig_x < LANE_WIDTH_UD * LANE_NUMBER_UD and orig_y >= CROSSROAD_U_HEIGHT
 
     def is_in_left(orig_x, orig_y):
-        return 0 < orig_y < LANE_WIDTH * LANE_NUMBER and orig_x < -CROSSROAD_SIZE / 2
+        return 0 < orig_y < LANE_WIDTH_LR * LANE_NUMBER_LR and orig_x < - CROSSROAD_HALF_WIDTH
 
     def is_in_right(orig_x, orig_y):
-        return -LANE_WIDTH * LANE_NUMBER < orig_y < 0 and orig_x > CROSSROAD_SIZE / 2
+        return -LANE_WIDTH_LR * LANE_NUMBER_LR < orig_y < 0 and orig_x > CROSSROAD_HALF_WIDTH
 
     def is_in_middle(orig_x, orig_y):
-        return True if -CROSSROAD_SIZE / 2 - START_OFFSET < orig_y < CROSSROAD_SIZE / 2 and -CROSSROAD_SIZE / 2 < orig_x < CROSSROAD_SIZE / 2 else False
+        return True if -CROSSROAD_D_HEIGHT < orig_y < CROSSROAD_U_HEIGHT and -CROSSROAD_HALF_WIDTH < orig_x < CROSSROAD_HALF_WIDTH else False
 
     if task == 'left':
         return True if is_in_straight_before1(orig_x, orig_y) or is_in_left(orig_x, orig_y) \
@@ -192,18 +192,18 @@ def cal_ego_info_in_transform_coordination(ego_dynamics, x, y, rotate_d):
 
 
 def xy2_edgeID_lane(x, y): #TODO: temp
-    if y < -CROSSROAD_SIZE/2 - START_OFFSET:
+    if y < -CROSSROAD_D_HEIGHT:
         edgeID = '1o'
-        lane = 0 # int((LANE_NUMBER-1)-int(x/LANE_WIDTH))
-    elif x < -CROSSROAD_SIZE/2:
+        lane = int((LANE_NUMBER_UD-1)-int(x/LANE_WIDTH_UD))
+    elif x < -CROSSROAD_HALF_WIDTH:
         edgeID = '4i'
-        lane = 0 # int((LANE_NUMBER-1)-int(y/LANE_WIDTH))
-    elif y > CROSSROAD_SIZE/2:
+        lane = int((LANE_NUMBER_LR-1)-int(y/LANE_WIDTH_LR))
+    elif y > CROSSROAD_U_HEIGHT:
         edgeID = '3i'
-        lane = 0 # int((LANE_NUMBER-1)-int(x/LANE_WIDTH))
-    elif x > CROSSROAD_SIZE/2:
+        lane = int((LANE_NUMBER_UD-1)-int(x/LANE_WIDTH_UD))
+    elif x > CROSSROAD_HALF_WIDTH:
         edgeID = '2i'
-        lane = 0 # int((LANE_NUMBER-1)-int(-y/LANE_WIDTH))
+        lane = int((LANE_NUMBER_LR-1)-int(-y/LANE_WIDTH_LR))
     else:
         edgeID = '0'
         lane = 0
