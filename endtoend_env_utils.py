@@ -12,16 +12,17 @@ from collections import OrderedDict
 import os
 
 L, W = 4.8, 2.0
-LANE_WIDTH = 3.5
-LANE_NUMBER = 1 #TODO: temp
-CROSSROAD_SIZE = 22 #TODO: temp
-START_OFFSET = 3.0
-EXPECTED_V = 3. #TODO: temp
+LANE_WIDTH_UD, LANE_WIDTH_LR = 3.5, 3.2
+LANE_NUMBER_UD, LANE_NUMBER_LR = 2, 4
+CROSSROAD_HALF_WIDTH = 21.65
+CROSSROAD_U_HEIGHT = 30.25
+CROSSROAD_D_HEIGHT = 26.5
+EXPECTED_V = 8.
 dirname = os.path.dirname(__file__)
 SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
-VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=1, du=1, dr=1, ud=2, ul=1), # dl=2, du=2, ud=2, ul=2
-                         straight=OrderedDict(dl=1, du=1, dr=1, ud=1, ru=2, ur=2), #vdl=1, du=2, ud=2, ru=2, ur=2
-                         right=OrderedDict(dl=1, du=1, dr=1, ur=2, lr=2)) #TODO: temp relevant to filter interested vehicle
+VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=2, du=1, ud=2, ul=2),
+                         straight=OrderedDict(dl=1, du=1, ud=1, ru=2, ur=2),
+                         right=OrderedDict(dr=1, ur=2, lr=2))
 
 
 def dict2flat(inp):
