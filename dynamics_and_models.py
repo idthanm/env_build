@@ -16,7 +16,9 @@ import tensorflow as tf
 from tensorflow import logical_and
 
 # gym.envs.user_defined.toyota_env.
-from endtoend_env_utils import rotate_coordination, L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, VEHICLE_MODE_LIST, EXPECTED_V, START_OFFSET
+from endtoend_env_utils import rotate_coordination, L, W, VEHICLE_MODE_LIST, EXPECTED_V,\
+    CROSSROAD_U_HEIGHT, CROSSROAD_D_HEIGHT, CROSSROAD_HALF_WIDTH, LANE_WIDTH_LR, LANE_WIDTH_UD,\
+    LANE_NUMBER_UD, LANE_NUMBER_LR
 
 
 class VehicleDynamics(object):
@@ -145,32 +147,6 @@ class EnvironmentModel(object):  # all tensors
                         veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
                         veh2veh4training += tf.where(veh2veh_dist-3.5 < 0, tf.square(veh2veh_dist-3.5), tf.zeros_like(veh_infos[:, 0]))
                         veh2veh4real += tf.where(veh2veh_dist-2.5 < 0, tf.square(veh2veh_dist-2.5), tf.zeros_like(veh_infos[:, 0]))
-
-            # veh2road4real = tf.zeros_like(veh_infos[:, 0])
-            # veh2road4training = tf.zeros_like(veh_infos[:, 0])
-            # if self.task == 'left':
-            #     for ego_point in [ego_front_points, ego_rear_points]:
-            #         veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, ego_point[0] < 1),
-            #                              tf.square(ego_point[0]-1), tf.zeros_like(veh_infos[:, 0]))
-            #         veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, LANE_WIDTH-ego_point[0] < 1),
-            #                              tf.square(LANE_WIDTH-ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
-            #         veh2road4training += tf.where(logical_and(ego_point[0] < 0, LANE_WIDTH*LANE_NUMBER - ego_point[1] < 1),
-            #                              tf.square(LANE_WIDTH*LANE_NUMBER - ego_point[1] - 1), tf.zeros_like(veh_infos[:, 0]))
-            #         veh2road4training += tf.where(logical_and(ego_point[0] < -CROSSROAD_SIZE/2, ego_point[1] - 0 < 1),
-            #                              tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
-            #
-            #         veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, ego_point[0] < 1),
-            #                              tf.square(ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
-            #         veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, LANE_WIDTH - ego_point[0] < 1),
-            #                              tf.square(LANE_WIDTH - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
-            #         veh2road4real += tf.where(logical_and(ego_point[0] < -CROSSROAD_SIZE/2, LANE_WIDTH*LANE_NUMBER - ego_point[1] < 1),
-            #                              tf.square(LANE_WIDTH*LANE_NUMBER - ego_point[1] - 1), tf.zeros_like(veh_infos[:, 0]))
-            #         veh2road4real += tf.where(logical_and(ego_point[0] < -CROSSROAD_SIZE/2, ego_point[1] - 0 < 1),
-            #                              tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
-
-            # punish_term_for_training = veh2veh4training + veh2road4training
-            # real_punish_term  = veh2veh4real + veh2road4real
-        # obs_next = self.convert_vehs_to_rela(obs_next)
         return obs_next, veh2veh4real
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1] # TODO:
@@ -351,31 +327,31 @@ class EnvironmentModel(object):  # all tensors
         # next_obses = self.convert_vehs_to_rela(next_obses)
         return next_obses
 
-    def convert_vehs_to_rela(self, obs_abso):
-        ego_infos, tracking_infos, veh_infos = obs_abso[:, :self.ego_info_dim], \
-                                               obs_abso[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
-                                                         self.num_future_data + 1)], \
-                                               obs_abso[:, self.ego_info_dim + self.per_tracking_info_dim * (
-                                                           self.num_future_data + 1):]
-        ego_x, ego_y = ego_infos[:, 3], ego_infos[:, 4]
-        ego = tf.tile(tf.stack([ego_x, ego_y, tf.zeros_like(ego_x), tf.zeros_like(ego_x)], 1),
-                      (1, int(tf.shape(veh_infos)[1]/self.per_veh_info_dim)))
-        vehs_rela = veh_infos - ego
-        out = tf.concat([ego_infos, tracking_infos, vehs_rela], 1)
-        return out
+    # def convert_vehs_to_rela(self, obs_abso):
+    #     ego_infos, tracking_infos, veh_infos = obs_abso[:, :self.ego_info_dim], \
+    #                                            obs_abso[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
+    #                                                      self.num_future_data + 1)], \
+    #                                            obs_abso[:, self.ego_info_dim + self.per_tracking_info_dim * (
+    #                                                        self.num_future_data + 1):]
+    #     ego_x, ego_y = ego_infos[:, 3], ego_infos[:, 4]
+    #     ego = tf.tile(tf.stack([ego_x, ego_y, tf.zeros_like(ego_x), tf.zeros_like(ego_x)], 1),
+    #                   (1, int(tf.shape(veh_infos)[1]/self.per_veh_info_dim)))
+    #     vehs_rela = veh_infos - ego
+    #     out = tf.concat([ego_infos, tracking_infos, vehs_rela], 1)
+    #     return out
 
-    def convert_vehs_to_abso(self, obs_rela):
-        ego_infos, tracking_infos, veh_rela = obs_rela[:, :self.ego_info_dim], \
-                                               obs_rela[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
-                                                       self.num_future_data + 1)], \
-                                               obs_rela[:, self.ego_info_dim + self.per_tracking_info_dim * (
-                                                       self.num_future_data + 1):]
-        ego_x, ego_y = ego_infos[:, 3], ego_infos[:, 4]
-        ego = tf.tile(tf.stack([ego_x, ego_y, tf.zeros_like(ego_x), tf.zeros_like(ego_x)], 1),
-                      (1, int(tf.shape(veh_rela)[1] / self.per_veh_info_dim)))
-        vehs_abso = veh_rela + ego
-        out = tf.concat([ego_infos, tracking_infos, vehs_abso], 1)
-        return out
+    # def convert_vehs_to_abso(self, obs_rela):
+    #     ego_infos, tracking_infos, veh_rela = obs_rela[:, :self.ego_info_dim], \
+    #                                            obs_rela[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
+    #                                                    self.num_future_data + 1)], \
+    #                                            obs_rela[:, self.ego_info_dim + self.per_tracking_info_dim * (
+    #                                                    self.num_future_data + 1):]
+    #     ego_x, ego_y = ego_infos[:, 3], ego_infos[:, 4]
+    #     ego = tf.tile(tf.stack([ego_x, ego_y, tf.zeros_like(ego_x), tf.zeros_like(ego_x)], 1),
+    #                   (1, int(tf.shape(veh_rela)[1] / self.per_veh_info_dim)))
+    #     vehs_abso = veh_rela + ego
+    #     out = tf.concat([ego_infos, tracking_infos, vehs_abso], 1)
+    #     return out
 
     def ego_predict(self, ego_infos, actions):
         ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions, self.base_frequency)
@@ -409,20 +385,24 @@ class EnvironmentModel(object):  # all tensors
     def predict_for_a_mode(self, vehs, mode):
         veh_xs, veh_ys, veh_vs, veh_phis = vehs[:, 0], vehs[:, 1], vehs[:, 2], vehs[:, 3]
         veh_phis_rad = veh_phis * np.pi / 180.
-
-        middle_cond = logical_and(logical_and(veh_xs > -CROSSROAD_SIZE/2, veh_xs < CROSSROAD_SIZE/2),
-                                  logical_and(veh_ys > -CROSSROAD_SIZE/2, veh_ys < CROSSROAD_SIZE/2))
-        # If in a non-rectangular intersection, this middle_cond returns with the turn prediction vehicles rather than
-        # vehicles in the intersection.
         zeros = tf.zeros_like(veh_xs)
 
         veh_xs_delta = veh_vs / self.base_frequency * tf.cos(veh_phis_rad)
         veh_ys_delta = veh_vs / self.base_frequency * tf.sin(veh_phis_rad)
 
         if mode in ['dl', 'rd', 'ur', 'lu']: #TODO: temp predict Psi
-            veh_phis_rad_delta = tf.where(middle_cond, (veh_vs / (CROSSROAD_SIZE/2+0.5*LANE_WIDTH)) / self.base_frequency, zeros)
-        elif mode in ['dr', 'ru', 'ul', 'ld']:
-            veh_phis_rad_delta = tf.where(middle_cond, -(veh_vs / (CROSSROAD_SIZE/2-0.5*LANE_WIDTH)) / self.base_frequency, zeros)
+            middle_cond = logical_and(logical_and(veh_xs > -CROSSROAD_HALF_WIDTH, veh_xs < CROSSROAD_HALF_WIDTH),
+                                      logical_and(veh_ys > -CROSSROAD_HALF_WIDTH, veh_ys < CROSSROAD_HALF_WIDTH))
+            veh_phis_rad_delta = tf.where(middle_cond, (veh_vs / (CROSSROAD_HALF_WIDTH+0.5*LANE_WIDTH_UD)) / self.base_frequency, zeros)
+
+        elif mode in ['dr', 'ld']:
+            middle_cond = logical_and(logical_and(veh_xs > -20.55, veh_xs < 20.55),
+                                      logical_and(veh_ys > -CROSSROAD_D_HEIGHT, veh_ys < 0))
+            veh_phis_rad_delta = tf.where(middle_cond, -(veh_vs / 15.3) / self.base_frequency, zeros)
+        elif mode in ['ru', 'ul']:
+            middle_cond = logical_and(logical_and(veh_xs > -CROSSROAD_HALF_WIDTH, veh_xs < CROSSROAD_HALF_WIDTH),
+                                      logical_and(veh_ys > 0, veh_ys < 27.6))
+            veh_phis_rad_delta = tf.where(middle_cond, -(veh_vs / 16.4) / self.base_frequency, zeros)
         else:
             veh_phis_rad_delta = zeros
         next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis_rad = \
@@ -435,71 +415,64 @@ class EnvironmentModel(object):  # all tensors
     def render(self, mode='human'): #TODO:for debug
         if mode == 'human':
             # plot basic map
-            square_length = CROSSROAD_SIZE
             extension = 40
-            lane_width = LANE_WIDTH
             dotted_line_style = '--'
             solid_line_style = '-'
 
             plt.cla()
             plt.title("Crossroad")
-            ax = plt.axes(xlim=(-square_length / 2 - extension, square_length / 2 + extension),
-                          ylim=(-square_length / 2 - extension, square_length / 2 + extension))
+            ax = plt.axes(xlim=(-CROSSROAD_HALF_WIDTH - extension, CROSSROAD_HALF_WIDTH + extension),
+                          ylim=(-CROSSROAD_D_HEIGHT - extension, CROSSROAD_U_HEIGHT + extension))
             plt.axis("equal")
             plt.axis('off')
-
-            # ax.add_patch(plt.Rectangle((-square_length / 2, -square_length / 2),
-            #                            square_length, square_length, edgecolor='black', facecolor='none'))
-            ax.add_patch(plt.Rectangle((-square_length / 2 - extension, -square_length / 2 - extension),
-                                       square_length + 2 * extension, square_length + 2 * extension, edgecolor='black',
+            ax.add_patch(plt.Rectangle((-CROSSROAD_HALF_WIDTH - extension, -CROSSROAD_D_HEIGHT - extension),
+                                       2 * CROSSROAD_HALF_WIDTH + 2 * extension, CROSSROAD_D_HEIGHT+CROSSROAD_U_HEIGHT + 2 * extension, edgecolor='black',
                                        facecolor='none'))
 
             # ----------horizon--------------
-            plt.plot([-square_length / 2 - extension, -square_length / 2], [0, 0], color='black')
-            plt.plot([square_length / 2 + extension, square_length / 2], [0, 0], color='black')
+            plt.plot([-CROSSROAD_HALF_WIDTH - extension, -CROSSROAD_HALF_WIDTH], [0, 0], color='black')
+            plt.plot([CROSSROAD_HALF_WIDTH + extension, CROSSROAD_HALF_WIDTH], [0, 0], color='black')
 
             #
-            for i in range(1, LANE_NUMBER+1):
-                linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
-                plt.plot([-square_length / 2 - extension, -square_length / 2], [i*lane_width, i*lane_width],
+            for i in range(1, LANE_NUMBER_LR + 1):
+                linestyle = dotted_line_style if i < LANE_NUMBER_LR else solid_line_style
+                plt.plot([-CROSSROAD_HALF_WIDTH - extension, -CROSSROAD_HALF_WIDTH], [i * LANE_WIDTH_LR, i * LANE_WIDTH_LR],
                          linestyle=linestyle, color='black')
-                plt.plot([square_length / 2 + extension, square_length / 2], [i*lane_width, i*lane_width],
+                plt.plot([CROSSROAD_HALF_WIDTH + extension, CROSSROAD_HALF_WIDTH], [i * LANE_WIDTH_LR, i * LANE_WIDTH_LR],
                          linestyle=linestyle, color='black')
-                plt.plot([-square_length / 2 - extension, -square_length / 2], [-i * lane_width, -i * lane_width],
+                plt.plot([-CROSSROAD_HALF_WIDTH - extension, -CROSSROAD_HALF_WIDTH], [-i * LANE_WIDTH_LR, -i * LANE_WIDTH_LR],
                          linestyle=linestyle, color='black')
-                plt.plot([square_length / 2 + extension, square_length / 2], [-i * lane_width, -i * lane_width],
+                plt.plot([CROSSROAD_HALF_WIDTH + extension, CROSSROAD_HALF_WIDTH], [-i * LANE_WIDTH_LR, -i * LANE_WIDTH_LR],
                          linestyle=linestyle, color='black')
 
             # ----------vertical----------------
-            plt.plot([0, 0], [-square_length / 2 - extension, -square_length / 2], color='black')
-            plt.plot([0, 0], [square_length / 2 + extension, square_length / 2], color='black')
+            plt.plot([0, 0], [-CROSSROAD_D_HEIGHT - extension, -CROSSROAD_D_HEIGHT], color='black')
+            plt.plot([0, 0], [CROSSROAD_U_HEIGHT + extension, CROSSROAD_U_HEIGHT], color='black')
 
             #
-            for i in range(1, LANE_NUMBER+1):
-                linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
-                plt.plot([i*lane_width, i*lane_width], [-square_length / 2 - extension, -square_length / 2],
+            for i in range(1, LANE_NUMBER_UD + 1):
+                linestyle = dotted_line_style if i < LANE_NUMBER_UD else solid_line_style
+                plt.plot([i * LANE_NUMBER_UD, i * LANE_NUMBER_UD], [-CROSSROAD_D_HEIGHT - extension, -CROSSROAD_D_HEIGHT],
                          linestyle=linestyle, color='black')
-                plt.plot([i*lane_width, i*lane_width], [square_length / 2 + extension, square_length / 2],
+                plt.plot([i * LANE_NUMBER_UD, i * LANE_NUMBER_UD], [CROSSROAD_U_HEIGHT + extension, CROSSROAD_U_HEIGHT],
                          linestyle=linestyle, color='black')
-                plt.plot([-i * lane_width, -i * lane_width], [-square_length / 2 - extension, -square_length / 2],
+                plt.plot([-i * LANE_NUMBER_UD, -i * LANE_NUMBER_UD], [-CROSSROAD_D_HEIGHT - extension, -CROSSROAD_D_HEIGHT],
                          linestyle=linestyle, color='black')
-                plt.plot([-i * lane_width, -i * lane_width], [square_length / 2 + extension, square_length / 2],
+                plt.plot([-i * LANE_NUMBER_UD, -i * LANE_NUMBER_UD], [CROSSROAD_U_HEIGHT + extension, CROSSROAD_U_HEIGHT],
                          linestyle=linestyle, color='black')
-
-            # ----------stop line--------------
-            plt.plot([0, LANE_NUMBER * lane_width], [-square_length / 2, -square_length / 2], color='black')
-            plt.plot([-LANE_NUMBER * lane_width, 0], [square_length / 2, square_length / 2], color='black')
-            plt.plot([-square_length / 2, -square_length / 2], [0, -LANE_NUMBER * lane_width], color='black')
-            plt.plot([square_length / 2, square_length / 2], [LANE_NUMBER * lane_width, 0], color='black')
 
             # ----------Oblique--------------
-            plt.plot([LANE_NUMBER * lane_width, square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
+            plt.plot([LANE_NUMBER_UD * LANE_WIDTH_UD, CROSSROAD_HALF_WIDTH],
+                     [-CROSSROAD_D_HEIGHT, -LANE_NUMBER_LR * LANE_WIDTH_LR],
                      color='black')
-            plt.plot([LANE_NUMBER * lane_width, square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
+            plt.plot([LANE_NUMBER_UD * LANE_WIDTH_UD, CROSSROAD_HALF_WIDTH],
+                     [CROSSROAD_D_HEIGHT, LANE_NUMBER_LR * LANE_WIDTH_LR],
                      color='black')
-            plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
+            plt.plot([-LANE_NUMBER_UD * LANE_WIDTH_UD, -CROSSROAD_HALF_WIDTH],
+                     [-CROSSROAD_D_HEIGHT, -LANE_NUMBER_LR * LANE_WIDTH_LR],
                      color='black')
-            plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
+            plt.plot([-LANE_NUMBER_UD * LANE_WIDTH_UD, -CROSSROAD_HALF_WIDTH],
+                     [CROSSROAD_D_HEIGHT, LANE_NUMBER_LR * LANE_WIDTH_LR],
                      color='black')
 
             def is_in_plot_area(x, y, tolerance=5):
