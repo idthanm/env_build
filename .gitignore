@@ -219,3 +219,6 @@ SearchImage/.idea/misc.xml
 SearchImage/.idea/workspace.xml
 SearchImage/.idea/vcs.xml
 SearchImage/.idea/
+/left_ref.npy
+/right_ref.npy
+/straight_ref.npy
