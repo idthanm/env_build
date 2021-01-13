@@ -131,7 +131,7 @@ class Traffic(object):
                 pass
             traci.simulationStep()
             traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
-                                    depart=0, pos=20, lane=0, speed=ego_dict['v_x'],
+                                    #depart=0, pos=20, lane=lane, speed=ego_dict['v_x'],
                                     typeID='self_car')
             if random.random() > 0.5:  # todo: use for resolve other vehicles waiting ego, not always useful
                 traci.vehicle.setRouteID(egoID, 'dr')
