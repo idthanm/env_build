@@ -202,16 +202,16 @@ def cal_ego_info_in_transform_coordination(ego_dynamics, x, y, rotate_d):
 def xy2_edgeID_lane(x, y): #TODO: temp
     if y < -CROSSROAD_D_HEIGHT:
         edgeID = '1o'
-        lane = int((LANE_NUMBER_UD-1)-int(x/LANE_WIDTH_UD))
+        lane = int(3-int(x/LANE_WIDTH_UD))
     elif x < -CROSSROAD_HALF_WIDTH:
         edgeID = '4i'
-        lane = int((LANE_NUMBER_LR-1)-int(y/LANE_WIDTH_LR))
+        lane = int(6-int(y/LANE_WIDTH_LR))
     elif y > CROSSROAD_U_HEIGHT:
         edgeID = '3i'
-        lane = int((LANE_NUMBER_UD-1)-int(x/LANE_WIDTH_UD))
+        lane = int(3-int(x/LANE_WIDTH_UD))
     elif x > CROSSROAD_HALF_WIDTH:
         edgeID = '2i'
-        lane = int((LANE_NUMBER_LR-1)-int(-y/LANE_WIDTH_LR))
+        lane = int(6-int(-y/LANE_WIDTH_LR))
     else:
         edgeID = '0'
         lane = 0
