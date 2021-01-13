@@ -21,7 +21,7 @@ from dynamics_and_models import VehicleDynamics, ReferencePath, EnvironmentModel
 from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination, deal_with_phi, \
     L, W, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, VEH_NUM, EXPECTED_V, \
     CROSSROAD_D_HEIGHT, CROSSROAD_U_HEIGHT, CROSSROAD_HALF_WIDTH, LANE_WIDTH_LR, LANE_WIDTH_UD, LANE_NUMBER_LR, \
-    LANE_NUMBER_UD
+    LANE_NUMBER_UD, TASK2ROUTEID
 from traffic import Traffic
 
 warnings.filterwarnings("ignore")
@@ -493,37 +493,14 @@ class CrossroadEnd2end(gym.Env):
         return orig_x, orig_y
 
     def _reset_init_state(self):
-        random_index = int(np.random.random() * 900) + 600
-        # todo: only init before intersection, maybe problematic
-        #  because other vehicles will always wait for ego to pass first,
-        #  need to use with setRouteID('dr')
-
-        # if self.training_task == 'left':
-        #     random_index = int(np.random.random()*1000) + 600
-        # elif self.training_task == 'straight':
-        #     random_index = int(np.random.random()*1060) + 600
-        # else:
-        #     assert self.training_task == 'right'
-        #     random_index = int(np.random.random() * 850) + 600
-
+        middle_num = len(self.ref_path.path[0]) - 2400
+        random_index = int(np.random.random() * (600 + middle_num - 200)) + 600
         x, y, phi = self.ref_path.indexs2points(random_index)
-        x += 1.0 * np.random.random() - 0.5
-        y += 1.0 * np.random.random() - 0.5
-        phi += 10.0 * np.random.random() - 5.0
-        r = 0.4 * np.random.random() - 0.2
-        v_y = 0.5 * np.random.random() - 0.25
-        # v = 7 + 6 * np.random.random()
         v = EXPECTED_V * np.random.random()
-        if self.training_task == 'left':
-            routeID = 'dl'
-        elif self.training_task == 'straight':
-            routeID = 'du'
-        else:
-            assert self.training_task == 'right'
-            routeID = 'dr'
+        routeID = TASK2ROUTEID[self.training_task]
         return dict(ego=dict(v_x=v,
-                             v_y=v_y,
-                             r=r,
+                             v_y=0.,
+                             r=0.,
                              x=x.numpy(),
                              y=y.numpy(),
                              phi=phi.numpy(),
