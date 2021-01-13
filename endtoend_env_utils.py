@@ -18,6 +18,7 @@ CROSSROAD_HALF_WIDTH = 21.65
 CROSSROAD_U_HEIGHT = 30.25
 CROSSROAD_D_HEIGHT = 26.5
 EXPECTED_V = 8.
+T = 3.14928
 dirname = os.path.dirname(__file__)
 SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
 VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=2, du=1, ud=2, ul=2),
