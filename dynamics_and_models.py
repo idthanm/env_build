@@ -18,9 +18,8 @@ from tensorflow import logical_and
 # gym.envs.user_defined.toyota_env.
 from endtoend_env_utils import rotate_coordination, L, W, VEHICLE_MODE_LIST, EXPECTED_V,\
     CROSSROAD_D_HEIGHT,CROSSROAD_U_HEIGHT,CROSSROAD_HALF_WIDTH,\
-    LANE_WIDTH_LR,LANE_WIDTH_UD, LANE_NUMBER_LR, LANE_NUMBER_UD
+    LANE_WIDTH_LR,LANE_WIDTH_UD, LANE_NUMBER_LR, LANE_NUMBER_UD, T
 
-T = 3.14928
 
 
 class VehicleDynamics(object):
