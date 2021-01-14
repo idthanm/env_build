@@ -297,21 +297,21 @@ class CrossroadEnd2end(gym.Env):
         self.per_tracking_info_dim = 3
 
         vector = np.concatenate((ego_vector, tracking_error, vehs_vector), axis=0)
-        vector = self.convert_vehs_to_rela(vector)
+        # vector = self.convert_vehs_to_rela(vector)
 
         return vector
 
-    def convert_vehs_to_rela(self, obs_abso):
-        ego_infos, tracking_infos, veh_infos = obs_abso[:self.ego_info_dim], \
-                                               obs_abso[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
-                                                         self.num_future_data + 1)], \
-                                               obs_abso[self.ego_info_dim + self.per_tracking_info_dim * (
-                                                           self.num_future_data + 1):]
-        ego_vx, ego_vy, ego_r, ego_x, ego_y, ego_phi = ego_infos
-        ego = np.array([ego_x, ego_y, 0, 0]*int(len(veh_infos)/self.per_veh_info_dim), dtype=np.float32)
-        vehs_rela = veh_infos - ego
-        out = np.concatenate((ego_infos, tracking_infos, vehs_rela), axis=0)
-        return out
+    # def convert_vehs_to_rela(self, obs_abso):
+    #     ego_infos, tracking_infos, veh_infos = obs_abso[:self.ego_info_dim], \
+    #                                            obs_abso[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
+    #                                                      self.num_future_data + 1)], \
+    #                                            obs_abso[self.ego_info_dim + self.per_tracking_info_dim * (
+    #                                                        self.num_future_data + 1):]
+    #     ego_vx, ego_vy, ego_r, ego_x, ego_y, ego_phi = ego_infos
+    #     ego = np.array([ego_x, ego_y, 0, 0]*int(len(veh_infos)/self.per_veh_info_dim), dtype=np.float32)
+    #     vehs_rela = veh_infos - ego
+    #     out = np.concatenate((ego_infos, tracking_infos, vehs_rela), axis=0)
+    #     return out
 
     # def convert_vehs_to_abso(self, obs_rela):
     #     ego_infos, tracking_infos, veh_rela = obs_rela[:self.ego_info_dim], \

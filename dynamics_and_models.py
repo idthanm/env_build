@@ -149,7 +149,7 @@ class EnvironmentModel(object):  # all tensors
                         veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
                         veh2veh4training += tf.where(veh2veh_dist-3.5 < 0, tf.square(veh2veh_dist-3.5), tf.zeros_like(veh_infos[:, 0]))
                         veh2veh4real += tf.where(veh2veh_dist-2.5 < 0, tf.square(veh2veh_dist-2.5), tf.zeros_like(veh_infos[:, 0]))
-        obs_next = self.convert_vehs_to_rela(obs_next)
+        # obs_next = self.convert_vehs_to_rela(obs_next)
         return obs_next, veh2veh4real
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1] # TODO:
@@ -159,7 +159,7 @@ class EnvironmentModel(object):  # all tensors
         return tf.stack([steer_scale, a_xs_scale], 1)
 
     def compute_rewards(self, obses, actions):
-        obses = self.convert_vehs_to_abso(obses)
+        # obses = self.convert_vehs_to_abso(obses)
         with tf.name_scope('compute_reward') as scope:
             ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim], \
                                                    obses[:,
@@ -300,7 +300,7 @@ class EnvironmentModel(object):  # all tensors
             return rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, reward_dict
 
     def compute_next_obses(self, obses, actions):
-        obses = self.convert_vehs_to_abso(obses)
+        # obses = self.convert_vehs_to_abso(obses)
         ego_infos, tracking_infos, veh_infos = obses[:, :self.ego_info_dim],\
                                                obses[:, self.ego_info_dim:
                                                         self.ego_info_dim + self.per_tracking_info_dim * (
@@ -333,34 +333,34 @@ class EnvironmentModel(object):  # all tensors
 
         next_veh_infos = self.veh_predict(veh_infos)
         next_obses = tf.concat([next_ego_infos, next_tracking_infos, next_veh_infos], 1)
-        next_obses = self.convert_vehs_to_rela(next_obses)
+        # next_obses = self.convert_vehs_to_rela(next_obses)
         return next_obses
 
-    def convert_vehs_to_rela(self, obs_abso):
-        ego_infos, tracking_infos, veh_infos = obs_abso[:, :self.ego_info_dim], \
-                                               obs_abso[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
-                                                         self.num_future_data + 1)], \
-                                               obs_abso[:, self.ego_info_dim + self.per_tracking_info_dim * (
-                                                           self.num_future_data + 1):]
-        ego_x, ego_y = ego_infos[:, 3], ego_infos[:, 4]
-        ego = tf.tile(tf.stack([ego_x, ego_y, tf.zeros_like(ego_x), tf.zeros_like(ego_x)], 1),
-                      (1, int(tf.shape(veh_infos)[1]/self.per_veh_info_dim)))
-        vehs_rela = veh_infos - ego
-        out = tf.concat([ego_infos, tracking_infos, vehs_rela], 1)
-        return out
+    # def convert_vehs_to_rela(self, obs_abso):
+    #     ego_infos, tracking_infos, veh_infos = obs_abso[:, :self.ego_info_dim], \
+    #                                            obs_abso[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
+    #                                                      self.num_future_data + 1)], \
+    #                                            obs_abso[:, self.ego_info_dim + self.per_tracking_info_dim * (
+    #                                                        self.num_future_data + 1):]
+    #     ego_x, ego_y = ego_infos[:, 3], ego_infos[:, 4]
+    #     ego = tf.tile(tf.stack([ego_x, ego_y, tf.zeros_like(ego_x), tf.zeros_like(ego_x)], 1),
+    #                   (1, int(tf.shape(veh_infos)[1]/self.per_veh_info_dim)))
+    #     vehs_rela = veh_infos - ego
+    #     out = tf.concat([ego_infos, tracking_infos, vehs_rela], 1)
+    #     return out
 
-    def convert_vehs_to_abso(self, obs_rela):
-        ego_infos, tracking_infos, veh_rela = obs_rela[:, :self.ego_info_dim], \
-                                               obs_rela[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
-                                                       self.num_future_data + 1)], \
-                                               obs_rela[:, self.ego_info_dim + self.per_tracking_info_dim * (
-                                                       self.num_future_data + 1):]
-        ego_x, ego_y = ego_infos[:, 3], ego_infos[:, 4]
-        ego = tf.tile(tf.stack([ego_x, ego_y, tf.zeros_like(ego_x), tf.zeros_like(ego_x)], 1),
-                      (1, int(tf.shape(veh_rela)[1] / self.per_veh_info_dim)))
-        vehs_abso = veh_rela + ego
-        out = tf.concat([ego_infos, tracking_infos, vehs_abso], 1)
-        return out
+    # def convert_vehs_to_abso(self, obs_rela):
+    #     ego_infos, tracking_infos, veh_rela = obs_rela[:, :self.ego_info_dim], \
+    #                                            obs_rela[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
+    #                                                    self.num_future_data + 1)], \
+    #                                            obs_rela[:, self.ego_info_dim + self.per_tracking_info_dim * (
+    #                                                    self.num_future_data + 1):]
+    #     ego_x, ego_y = ego_infos[:, 3], ego_infos[:, 4]
+    #     ego = tf.tile(tf.stack([ego_x, ego_y, tf.zeros_like(ego_x), tf.zeros_like(ego_x)], 1),
+    #                   (1, int(tf.shape(veh_rela)[1] / self.per_veh_info_dim)))
+    #     vehs_abso = veh_rela + ego
+    #     out = tf.concat([ego_infos, tracking_infos, vehs_abso], 1)
+    #     return out
 
     def ego_predict(self, ego_infos, actions):
         ego_next_infos, _ = self.vehicle_dynamics.prediction(ego_infos[:, :6], actions, self.base_frequency)
