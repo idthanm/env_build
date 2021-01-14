@@ -494,8 +494,9 @@ class CrossroadEnd2end(gym.Env):
 
     def _reset_init_state(self):
         middle_num = len(self.ref_path.path[0]) - 2400
+        ref4init = ReferencePath(self.training_task)
         random_index = int(np.random.random() * (600 + middle_num - 200)) + 600
-        x, y, phi = self.ref_path.indexs2points(random_index)
+        x, y, phi = ref4init.indexs2points(random_index)
         v = EXPECTED_V * np.random.random()
         routeID = TASK2ROUTEID[self.training_task]
         return dict(ego=dict(v_x=v,

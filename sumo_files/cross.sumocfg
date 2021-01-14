@@ -3,7 +3,7 @@
 <configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
 
     <input>
-        <net-file value="a.net.xml"/>
+        <net-file value="a.net.bef.xml"/>
         <route-files value="cross.rou.xml"/>
         <additional-files value="cross.add.xml"/>
     </input>
