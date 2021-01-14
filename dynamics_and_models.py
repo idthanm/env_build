@@ -272,7 +272,7 @@ class EnvironmentModel(object):  # all tensors
                         tf.square(ego_point[1] - (-LANE_WIDTH_LR * LANE_NUMBER_LR) - 1), tf.zeros_like(veh_infos[:, 0]))
 
             abs_v_coeffi = 0.
-            rewards = 0.2 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
+            rewards = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
                       5 * punish_steer + 0.05 * punish_a_x + abs_v_coeffi * punish_absolute_v
             punish_term_for_training = veh2veh4training + veh2road4training
             real_punish_term = veh2veh4real + veh2road4real
@@ -425,6 +425,7 @@ class EnvironmentModel(object):  # all tensors
         if mode == 'human':
             # plot basic map
             extension = 40
+            light_line_width = 3
             dotted_line_style = '--'
             solid_line_style = '-'
 
@@ -461,13 +462,13 @@ class EnvironmentModel(object):  # all tensors
             #
             for i in range(1, LANE_NUMBER_UD + 1):
                 linestyle = dotted_line_style if i < LANE_NUMBER_UD else solid_line_style
-                plt.plot([i * LANE_NUMBER_UD, i * LANE_NUMBER_UD], [-CROSSROAD_D_HEIGHT - extension, -CROSSROAD_D_HEIGHT],
+                plt.plot([i * LANE_WIDTH_UD, i * LANE_WIDTH_UD], [-CROSSROAD_D_HEIGHT - extension, -CROSSROAD_D_HEIGHT],
                          linestyle=linestyle, color='black')
-                plt.plot([i * LANE_NUMBER_UD, i * LANE_NUMBER_UD], [CROSSROAD_U_HEIGHT + extension, CROSSROAD_U_HEIGHT],
+                plt.plot([i * LANE_WIDTH_UD, i * LANE_WIDTH_UD], [CROSSROAD_U_HEIGHT + extension, CROSSROAD_U_HEIGHT],
                          linestyle=linestyle, color='black')
-                plt.plot([-i * LANE_NUMBER_UD, -i * LANE_NUMBER_UD], [-CROSSROAD_D_HEIGHT - extension, -CROSSROAD_D_HEIGHT],
+                plt.plot([-i * LANE_WIDTH_UD, -i * LANE_WIDTH_UD], [-CROSSROAD_D_HEIGHT - extension, -CROSSROAD_D_HEIGHT],
                          linestyle=linestyle, color='black')
-                plt.plot([-i * LANE_NUMBER_UD, -i * LANE_NUMBER_UD], [CROSSROAD_U_HEIGHT + extension, CROSSROAD_U_HEIGHT],
+                plt.plot([-i * LANE_WIDTH_UD, -i * LANE_WIDTH_UD], [CROSSROAD_U_HEIGHT + extension, CROSSROAD_U_HEIGHT],
                          linestyle=linestyle, color='black')
 
             # ----------Oblique--------------
@@ -475,18 +476,18 @@ class EnvironmentModel(object):  # all tensors
                      [-CROSSROAD_D_HEIGHT, -LANE_NUMBER_LR * LANE_WIDTH_LR],
                      color='black')
             plt.plot([LANE_NUMBER_UD * LANE_WIDTH_UD, CROSSROAD_HALF_WIDTH],
-                     [CROSSROAD_D_HEIGHT, LANE_NUMBER_LR * LANE_WIDTH_LR],
+                     [CROSSROAD_U_HEIGHT, LANE_NUMBER_LR * LANE_WIDTH_LR],
                      color='black')
             plt.plot([-LANE_NUMBER_UD * LANE_WIDTH_UD, -CROSSROAD_HALF_WIDTH],
                      [-CROSSROAD_D_HEIGHT, -LANE_NUMBER_LR * LANE_WIDTH_LR],
                      color='black')
             plt.plot([-LANE_NUMBER_UD * LANE_WIDTH_UD, -CROSSROAD_HALF_WIDTH],
-                     [CROSSROAD_D_HEIGHT, LANE_NUMBER_LR * LANE_WIDTH_LR],
+                     [CROSSROAD_U_HEIGHT, LANE_NUMBER_LR * LANE_WIDTH_LR],
                      color='black')
 
             def is_in_plot_area(x, y, tolerance=5):
-                if -square_length / 2 - extension + tolerance < x < square_length / 2 + extension - tolerance and \
-                        -square_length / 2 - extension + tolerance < y < square_length / 2 + extension - tolerance:
+                if -CROSSROAD_HALF_WIDTH - extension + tolerance < x < CROSSROAD_HALF_WIDTH + extension - tolerance and \
+                        -CROSSROAD_D_HEIGHT - extension + tolerance < y < CROSSROAD_U_HEIGHT + extension - tolerance:
                     return True
                 else:
                     return False
@@ -999,7 +1000,7 @@ def test_gen_ref_and_save():
 
 
 if __name__ == '__main__':
-    test_gen_ref_and_save()
-    # test_model()
+    # test_gen_ref_and_save()
+    test_model()
 
 
