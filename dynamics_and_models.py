@@ -228,9 +228,8 @@ class EnvironmentModel(object):  # all tensors
                     #                      tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
             elif self.task == 'straight':
                 for ego_point in [ego_front_points, ego_rear_points]:
-                    # veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_D_HEIGHT, ego_point[0] - 0 < 1),
-                    #                      tf.square(ego_point[0] -1), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4training += tf.where(ego_point[0] < 0, tf.square(ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
+                    veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_D_HEIGHT, ego_point[0] - 0 < 1),
+                                         tf.square(ego_point[0] -1), tf.zeros_like(veh_infos[:, 0]))
                     veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_D_HEIGHT, LANE_WIDTH_UD-ego_point[0] < 1),
                                          tf.square(LANE_WIDTH_UD-ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
                     # veh2road4training += tf.where(logical_and(ego_point[1] > CROSSROAD_U_HEIGHT, LANE_WIDTH_UD * LANE_NUMBER_UD - ego_point[0] < 1),
@@ -238,9 +237,8 @@ class EnvironmentModel(object):  # all tensors
                     # veh2road4training += tf.where(logical_and(ego_point[1] > CROSSROAD_U_HEIGHT, ego_point[0] - 0 < 1),
                     #                      tf.square(ego_point[0] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
 
-                    # veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_D_HEIGHT, ego_point[0]-0 < 1),
-                    #                               tf.square(ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
-                    veh2road4real += tf.where(ego_point[0] < 1, tf.square(ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
+                    veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_D_HEIGHT, ego_point[0]-0 < 1),
+                                                  tf.square(ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
                     veh2road4real += tf.where(
                         logical_and(ego_point[1] < -CROSSROAD_D_HEIGHT, LANE_WIDTH_UD - ego_point[0] < 1),
                         tf.square(LANE_WIDTH_UD - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
