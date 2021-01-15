@@ -445,7 +445,6 @@ class CrossroadEnd2end(gym.Env):
                     while len(sorted_list) < num:
                         sorted_list.append(fill_value)
                     return sorted_list
-            mode2existvalue = dict(dl=dl, du=du, dr=dr, ru=ru, ur=ur, ud=ud, ul=ul, lr=lr)
             mode2fillvalue = dict(dl=dict(x=LANE_WIDTH_UD/2, y=-(CROSSROAD_D_HEIGHT+30), v=0, phi=90, w=2.5, l=5, route=('1o', '4i')),
                                   du=dict(x=LANE_WIDTH_UD/2, y=-(CROSSROAD_D_HEIGHT+30), v=0, phi=90, w=2.5, l=5, route=('1o', '3i')),
                                   dr=dict(x=LANE_WIDTH_UD*(LANE_NUMBER_UD-0.5), y=-(CROSSROAD_D_HEIGHT+30), v=0, phi=90, w=2.5, l=5, route=('1o', '2i')),
@@ -457,7 +456,7 @@ class CrossroadEnd2end(gym.Env):
 
             tmp = OrderedDict()
             for mode, num in VEHICLE_MODE_DICT[task].items():
-                tmp[mode] = slice_or_fill(mode2existvalue[mode], mode2fillvalue[mode], num)
+                tmp[mode] = slice_or_fill(eval(mode), mode2fillvalue[mode], num)
 
             return tmp
 
