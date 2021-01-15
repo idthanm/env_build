@@ -22,7 +22,7 @@ T = 3.14928
 dirname = os.path.dirname(__file__)
 SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
 VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=2, du=1, ud=2, ul=2),
-                         straight=OrderedDict(dl=1, du=1, ru=2, ur=2),
+                         straight=OrderedDict(dl=1, du=1, ud=1, ru=2, ur=2),
                          right=OrderedDict(dr=1, ur=2, lr=2))
 
 
