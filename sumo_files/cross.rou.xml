@@ -1,14 +1,14 @@
 <routes>
     <vType id="car_1" length="4.754264" width="1.596668" accel="2.6" decel="4.5" apparentDecel="4.5" emergencyDecel="4.5"
-           sigma="0.5" tau="1" minGap="2.5" maxSpeed="8" speedDev="0" color="24,0,255,255" vClass="passenger"
+           sigma="0.5" tau="1" minGap="2.5" maxSpeed="5" speedDev="0" color="24,0,255,255" vClass="passenger"
            guiShape="passenger" impatience="0" laneChangeModel="SL2015" carFollowModel="Krauss" latAlignment="center"
            minGapLat="0.1" maxSpeedLat="1"/>
     <vType id="car_2" length="4.173896" width="1.77515" accel="2.6" decel="4.5" apparentDecel="4.5" emergencyDecel="4.5"
-           sigma="0.5" tau="1" minGap="2.5" maxSpeed="8" speedDev="0" color="62,62,62,235" vClass="passenger"
+           sigma="0.5" tau="1" minGap="2.5" maxSpeed="5" speedDev="0" color="62,62,62,235" vClass="passenger"
            guiShape="passenger" impatience="0" laneChangeModel="SL2015" carFollowModel="Krauss" latAlignment="center"
            minGapLat="0.1" maxSpeedLat="1"/>
     <vType id="car_3" length="4.173896" width="1.77515" accel="2.6" decel="4.5" apparentDecel="4.5" emergencyDecel="4.5"
-           sigma="0.5" tau="1" minGap="2.5" maxSpeed="8" speedDev="0" color="255,255,255,186" vClass="passenger"
+           sigma="0.5" tau="1" minGap="2.5" maxSpeed="5" speedDev="0" color="255,255,255,186" vClass="passenger"
            guiShape="passenger" impatience="0" laneChangeModel="SL2015" carFollowModel="Krauss" latAlignment="center"
            minGapLat="0.1" maxSpeedLat="1"/>
     <vType id="self_car" length="5" width="1.8" accel="3.5" decel="2.2" sigma="1.0" guiShape="passenger/wagon"
