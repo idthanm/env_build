@@ -220,14 +220,12 @@ class EnvironmentModel(object):  # all tensors
                                    tf.cast(vehs[:, 1] + veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
                 veh_rear_points = tf.cast(vehs[:, 0] - veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
                                   tf.cast(vehs[:, 1] - veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
-                for ego_index, ego_point in enumerate([ego_front_points, ego_rear_points]):
-                    for veh_index, veh_point in enumerate([veh_front_points, veh_rear_points]):
-                        constraint_index = veh_index * self.per_veh_constraint_dim + ego_index * 2 + veh_index
+                for ego_point_index, ego_point in enumerate([ego_front_points, ego_rear_points]):
+                    for other_point_index, veh_point in enumerate([veh_front_points, veh_rear_points]):
+                        constraint_index = veh_index * self.per_veh_constraint_dim + ego_point_index * 2 + other_point_index
                         veh2veh_dist = -tf.sqrt(
-                            tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) + 2.5
-
-                        veh2veh4real += tf.where(veh2veh_dist > 0, veh2veh_dist,
-                                                 tf.zeros_like(veh_infos[:, 0]))
+                            tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) + 3.5
+                        veh2veh4real += tf.where(veh2veh_dist > 1, tf.square(veh2veh_dist - 1), tf.zeros_like(veh_infos[:, 0]))
                         # update veh2veh dist last
                         if constraint_index == 0:
                             temp_1 = constraints[:, 1:]
