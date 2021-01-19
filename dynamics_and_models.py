@@ -163,6 +163,7 @@ class EnvironmentModel(object):  # all tensors
         steer_scale, a_xs_scale = 0.4 * steer_norm, 2.25 * a_xs_norm-0.75
         return tf.stack([steer_scale, a_xs_scale], 1)
 
+
     def compute_rewards(self, obses, actions):
         # obses = self.convert_vehs_to_abso(obses)
         with tf.name_scope('compute_reward') as scope:
@@ -209,10 +210,10 @@ class EnvironmentModel(object):  # all tensors
             #             veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
             #             veh2veh4training += tf.where(veh2veh_dist-3.5 < 0, tf.square(veh2veh_dist-3.5), tf.zeros_like(veh_infos[:, 0]))
             #             veh2veh4real += tf.where(veh2veh_dist-2.5 < 0, tf.square(veh2veh_dist-2.5), tf.zeros_like(veh_infos[:, 0]))
-            constraints = tf.zeros([veh_infos.shape[0], self.constraints_num])
+
+            constraints_list = tf.TensorArray(tf.float32, size=self.constraints_num)
             veh2veh_dist = tf.zeros_like(veh_infos[:, 0])
             constraint_index = 0
-
             for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
                 vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
                 veh_lws = (L - W) / 2.
@@ -227,16 +228,11 @@ class EnvironmentModel(object):  # all tensors
                             tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1])) + 3.5
                         veh2veh4real += tf.where(veh2veh_dist > 1, tf.square(veh2veh_dist - 1), tf.zeros_like(veh_infos[:, 0]))
                         # update veh2veh dist last
-                        if constraint_index == 0:
-                            temp_1 = constraints[:, 1:]
-                            constraints = tf.concat([tf.expand_dims(veh2veh_dist, 1), temp_1], 1)
-                        elif constraint_index <= self.constraints_num - 2:
-                            temp_1 = constraints[:, 0 : constraint_index]
-                            temp_2 = constraints[:, constraint_index + 1:]
-                            constraints = tf.concat([temp_1, tf.expand_dims(veh2veh_dist, 1), temp_2], 1)
-                        else:
-                            temp_1 = constraints[:, 0 : constraint_index]
-                            constraints = tf.concat([temp_1, tf.expand_dims(veh2veh_dist, 1)], 1)
+                        constraints_list = constraints_list.write(constraint_index, veh2veh_dist)
+                        print(constraint_index)
+                        # tf.print(veh2veh_dist)
+                        # tf.print(constraint_index)
+                        # tf.print(constraints_list.read(constraint_index))
 
 
             veh2road4real = tf.zeros_like(veh_infos[:, 0])
@@ -244,26 +240,15 @@ class EnvironmentModel(object):  # all tensors
             veh2road_dist = tf.zeros_like(veh_infos[:, 0])
             if self.task == 'left':
                 for i,ego_point in enumerate([ego_front_points, ego_rear_points]):
+
                     constraint_index = self.collision_constraints_num + 2 * i
                     veh2road_dist = tf.where(ego_point[1] < - CROSSROAD_D_HEIGHT, -ego_point[0]+1, tf.zeros_like(veh2road_dist))
-                    if constraint_index <= self.constraints_num - 2:
-                        temp_1 = constraints[:, 0: constraint_index]
-                        temp_2 = constraints[:, constraint_index + 1:]
-                        constraints = tf.concat([temp_1, tf.expand_dims(veh2road_dist, 1), temp_2], 1)
-                    else:
-                        temp_1 = constraints[:, 0: constraint_index]
-                        constraints = tf.concat([temp_1, tf.expand_dims(veh2road_dist, 1)], 1)
+                    constraints_list = constraints_list.write(constraint_index, veh2road_dist)
 
                     constraint_index = self.collision_constraints_num + 2 * i + 1
                     veh2road_dist = tf.where(ego_point[1] < - CROSSROAD_D_HEIGHT, -LANE_WIDTH_UD + ego_point[0] + 1,
                                              tf.zeros_like(veh2road_dist))
-                    if constraint_index <= self.constraints_num - 2:
-                        temp_1 = constraints[:, 0: constraint_index]
-                        temp_2 = constraints[:, constraint_index + 1:]
-                        constraints = tf.concat([temp_1, tf.expand_dims(veh2road_dist, 1), temp_2], 1)
-                    else:
-                        temp_1 = constraints[:, 0: constraint_index]
-                        constraints = tf.concat([temp_1, tf.expand_dims(veh2road_dist, 1)], 1)
+                    constraints_list = constraints_list.write(constraint_index, veh2road_dist)
 
                     veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_D_HEIGHT, ego_point[0] < 1),
                                          tf.square(ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
@@ -314,11 +299,10 @@ class EnvironmentModel(object):  # all tensors
                     # veh2road4real += tf.where(
                     #     logical_and(ego_point[0] > CROSSROAD_HALF_WIDTH, ego_point[1] - (-LANE_WIDTH_LR * LANE_NUMBER_LR) < 1),
                     #     tf.square(ego_point[1] - (-LANE_WIDTH_LR * LANE_NUMBER_LR) - 1), tf.zeros_like(veh_infos[:, 0]))
-
+            constraints = tf.transpose(constraints_list.stack())
             abs_v_coeffi = 0.01
             rewards = 0.2 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
                       5 * punish_steer + 0.05 * punish_a_x + abs_v_coeffi * punish_absolute_v
-            # punish_term_for_training = veh2veh4training + veh2road4training
             real_punish_term = veh2veh4real + veh2road4real
 
             reward_dict = dict(punish_steer=punish_steer,
@@ -895,10 +879,10 @@ def test_model():
     model.reset(obses, ref_indexes=tf.convert_to_tensor([0.]))
     print(obses.shape)
     for rollout_step in range(100):
-        print('model ref index', model.ref_indexes)
+        # print('model ref index', model.ref_indexes)
         actions = tf.tile(tf.constant([[0.5, 0]], dtype=tf.float32), tf.constant([len(obses), 1]))
         obses, rewards, constraints, real_punish, _, _ = model.rollout_out(actions)
-        print(rewards.numpy().shape, constraints.numpy().shape)
+        print(constraints.numpy, constraints.numpy().shape)
         model.render()
 
 
