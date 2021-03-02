@@ -38,7 +38,8 @@ class Recorder(object):
         self.val_list_for_an_episode = []
 
     def reset(self,):
-        self.data_across_all_episodes.append(self.val_list_for_an_episode)
+        if self.val_list_for_an_episode:
+            self.data_across_all_episodes.append(self.val_list_for_an_episode)
         self.val_list_for_an_episode = []
 
     def record(self, obs, act, cal_time, ref_index):
@@ -59,11 +60,11 @@ class Recorder(object):
         self.val_list_for_an_episode.append(np.array([v_x, v_y, r, x, y, phi, steer, a_x, delta_y,
                                         delta_phi, delta_v, cal_time, ref_index, beta]))
 
-    def save(self):
-        np.save('./data_across_all_episodes.npy', np.array(self.data_across_all_episodes))
+    def save(self, logdir):
+        np.save(logdir + '/data_across_all_episodes.npy', np.array(self.data_across_all_episodes))
 
-    def load(self):
-        self.data_across_all_episodes = np.load('./data_across_all_episodes.npy', allow_pickle=True)
+    def load(self, logdir):
+        self.data_across_all_episodes = np.load(logdir + '/data_across_all_episodes.npy', allow_pickle=True)
 
     def plot_current_episode_curves(self):
         real_time = np.array([0.1 * i for i in range(len(self.val_list_for_an_episode))])

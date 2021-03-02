@@ -7,43 +7,56 @@
 # @FileName: hier_decision.py
 # =====================================
 
-import numpy as np
-from endtoend import CrossroadEnd2end
-from math import cos, sin, pi
-from dynamics_and_models import EnvironmentModel
-from hierarchical_decision.static_traj_generator import StaticTrajectoryGenerator
-from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination, deal_with_phi, \
-    L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, VEH_NUM
-from utils.load_policy import LoadPolicy
+import datetime
+import os
 import time
-import tensorflow as tf
-from utils.recorder import Recorder
-from utils.misc import TimerStat
+from math import cos, sin, pi
+
 import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+
+from dynamics_and_models import EnvironmentModel
+from endtoend import CrossroadEnd2end
+from endtoend_env_utils import rotate_coordination, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER
+from hierarchical_decision.static_traj_generator import StaticTrajectoryGenerator
+from utils.load_policy import LoadPolicy
+from utils.misc import TimerStat
+from utils.recorder import Recorder
 
 
 class HierarchicalDecision(object):
-    def __init__(self, task):
+    def __init__(self, task, logdir=None):
         self.task = task
         if self.task == 'left':
-            self.policy = LoadPolicy('G:\\env_build\\utils\\models\\left', 100000)
+            self.policy = LoadPolicy('../utils/models/left', 100000)
         elif self.task == 'right':
-            self.policy = LoadPolicy('G:\\env_build\\utils\\models\\right', 145000)
+            self.policy = LoadPolicy('../utils/models/right', 145000)
         elif self.task == 'straight':
-            self.policy = LoadPolicy('G:\\env_build\\utils\\models\\straight', 95000)
+            self.policy = LoadPolicy('../utils/models/straight', 95000)
         self.env = CrossroadEnd2end(training_task=self.task)
         self.model = EnvironmentModel(self.task)
-        self.obs = self.env.reset()
-        self.stg = StaticTrajectoryGenerator(mode='static_traj')
         self.recorder = Recorder()
-        self.cal_timer = TimerStat()
+        self.episode_counter = -1
+        self.step_counter = -1
         self.total_time = []
+        self.obs = None
+        self.stg = None
+        self.cal_timer = TimerStat()
+        self.logdir = logdir
+        self.fig = plt.figure(figsize=(10, 10))
+        plt.ion()
+        self.reset()
 
-    def reset(self):
+    def reset(self,):
         self.obs = self.env.reset()
         self.stg = StaticTrajectoryGenerator(mode='static_traj')  # mode: static_traj or dyna_traj
         self.recorder.reset()
-        self.recorder.save()
+        if self.logdir is not None:
+            self.episode_counter += 1
+            os.makedirs(self.logdir + '/episode{}'.format(self.episode_counter))
+            self.step_counter = -1
+            self.recorder.save(self.logdir)
         self.total_time = []
         return self.obs
 
@@ -84,6 +97,7 @@ class HierarchicalDecision(object):
             return safe_action
 
     def step(self):
+        self.step_counter += 1
         with self.cal_timer:
             start_time = time.time()
             traj_list, feature_points = self.stg.generate_traj(self.task, self.obs)
@@ -107,8 +121,7 @@ class HierarchicalDecision(object):
             safe_action = self.policy.run(self.obs_real).numpy()
             end_time = time.time()
             print('ALL TIME:', end_time - start_time)
-        if self.env.v_light != 0 and self.env.ego_dynamics['y'] < -25 and \
-           self.env.ego_dynamics['y'] > -35 and self.env.training_task != 'right':
+        if self.env.v_light != 0 and -25 > self.env.ego_dynamics['y'] > -35 and self.env.training_task != 'right':
             scaled_steer = 0.
             if self.env.ego_dynamics['v_x'] == 0.0:
                 scaled_a_x = 0.33
@@ -131,56 +144,56 @@ class HierarchicalDecision(object):
         solid_line_style = '-'
 
         plt.cla()
-        plt.title("Crossroad")
-        ax = plt.axes(xlim=(-square_length / 2 - extension, square_length / 2 + extension),
-                      ylim=(-square_length / 2 - extension, square_length / 2 + extension))
-        plt.axis("equal")
-        plt.axis('off')
-
-        # ax.add_patch(plt.Rectangle((-square_length / 2, -square_length / 2),
-        #                            square_length, square_length, edgecolor='black', facecolor='none'))
-        ax.add_patch(plt.Rectangle((-square_length / 2 - extension, -square_length / 2 - extension),
-                                   square_length + 2 * extension, square_length + 2 * extension, edgecolor='black',
-                                   facecolor='none'))
+        ax = plt.axes([-0.05, -0.05, 1.1, 1.1])
+        for ax in self.fig.get_axes():
+            ax.axis('off')
+        ax.axis("equal")
 
         # ----------arrow--------------
         plt.arrow(lane_width / 2, -square_length / 2 - 10, 0, 5, color='b')
         plt.arrow(lane_width / 2, -square_length / 2 - 10 + 5, -0.5, 0, color='b', head_width=1)
-        plt.arrow(lane_width * 1.5, -square_length / 2 - 10, 0, 5, color='b', head_width=1)
+        plt.arrow(lane_width * 1.5, -square_length / 2 - 10, 0, 4, color='b', head_width=1)
         plt.arrow(lane_width * 2.5, -square_length / 2 - 10, 0, 5, color='b')
         plt.arrow(lane_width * 2.5, -square_length / 2 - 10 + 5, 0.5, 0, color='b', head_width=1)
 
         # ----------horizon--------------
-        plt.plot([-square_length / 2 - extension, -square_length / 2], [0, 0], color='black')
-        plt.plot([square_length / 2 + extension, square_length / 2], [0, 0], color='black')
+
+        plt.plot([-square_length / 2 - extension, -square_length / 2], [0.3, 0.3], color='orange')
+        plt.plot([-square_length / 2 - extension, -square_length / 2], [-0.3, -0.3], color='orange')
+        plt.plot([square_length / 2 + extension, square_length / 2], [0.3, 0.3], color='orange')
+        plt.plot([square_length / 2 + extension, square_length / 2], [-0.3, -0.3], color='orange')
 
         #
         for i in range(1, LANE_NUMBER + 1):
             linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
+            linewidth = 1 if i < LANE_NUMBER else 2
             plt.plot([-square_length / 2 - extension, -square_length / 2], [i * lane_width, i * lane_width],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
             plt.plot([square_length / 2 + extension, square_length / 2], [i * lane_width, i * lane_width],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
             plt.plot([-square_length / 2 - extension, -square_length / 2], [-i * lane_width, -i * lane_width],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
             plt.plot([square_length / 2 + extension, square_length / 2], [-i * lane_width, -i * lane_width],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
 
         # ----------vertical----------------
-        plt.plot([0, 0], [-square_length / 2 - extension, -square_length / 2], color='black')
-        plt.plot([0, 0], [square_length / 2 + extension, square_length / 2], color='black')
+        plt.plot([0.3, 0.3], [-square_length / 2 - extension, -square_length / 2], color='orange')
+        plt.plot([-0.3, -0.3], [-square_length / 2 - extension, -square_length / 2], color='orange')
+        plt.plot([0.3, 0.3], [square_length / 2 + extension, square_length / 2], color='orange')
+        plt.plot([-0.3, -0.3], [square_length / 2 + extension, square_length / 2], color='orange')
 
         #
         for i in range(1, LANE_NUMBER + 1):
             linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
+            linewidth = 1 if i < LANE_NUMBER else 2
             plt.plot([i * lane_width, i * lane_width], [-square_length / 2 - extension, -square_length / 2],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
             plt.plot([i * lane_width, i * lane_width], [square_length / 2 + extension, square_length / 2],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
             plt.plot([-i * lane_width, -i * lane_width], [-square_length / 2 - extension, -square_length / 2],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
             plt.plot([-i * lane_width, -i * lane_width], [square_length / 2 + extension, square_length / 2],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
 
         v_light = self.env.v_light
         if v_light == 0:
@@ -214,13 +227,13 @@ class HierarchicalDecision(object):
 
         # ----------Oblique--------------
         plt.plot([LANE_NUMBER * lane_width, square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
-                 color='black')
+                 color='black', linewidth=2)
         plt.plot([LANE_NUMBER * lane_width, square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
-                 color='black')
+                 color='black', linewidth=2)
         plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
-                 color='black')
+                 color='black', linewidth=2)
         plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
-                 color='black')
+                 color='black', linewidth=2)
 
         def is_in_plot_area(x, y, tolerance=5):
             if -square_length / 2 - extension + tolerance < x < square_length / 2 + extension - tolerance and \
@@ -229,18 +242,13 @@ class HierarchicalDecision(object):
             else:
                 return False
 
-        def draw_rotate_rec(x, y, a, l, w, color, linestyle='-'):
-            RU_x, RU_y, _ = rotate_coordination(l / 2, w / 2, 0, -a)
-            RD_x, RD_y, _ = rotate_coordination(l / 2, -w / 2, 0, -a)
-            LU_x, LU_y, _ = rotate_coordination(-l / 2, w / 2, 0, -a)
-            LD_x, LD_y, _ = rotate_coordination(-l / 2, -w / 2, 0, -a)
-            ax.plot([RU_x + x, RD_x + x], [RU_y + y, RD_y + y], color=color, linestyle=linestyle)
-            ax.plot([RU_x + x, LU_x + x], [RU_y + y, LU_y + y], color=color, linestyle=linestyle)
-            ax.plot([LD_x + x, RD_x + x], [LD_y + y, RD_y + y], color=color, linestyle=linestyle)
-            ax.plot([LD_x + x, LU_x + x], [LD_y + y, LU_y + y], color=color, linestyle=linestyle)
+        def draw_rotate_rec(x, y, a, l, w, c):
+            bottom_left_x, bottom_left_y, _ = rotate_coordination(-l / 2, w / 2, 0, -a)
+            ax.add_patch(plt.Rectangle((x + bottom_left_x, y + bottom_left_y), w, l, edgecolor=c,
+                                       facecolor='white', angle=-(90 - a), zorder=50))
 
         def plot_phi_line(x, y, phi, color):
-            line_length = 5
+            line_length = 3
             x_forw, y_forw = x + line_length * cos(phi * pi / 180.), \
                              y + line_length * sin(phi * pi / 180.)
             plt.plot([x, x_forw], [y, y_forw], color=color, linewidth=0.5)
@@ -324,7 +332,7 @@ class HierarchicalDecision(object):
         #     for k in range(len(item_point)):
         #         plt.scatter(item_point[k][0], item_point[k][1], c='lime')
 
-        # plot ego dynamics
+        # text
         text_x, text_y_start = -120, 60
         ge = iter(range(0, 1000, 4))
         plt.text(text_x, text_y_start - next(ge), 'ego_x: {:.2f}m'.format(ego_x))
@@ -377,17 +385,24 @@ class HierarchicalDecision(object):
                 else:
                     plt.text(text_x, text_y_start - next(ge), 'Path reward={:.4f}'.format(value[0]), fontsize=12,
                              color=color[i], fontstyle='italic')
+        plt.show()
         plt.pause(0.001)
+        if self.logdir is not None:
+            plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{}.pdf'.format(self.step_counter))
 
 
-def plot_data(i):
+def plot_data(logdir, i):
     recorder = Recorder()
-    recorder.load()
+    recorder.load(logdir)
     recorder.plot_ith_episode_curves(i)
 
 
 def main():
-    hier_decision = HierarchicalDecision('left')
+    time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    logdir = './results/{time}'.format(time=time_now)
+    os.makedirs(logdir)
+    hier_decision = HierarchicalDecision('left', logdir)
+
     for i in range(300):
         done = 0
         while not done:
@@ -401,6 +416,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-    # plot_data(3)
+    # plot_data('./results/2021-03-02-17-40-23', 3)
 
 

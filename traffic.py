@@ -26,7 +26,7 @@ from sumolib import checkBinary
 import traci
 from traci.exceptions import FatalTraCIError
 from endtoend_env_utils import shift_and_rotate_coordination, _convert_car_coord_to_sumo_coord, \
-    _convert_sumo_coord_to_car_coord, xy2_edgeID_lane, SUMOCFG_DIR
+    _convert_sumo_coord_to_car_coord, xy2_edgeID_lane, SUMOCFG_DIR, TASK2ROUTEID
 
 SUMO_BINARY = checkBinary('sumo')
 SIM_PERIOD = 1.0 / 10
@@ -53,7 +53,7 @@ class Traffic(object):
         self.mode = mode
         self.training_light_phase = 0
         self.training_task = training_task
-        self.first_add = True
+        self.ego_route = TASK2ROUTEID[self.training_task]
         if training_task == 'right':
             if random.random() > 0.5:
                 self.training_light_phase = 2
@@ -62,7 +62,7 @@ class Traffic(object):
             traci.start(
                 [SUMO_BINARY, "-c", SUMOCFG_DIR,
                  "--step-length", self.step_time_str,
-                 "--lateral-resolution", "3.75",
+                 "--lateral-resolution", "3.5",
                  "--random",
                  # "--start",
                  # "--quit-on-end",
@@ -76,7 +76,7 @@ class Traffic(object):
             traci.start(
                 [SUMO_BINARY, "-c", SUMOCFG_DIR,
                  "--step-length", self.step_time_str,
-                 "--lateral-resolution", "1.25",
+                 "--lateral-resolution", "3.5",
                  "--random",
                  # "--start",
                  # "--quit-on-end",
@@ -124,24 +124,18 @@ class Traffic(object):
             ego_phi = ego_dict['phi']
             ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi, ego_l)
             edgeID, lane = xy2_edgeID_lane(ego_x, ego_y)
-
-            if self.first_add:
-                traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
-                                        depart=0, pos=20, lane=1, speed=ego_dict['v_x'],
-                                        typeID='self_car')
             try:
-                traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=1)
+                traci.vehicle.remove(egoID)
             except traci.exceptions.TraCIException:
-                print('Don\'t worry, it\'s handled well')
-                traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
-                                        depart=0, pos=20, lane=1, speed=ego_dict['v_x'],
-                                        typeID='self_car')
-                traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=1)
-
+                print('Don\'t worry, it\'s been handled well')
+            traci.simulationStep()
+            traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
+                                    # depart=0, pos=20, lane=lane, speed=ego_dict['v_x'],
+                                    typeID='self_car')
+            traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=1)
             traci.vehicle.setLength(egoID, ego_dict['l'])
             traci.vehicle.setWidth(egoID, ego_dict['w'])
             traci.vehicle.setSpeed(egoID, math.sqrt(ego_v_x ** 2 + ego_v_y ** 2))
-        self.first_add = False
 
     def generate_random_traffic(self):
         random_traffic = traci.vehicle.getContextSubscriptionResults('collector')
