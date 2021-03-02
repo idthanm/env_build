@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 
-from dynamics_and_models import EnvironmentModel
+from dynamics_and_models import EnvironmentModel, ReferencePath
 from endtoend import CrossroadEnd2end
 from endtoend_env_utils import rotate_coordination, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER
 from hierarchical_decision.static_traj_generator import StaticTrajectoryGenerator
@@ -46,12 +46,14 @@ class HierarchicalDecision(object):
         self.logdir = logdir
         self.fig = plt.figure(figsize=(10, 10))
         plt.ion()
+        self.hist_posi = []
         self.reset()
 
     def reset(self,):
         self.obs = self.env.reset()
         self.stg = StaticTrajectoryGenerator(mode='static_traj')  # mode: static_traj or dyna_traj
         self.recorder.reset()
+        self.hist_posi = []
         if self.logdir is not None:
             self.episode_counter += 1
             os.makedirs(self.logdir + '/episode{}'.format(self.episode_counter))
@@ -297,7 +299,10 @@ class HierarchicalDecision(object):
 
         plot_phi_line(ego_x, ego_y, ego_phi, 'fuchsia')
         draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'fuchsia')
-
+        self.hist_posi.append((ego_x, ego_y))
+        # plot history data
+        for hist_x, hist_y in self.hist_posi:
+            plt.scatter(hist_x, hist_y)
         # plot future data
         tracking_info = self.obs[
                         self.env.ego_info_dim:self.env.ego_info_dim + self.env.per_tracking_info_dim * (self.env.num_future_data + 1)]
@@ -317,7 +322,7 @@ class HierarchicalDecision(object):
 
         # plot real time traj
         try:
-            color = ['blue', 'coral', 'cyan']
+            color = ['blue', 'coral', 'darkcyan']
             for i, item in enumerate(traj_list):
                 if i == path_index:
                     plt.plot(item.path[0], item.path[1], color=color[i])
@@ -328,9 +333,9 @@ class HierarchicalDecision(object):
                 plt.plot(path_x, path_y, color=color[i])
         except Exception:
             pass
-        # for j, item_point in enumerate(feature_points):
-        #     for k in range(len(item_point)):
-        #         plt.scatter(item_point[k][0], item_point[k][1], c='lime')
+        for j, item_point in enumerate(feature_points):
+            for k in range(len(item_point)):
+                plt.scatter(item_point[k][0], item_point[k][1], c='lime')
 
         # text
         text_x, text_y_start = -120, 60
@@ -414,8 +419,100 @@ def main():
         hier_decision.reset()
 
 
+def plot_static_path():
+    square_length = CROSSROAD_SIZE
+    extension = 40
+    lane_width = LANE_WIDTH
+    light_line_width = 3
+    dotted_line_style = '--'
+    solid_line_style = '-'
+    fig = plt.figure(figsize=(10, 10))
+    ax = plt.axes([0, 0, 1, 1])
+    for ax in fig.get_axes():
+        ax.axis('off')
+    ax.axis("equal")
+
+    # ----------arrow--------------
+    plt.arrow(lane_width / 2, -square_length / 2 - 10, 0, 5, color='b')
+    plt.arrow(lane_width / 2, -square_length / 2 - 10 + 5, -0.5, 0, color='b', head_width=1)
+    plt.arrow(lane_width * 1.5, -square_length / 2 - 10, 0, 4, color='b', head_width=1)
+    plt.arrow(lane_width * 2.5, -square_length / 2 - 10, 0, 5, color='b')
+    plt.arrow(lane_width * 2.5, -square_length / 2 - 10 + 5, 0.5, 0, color='b', head_width=1)
+
+    # ----------horizon--------------
+
+    plt.plot([-square_length / 2 - extension, -square_length / 2], [0.3, 0.3], color='orange')
+    plt.plot([-square_length / 2 - extension, -square_length / 2], [-0.3, -0.3], color='orange')
+    plt.plot([square_length / 2 + extension, square_length / 2], [0.3, 0.3], color='orange')
+    plt.plot([square_length / 2 + extension, square_length / 2], [-0.3, -0.3], color='orange')
+
+    for i in range(1, LANE_NUMBER + 1):
+        linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
+        linewidth = 1 if i < LANE_NUMBER else 2
+        plt.plot([-square_length / 2 - extension, -square_length / 2], [i * lane_width, i * lane_width],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+        plt.plot([square_length / 2 + extension, square_length / 2], [i * lane_width, i * lane_width],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+        plt.plot([-square_length / 2 - extension, -square_length / 2], [-i * lane_width, -i * lane_width],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+        plt.plot([square_length / 2 + extension, square_length / 2], [-i * lane_width, -i * lane_width],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+
+    # ----------vertical----------------
+    plt.plot([0.3, 0.3], [-square_length / 2 - extension, -square_length / 2], color='orange')
+    plt.plot([-0.3, -0.3], [-square_length / 2 - extension, -square_length / 2], color='orange')
+    plt.plot([0.3, 0.3], [square_length / 2 + extension, square_length / 2], color='orange')
+    plt.plot([-0.3, -0.3], [square_length / 2 + extension, square_length / 2], color='orange')
+
+    for i in range(1, LANE_NUMBER + 1):
+        linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
+        linewidth = 1 if i < LANE_NUMBER else 2
+        plt.plot([i * lane_width, i * lane_width], [-square_length / 2 - extension, -square_length / 2],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+        plt.plot([i * lane_width, i * lane_width], [square_length / 2 + extension, square_length / 2],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+        plt.plot([-i * lane_width, -i * lane_width], [-square_length / 2 - extension, -square_length / 2],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+        plt.plot([-i * lane_width, -i * lane_width], [square_length / 2 + extension, square_length / 2],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+    plt.plot([0, LANE_NUMBER * lane_width], [-square_length / 2, -square_length / 2],
+             color='black', linewidth=light_line_width, alpha=0.3)
+    plt.plot([LANE_NUMBER * lane_width, 0], [square_length / 2, square_length / 2],
+             color='black', linewidth=light_line_width, alpha=0.3)
+    plt.plot([-square_length / 2, -square_length / 2], [0, LANE_NUMBER * lane_width],
+             color='black', linewidth=light_line_width, alpha=0.3)
+    plt.plot([square_length / 2, square_length / 2], [-LANE_NUMBER * lane_width, 0],
+             color='black', linewidth=light_line_width, alpha=0.3)
+
+    # ----------Oblique--------------
+    plt.plot([LANE_NUMBER * lane_width, square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
+             color='black', linewidth=2)
+    plt.plot([LANE_NUMBER * lane_width, square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
+             color='black', linewidth=2)
+    plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
+             color='black', linewidth=2)
+    plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
+             color='black', linewidth=2)
+
+    for task in ['left', 'straight', 'right']:
+        path = ReferencePath(task)
+        path_list = path.path_list
+        control_points = path.control_points
+        color = ['blue', 'coral', 'darkcyan']
+        for i, (path_x, path_y, _) in enumerate(path_list):
+            plt.plot(path_x, path_y, color=color[i])
+        for i, four_points in enumerate(control_points):
+            for point in four_points:
+                plt.scatter(point[0], point[1], color=color[i])
+            plt.plot([four_points[0][0], four_points[1][0]], [four_points[0][1], four_points[1][1]], linestyle='--')
+            plt.plot([four_points[1][0], four_points[2][0]], [four_points[1][1], four_points[2][1]], linestyle='--')
+            plt.plot([four_points[2][0], four_points[3][0]], [four_points[2][1], four_points[3][1]], linestyle='--')
+    plt.show()
+
+
 if __name__ == '__main__':
-    main()
+    # main()
+    plot_static_path()
     # plot_data('./results/2021-03-02-17-40-23', 3)
 
 

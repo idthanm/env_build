@@ -606,6 +606,7 @@ class ReferencePath(object):
         self.task = task
         self.path_list = []
         self.path_len_list = []
+        self.control_points = []
         self._construct_ref_path(self.task)
         self.ref_index = np.random.choice(len(self.path_list)) if ref_index is None else ref_index
         self.path = self.path_list[self.ref_index]
@@ -631,6 +632,7 @@ class ReferencePath(object):
                     control_point2 = start_offset, -CROSSROAD_SIZE/2 + control_ext
                     control_point3 = -CROSSROAD_SIZE/2 + control_ext, end_offset
                     control_point4 = -CROSSROAD_SIZE/2, end_offset
+                    self.control_points.append([control_point1,control_point2,control_point3,control_point4])
 
                     node = np.asfortranarray([[control_point1[0], control_point2[0], control_point3[0], control_point4[0]],
                                               [control_point1[1], control_point2[1], control_point3[1], control_point4[1]]],
@@ -663,6 +665,7 @@ class ReferencePath(object):
                     control_point2 = start_offset, -CROSSROAD_SIZE/2 + control_ext
                     control_point3 = end_offset, CROSSROAD_SIZE/2 - control_ext
                     control_point4 = end_offset, CROSSROAD_SIZE/2
+                    self.control_points.append([control_point1,control_point2,control_point3,control_point4])
 
                     node = np.asfortranarray([[control_point1[0], control_point2[0], control_point3[0], control_point4[0]],
                                               [control_point1[1], control_point2[1], control_point3[1], control_point4[1]]]
@@ -697,6 +700,7 @@ class ReferencePath(object):
                     control_point2 = start_offset, -CROSSROAD_SIZE/2 + control_ext
                     control_point3 = CROSSROAD_SIZE/2 - control_ext, end_offset
                     control_point4 = CROSSROAD_SIZE/2, end_offset
+                    self.control_points.append([control_point1,control_point2,control_point3,control_point4])
 
                     node = np.asfortranarray([[control_point1[0], control_point2[0], control_point3[0], control_point4[0]],
                                               [control_point1[1], control_point2[1], control_point3[1], control_point4[1]]],
