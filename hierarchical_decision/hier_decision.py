@@ -402,8 +402,6 @@ def main():
         done = 0
         while not done:
             done = hier_decision.step()
-            if done == 2:
-                print('Episode {} is SUCCESS!'.format(i))
         hier_decision.reset()
 
 
