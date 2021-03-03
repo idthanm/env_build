@@ -277,7 +277,7 @@ class CrossroadEnd2end(gym.Env):
         next_ego_state[-1] = deal_with_phi(next_ego_state[-1])
         return next_ego_state, next_ego_params
 
-    def _get_obs(self, exit_='D', func='tracking'):
+    def _get_obs(self, exit_='D'):
         ego_x = self.ego_dynamics['x']
         ego_y = self.ego_dynamics['y']
         ego_phi = self.ego_dynamics['phi']
@@ -289,7 +289,7 @@ class CrossroadEnd2end(gym.Env):
                                                              np.array([ego_y], dtype=np.float32),
                                                              np.array([ego_phi], dtype=np.float32),
                                                              np.array([ego_v_x], dtype=np.float32),
-                                                             self.num_future_data, func=func).numpy()[0]
+                                                             self.num_future_data).numpy()[0]
         self.per_tracking_info_dim = 3
 
         vector = np.concatenate((ego_vector, tracking_error, vehs_vector), axis=0)

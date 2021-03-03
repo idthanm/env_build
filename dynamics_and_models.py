@@ -88,9 +88,9 @@ class VehicleDynamics(object):
 
 
 class EnvironmentModel(object):  # all tensors
-    def __init__(self, training_task, num_future_data=0):
+    def __init__(self, training_task, num_future_data=0, mode='training'):
         self.task = training_task
-        self.mode = None
+        self.mode = mode
         self.vehicle_dynamics = VehicleDynamics()
         self.base_frequency = 10.
         self.obses = None
@@ -111,10 +111,9 @@ class EnvironmentModel(object):  # all tensors
         self.actions = None
         self.reward_info = None
 
-    def add_traj(self, obses, trajectory, mode=None):
+    def add_traj(self, obses, trajectory):
         self.obses = obses
         self.ref_path = trajectory
-        self.mode = mode
 
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
@@ -125,67 +124,6 @@ class EnvironmentModel(object):  # all tensors
             # self.reward_info.update({'final_rew': rewards.numpy()[0]})
 
         return self.obses, rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real
-
-    def safety_calculation(self, obs, actions):
-        # judge collision
-        actions = self._action_transformation_for_end2end(actions)
-        obs_next = self.compute_next_obses(obs, actions)           # for relative state
-        # obs_next = self.convert_vehs_to_abso(obs_next)             # for absolute state
-        with tf.name_scope('compute_reward') as scope:
-            ego_infos, tracking_infos, veh_infos = obs_next[:, :self.ego_info_dim], \
-                                                   obs_next[:,
-                                                   self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
-                                                               self.num_future_data + 1)], \
-                                                   obs_next[:, self.ego_info_dim + self.per_tracking_info_dim * (
-                                                               self.num_future_data + 1):]
-            # rewards related to veh2veh collision
-            ego_lws = (L - W) / 2.
-            ego_front_points = tf.cast(ego_infos[:, 3] + ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32), \
-                               tf.cast(ego_infos[:, 4] + ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
-            ego_rear_points = tf.cast(ego_infos[:, 3] - ego_lws * tf.cos(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32), \
-                              tf.cast(ego_infos[:, 4] - ego_lws * tf.sin(ego_infos[:, 5] * np.pi / 180.), dtype=tf.float32)
-            veh2veh4real = tf.zeros_like(veh_infos[:, 0])
-            veh2veh4training = tf.zeros_like(veh_infos[:, 0])
-
-            for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
-                vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
-                veh_lws = (L - W) / 2.
-                veh_front_points = tf.cast(vehs[:, 0] + veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
-                                   tf.cast(vehs[:, 1] + veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
-                veh_rear_points = tf.cast(vehs[:, 0] - veh_lws * tf.cos(vehs[:, 3] * np.pi / 180.), dtype=tf.float32), \
-                                  tf.cast(vehs[:, 1] - veh_lws * tf.sin(vehs[:, 3] * np.pi / 180.), dtype=tf.float32)
-                for ego_point in [ego_front_points, ego_rear_points]:
-                    for veh_point in [veh_front_points, veh_rear_points]:
-                        veh2veh_dist = tf.sqrt(tf.square(ego_point[0] - veh_point[0]) + tf.square(ego_point[1] - veh_point[1]))
-                        veh2veh4training += tf.where(veh2veh_dist-3.5 < 0, tf.square(veh2veh_dist-3.5), tf.zeros_like(veh_infos[:, 0]))
-                        veh2veh4real += tf.where(veh2veh_dist-2.5 < 0, tf.square(veh2veh_dist-2.5), tf.zeros_like(veh_infos[:, 0]))
-
-            # veh2road4real = tf.zeros_like(veh_infos[:, 0])
-            # veh2road4training = tf.zeros_like(veh_infos[:, 0])
-            # if self.task == 'left':
-            #     for ego_point in [ego_front_points, ego_rear_points]:
-            #         veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, ego_point[0] < 1),
-            #                              tf.square(ego_point[0]-1), tf.zeros_like(veh_infos[:, 0]))
-            #         veh2road4training += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, LANE_WIDTH-ego_point[0] < 1),
-            #                              tf.square(LANE_WIDTH-ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
-            #         veh2road4training += tf.where(logical_and(ego_point[0] < 0, LANE_WIDTH*LANE_NUMBER - ego_point[1] < 1),
-            #                              tf.square(LANE_WIDTH*LANE_NUMBER - ego_point[1] - 1), tf.zeros_like(veh_infos[:, 0]))
-            #         veh2road4training += tf.where(logical_and(ego_point[0] < -CROSSROAD_SIZE/2, ego_point[1] - 0 < 1),
-            #                              tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
-            #
-            #         veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, ego_point[0] < 1),
-            #                              tf.square(ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
-            #         veh2road4real += tf.where(logical_and(ego_point[1] < -CROSSROAD_SIZE/2, LANE_WIDTH - ego_point[0] < 1),
-            #                              tf.square(LANE_WIDTH - ego_point[0] - 1), tf.zeros_like(veh_infos[:, 0]))
-            #         veh2road4real += tf.where(logical_and(ego_point[0] < -CROSSROAD_SIZE/2, LANE_WIDTH*LANE_NUMBER - ego_point[1] < 1),
-            #                              tf.square(LANE_WIDTH*LANE_NUMBER - ego_point[1] - 1), tf.zeros_like(veh_infos[:, 0]))
-            #         veh2road4real += tf.where(logical_and(ego_point[0] < -CROSSROAD_SIZE/2, ego_point[1] - 0 < 1),
-            #                              tf.square(ego_point[1] - 0 - 1), tf.zeros_like(veh_infos[:, 0]))
-
-            # punish_term_for_training = veh2veh4training + veh2road4training
-            # real_punish_term  = veh2veh4real + veh2road4real
-        # obs_next_final = self.convert_vehs_to_rela(obs_next)
-        return obs_next, veh2veh4real
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
@@ -339,7 +277,7 @@ class EnvironmentModel(object):  # all tensors
 
         next_ego_infos = self.ego_predict(ego_infos, actions)
         # different for training and selecting
-        if self.mode == 'selecting':
+        if self.mode != 'training':
             next_tracking_infos = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
                                                                       next_ego_infos[:, 4],
                                                                       next_ego_infos[:, 5],
@@ -599,9 +537,7 @@ def deal_with_phi_diff(phi_diff):
 
 
 class ReferencePath(object):
-    def __init__(self, task, mode=None, ref_index=None):
-        self.mode = mode
-        self.traj_mode = None
+    def __init__(self, task, ref_index=None):
         self.exp_v = EXPECTED_V
         self.task = task
         self.path_list = []
@@ -611,13 +547,9 @@ class ReferencePath(object):
         self.ref_index = np.random.choice(len(self.path_list)) if ref_index is None else ref_index
         self.path = self.path_list[self.ref_index]
 
-    def set_path(self, traj_mode, path_index=None, path=None):
-        self.traj_mode = traj_mode
-        if traj_mode == 'dyna_traj':
-            self.path = path
-        elif traj_mode == 'static_traj':
-            self.ref_index = path_index
-            self.path = self.path_list[self.ref_index]
+    def set_path(self, path_index=None):
+        self.ref_index = path_index
+        self.path = self.path_list[self.ref_index]
 
     def _construct_ref_path(self, task):
         sl = 40  # straight length
@@ -756,7 +688,7 @@ class ReferencePath(object):
 
         return points[0], points[1], points[2]
 
-    def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n, func=None):
+    def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n):
         def two2one(ref_xs, ref_ys):
             if self.task == 'left':
                 delta_ = tf.sqrt(tf.square(ego_xs - (-CROSSROAD_SIZE/2)) + tf.square(ego_ys - (-CROSSROAD_SIZE/2))) - \
@@ -775,46 +707,21 @@ class ReferencePath(object):
                 delta_ = tf.where(ego_xs > CROSSROAD_SIZE/2, -(ego_ys - ref_ys), delta_)
                 return -delta_
 
-        if self.traj_mode == 'dyna_traj':
-            if func == 'tracking':
-                indexs = tf.constant([1], dtype=tf.int32)
-                current_points = self.indexs2points(indexs)
-                n_future_data = self.future_n_data(indexs, n)
-                all_ref = [current_points] + n_future_data
-                print(current_points)
+        indexs, current_points = self.find_closest_point(ego_xs, ego_ys)
+        # print('Index:', indexs.numpy(), 'points:', current_points[:])
+        n_future_data = self.future_n_data(indexs, n)
 
-                tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
-                                                      deal_with_phi_diff(ego_phis - ref_point[2]),
-                                                      ego_vs - self.exp_v], 1)
-                                            for ref_point in all_ref], 1)
+        tracking_error = tf.stack([two2one(current_points[0], current_points[1]),
+                                           deal_with_phi_diff(ego_phis - current_points[2]),
+                                           ego_vs - self.exp_v], 1)
 
-            else:
-                indexs, current_points = self.find_closest_point(ego_xs, ego_ys)
-                # print('Index:', indexs.numpy(), 'points:', current_points[:])
-                n_future_data = self.future_n_data(indexs, n)
-                all_ref = [current_points] + n_future_data
-
-                tracking_error = tf.concat([tf.stack([two2one(ref_point[0], ref_point[1]),
-                                                      deal_with_phi_diff(ego_phis - ref_point[2]),
-                                                      ego_vs - self.exp_v], 1)
-                                            for ref_point in all_ref], 1)
-            final = None
-        else:
-            indexs, current_points = self.find_closest_point(ego_xs, ego_ys)
-            # print('Index:', indexs.numpy(), 'points:', current_points[:])
-            n_future_data = self.future_n_data(indexs, n)
-
-            tracking_error = tf.stack([two2one(current_points[0], current_points[1]),
-                                               deal_with_phi_diff(ego_phis - current_points[2]),
-                                               ego_vs - self.exp_v], 1)
-
-            final = tracking_error
-            if n > 0:
-                future_points = tf.concat([tf.stack([ref_point[0] - ego_xs,
-                                                     ref_point[1] - ego_ys,
-                                                     deal_with_phi_diff(ego_phis - ref_point[2])], 1)
-                                           for ref_point in n_future_data], 1)
-                final = tf.concat([final, future_points], 1)
+        final = tracking_error
+        if n > 0:
+            future_points = tf.concat([tf.stack([ref_point[0] - ego_xs,
+                                                 ref_point[1] - ego_ys,
+                                                 deal_with_phi_diff(ego_phis - ref_point[2])], 1)
+                                       for ref_point in n_future_data], 1)
+            final = tf.concat([final, future_points], 1)
 
         return final
 

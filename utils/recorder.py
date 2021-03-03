@@ -19,7 +19,7 @@ class Recorder(object):
     def __init__(self):
         self.val2record = ['v_x', 'v_y', 'r', 'x', 'y', 'phi',
                            'steer', 'a_x', 'delta_y', 'delta_v', 'delta_phi',
-                           'cal_time', 'ref_index', 'beta']
+                           'cal_time', 'ref_index', 'beta', 'path_values', 'ss_time']
         self.val2plot = ['v_x', 'r',
                          'steer', 'a_x',
                          'cal_time', 'ref_index', 'beta']
@@ -42,7 +42,7 @@ class Recorder(object):
             self.data_across_all_episodes.append(self.val_list_for_an_episode)
         self.val_list_for_an_episode = []
 
-    def record(self, obs, act, cal_time, ref_index):
+    def record(self, obs, act, cal_time, ref_index, path_values, ss_time):
         ego_info, tracking_info, _ = obs[:self.ego_info_dim], \
                                      obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
                                                self.num_future_data + 1)], \
@@ -58,29 +58,13 @@ class Recorder(object):
         beta = 0 if v_x == 0 else np.arctan(v_y/v_x) * 180 / math.pi
         steer = steer * 180 / math.pi
         self.val_list_for_an_episode.append(np.array([v_x, v_y, r, x, y, phi, steer, a_x, delta_y,
-                                        delta_phi, delta_v, cal_time, ref_index, beta]))
+                                        delta_phi, delta_v, cal_time, ref_index, beta, path_values, ss_time]))
 
     def save(self, logdir):
         np.save(logdir + '/data_across_all_episodes.npy', np.array(self.data_across_all_episodes))
 
     def load(self, logdir):
         self.data_across_all_episodes = np.load(logdir + '/data_across_all_episodes.npy', allow_pickle=True)
-
-    def plot_current_episode_curves(self):
-        real_time = np.array([0.1 * i for i in range(len(self.val_list_for_an_episode))])
-        all_data = [np.array([vals_in_a_timestep[index] for vals_in_a_timestep in self.val_list_for_an_episode])
-                    for index in range(len(self.val2record))]
-        data_dict = dict(zip(self.val2record, all_data))
-        for key in data_dict.keys():
-            if key in self.val2plot:
-                f = plt.figure(key)
-                ax = f.add_axes([0.20, 0.12, 0.78, 0.86])
-                sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright")
-                ax.set_ylabel(self.key2label[key], fontsize=15)
-                ax.set_xlabel("Time [s]", fontsize=15)
-                plt.yticks(fontsize=15)
-                plt.xticks(fontsize=15)
-        plt.show()
 
     def plot_ith_episode_curves(self, i):
         episode2plot = self.data_across_all_episodes[i]
@@ -100,7 +84,6 @@ class Recorder(object):
                     x_major_locator = MultipleLocator(10)
                     # ax.xaxis.set_major_locator(x_major_locator)
                     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-
                 elif key == 'v_x':
                     sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
                     plt.ylim([-0.5, 10.])
