@@ -407,12 +407,12 @@ def main():
 
 def plot_static_path():
     square_length = CROSSROAD_SIZE
-    extension = 40
+    extension = 20
     lane_width = LANE_WIDTH
     light_line_width = 3
     dotted_line_style = '--'
     solid_line_style = '-'
-    fig = plt.figure(figsize=(10, 10))
+    fig = plt.figure(figsize=(8, 8))
     ax = plt.axes([0, 0, 1, 1])
     for ax in fig.get_axes():
         ax.axis('off')
@@ -486,19 +486,20 @@ def plot_static_path():
         control_points = path.control_points
         color = ['blue', 'coral', 'darkcyan']
         for i, (path_x, path_y, _) in enumerate(path_list):
-            plt.plot(path_x, path_y, color=color[i])
+            plt.plot(path_x[600:-600], path_y[600:-600], color=color[i])
         for i, four_points in enumerate(control_points):
             for point in four_points:
                 plt.scatter(point[0], point[1], color=color[i])
             plt.plot([four_points[0][0], four_points[1][0]], [four_points[0][1], four_points[1][1]], linestyle='--', color=color[i])
             plt.plot([four_points[1][0], four_points[2][0]], [four_points[1][1], four_points[2][1]], linestyle='--', color=color[i])
             plt.plot([four_points[2][0], four_points[3][0]], [four_points[2][1], four_points[3][1]], linestyle='--', color=color[i])
+    plt.savefig('./multipath_planning.pdf')
     plt.show()
 
 
 if __name__ == '__main__':
     # main()
-    # plot_static_path()
-    plot_data('./results/2021-03-03-19-18-38', 1)
+    plot_static_path()
+    # plot_data('./results/2021-03-03-19-18-38', 1)
 
 
