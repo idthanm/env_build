@@ -9,10 +9,29 @@
 from dynamics_and_models import ReferencePath
 import numpy as np
 from math import pi, sqrt, sin, cos
-import matplotlib.pyplot as plt
+from endtoend_env_utils import L, W, LANE_WIDTH, LANE_NUMBER, CROSSROAD_SIZE, EXPECTED_V
 
 
-class StaticTrajectoryGenerator(object):
+class MultiPathGenerator(object):
+    def __init__(self, ref_index=3):
+        # state: [v_x, v_y, r, x, y, phi(°)]
+        self.path_num = 2                                  # number of trajectories
+        self.exp_v = EXPECTED_V
+        self.order = [0 for _ in range(self.path_num)]
+        self.ego_info_dim = 6
+        self.ref_index = ref_index
+        self.path_list = []
+
+    def generate_path(self, task):
+        self.path_list = []
+        for path_index in range(self.path_num):
+            ref = ReferencePath(task)
+            ref.set_path(path_index)
+            self.path_list.append(ref)
+        return self.path_list
+
+
+class StaticTrajectoryGenerator_origin(object):
     def __init__(self, task, state, mode, v_light=0):
         # state: [v_x, v_y, r, x, y, phi(°)]
         self.mode = mode

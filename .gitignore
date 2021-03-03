@@ -206,3 +206,16 @@ dmypy.json
 mpc/mpc_rl.npy
 test.py
 test_sumo.py
+end_to_end_test.py
+
+/hierarchical_decision/
+/mpc/rl_experiments/
+/multi_env/models/
+
+/.idea/
+
+SearchImage/.idea/misc.xml
+SearchImage/.idea/workspace.xml
+SearchImage/.idea/vcs.xml
+SearchImage/.idea/
+multi_env/results/

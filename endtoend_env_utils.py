@@ -8,8 +8,110 @@
 # =====================================
 
 import math
+from collections import OrderedDict
+import os
 
-import numpy as np
+L, W = 4.8, 2.0
+LANE_WIDTH = 3.75
+LANE_NUMBER = 2
+CROSSROAD_SIZE = 36
+EXPECTED_V = 8.
+dirname = os.path.dirname(__file__)
+SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
+VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=1, du=1, ud=2, ul=2),
+                         straight=OrderedDict(dl=1, du=1, ud=1, ru=2, ur=2),
+                         right=OrderedDict(dr=1, ur=2, lr=2))
+
+
+def dict2flat(inp):
+    out = []
+    for key, val in inp.items():
+        out.extend([key]*val)
+    return out
+
+
+def dict2num(inp):
+    out = 0
+    for _, val in inp.items():
+        out += val
+    return out
+
+
+VEH_NUM = dict(left=dict2num(VEHICLE_MODE_DICT['left']),
+               straight=dict2num(VEHICLE_MODE_DICT['straight']),
+               right=dict2num(VEHICLE_MODE_DICT['right']))
+
+VEHICLE_MODE_LIST = dict(left=dict2flat(VEHICLE_MODE_DICT['left']),
+                         straight=dict2flat(VEHICLE_MODE_DICT['straight']),
+                         right=dict2flat(VEHICLE_MODE_DICT['right']))
+# Things related to lane number: static path generation (which further influences obs initialization),
+# observation formulation (especially other vehicles selection and number), rewards formulation
+# other vehicle prediction
+# feasibility judgement
+# the sumo files, obviously,
+# the render func,
+# it is hard to unify them using one set of code, better be a case-by-case setting.
+
+ROUTE2MODE = {('1o', '2i'): 'dr', ('1o', '3i'): 'du', ('1o', '4i'): 'dl',
+              ('2o', '1i'): 'rd', ('2o', '3i'): 'ru', ('2o', '4i'): 'rl',
+              ('3o', '1i'): 'ud', ('3o', '2i'): 'ur', ('3o', '4i'): 'ul',
+              ('4o', '1i'): 'ld', ('4o', '2i'): 'lr', ('4o', '3i'): 'lu'}
+
+MODE2TASK = {'dr': 'right', 'du': 'straight', 'dl': 'left',
+             'rd': 'left', 'ru': 'right', 'rl': ' straight',
+             'ud': 'straight', 'ur': 'left', 'ul': 'right',
+             'ld': 'right', 'lr': 'straight', 'lu': 'left'}
+
+TASK2ROUTEID = {'left': 'dl', 'straight': 'du', 'right': 'dr'}
+
+MODE2ROUTE = {'dr': ('1o', '2i'), 'du': ('1o', '3i'), 'dl': ('1o', '4i'),
+              'rd': ('2o', '1i'), 'ru': ('2o', '3i'), 'rl': ('2o', '4i'),
+              'ud': ('3o', '1i'), 'ur': ('3o', '2i'), 'ul': ('3o', '4i'),
+              'ld': ('4o', '1i'), 'lr': ('4o', '2i'), 'lu': ('4o', '3i')}
+
+
+def judge_feasible(orig_x, orig_y, task):  # map dependant
+    def is_in_straight_before1(orig_x, orig_y):
+        return 0 < orig_x < 3.75 and orig_y <= -18
+
+    def is_in_straight_before2(orig_x, orig_y):
+        return 3.75 < orig_x < 7.5 and orig_y <= -18
+
+    def is_in_straight_after(orig_x, orig_y):
+        return 0 < orig_x < 3.75 * 2 and orig_y >= 18
+
+    def is_in_left(orig_x, orig_y):
+        return 0 < orig_y < 3.75 * 2 and orig_x < -18
+
+    def is_in_right(orig_x, orig_y):
+        return -3.75 * 2 < orig_y < 0 and orig_x > 18
+
+    def is_in_middle(orig_x, orig_y):
+        return True if -18 < orig_y < 18 and -18 < orig_x < 18 else False
+
+    def is_in_middle_left(orig_x, orig_y):
+        return True if -18 < orig_y < 7.5 and -18 < orig_x < 7.5 else False
+        # if -18 < orig_y < 18 and -18 < orig_x < 18:
+        #     if -3.75 * 2 < orig_x < 3.75 * 2:
+        #         return True if -18 < orig_y < 18 else False
+        #     elif orig_x > 3.75 * 2:
+        #         return True if orig_x - (18 + 3.75 * 2) < orig_y < -orig_x + (18 + 3.75 * 2) else False
+        #     else:
+        #         return True if -orig_x - (18 + 3.75 * 2) < orig_y < orig_x + (18 + 3.75 * 2) else False
+        # else:
+        #     return False
+
+    # judge feasible for turn left
+    if task == 'left':
+        return True if is_in_straight_before1(orig_x, orig_y) or is_in_left(orig_x, orig_y) \
+                       or is_in_middle_left(orig_x, orig_y) else False
+    elif task == 'straight':
+        return True if is_in_straight_before1(orig_x, orig_y) or is_in_straight_after(orig_x, orig_y) \
+                       or is_in_middle(orig_x, orig_y) else False
+    else:
+        assert task == 'right'
+        return True if is_in_straight_before2(orig_x, orig_y) or is_in_right(orig_x, orig_y) \
+                       or is_in_middle(orig_x, orig_y) else False
 
 
 def shift_coordination(orig_x, orig_y, coordi_shift_x, coordi_shift_y):
@@ -145,81 +247,5 @@ def deal_with_phi(phi):
     return phi
 
 
-class Path(object):
-    """
-    manage generated path
-    """
-
-    def __init__(self, percision=0.001):
-        self.path = None
-        self.current_step = 0
-        self.total_step = None
-        self.percision = percision
-
-    def reset_path(self, dist_before_start_point, start_point_info, end_point_info, dist_after_end_point):
-        self.current_step = 0
-        self.path_generation(dist_before_start_point, start_point_info, end_point_info, dist_after_end_point)
-        self.total_step = len(self.path)
-
-    def path_generation(self, dist_before_start_point, start_point_info, end_point_info, dist_after_end_point):
-        """
-        :param dist_before_start_point:
-        :param start_point_info: list, [x, y, heading(deg)]
-        :param end_point_info: list, [x, y, heading(deg)]
-        :param pecision: distance between points
-        :return: ndarray, [[x0, y0, a0(deg)], [x1, y1, a1(deg)], ...]
-        """
-        # start_x, start_y, start_a = start_point_info
-        # end_x, end_y, end_a = end_point_info
-        # assert -180 < start_a < 180, 'start heading should be in [-180, 180](deg)'
-        # assert -180 < end_a < 180, 'end heading should be in [-180, 180](deg)'
-        # # transform coordination to start point
-        # path = np.zeros((100, 4), dtype=np.float32)
-
-        before_y = np.linspace(-dist_before_start_point, 0, int(dist_before_start_point / self.percision)) - 18
-        before_x = 3.75 / 2 * np.ones(before_y.shape)
-        before_a = 90 * np.ones(before_y.shape)
-        before_points = np.array(list(zip(before_x, before_y, before_a)))
-
-        middle_angle = np.linspace(0, np.pi / 2, int(np.pi / 2 * (18 + 3.75 / 2) / self.percision))
-        middle_points = np.array(
-            [[(18 + 3.75 / 2) * np.cos(a) - 18, (18 + 3.75 / 2) * np.sin(a) - 18, 90 + a * 180 / np.pi] for a in
-             middle_angle[1:]])
-
-        after_x = np.linspace(0, -dist_after_end_point, int(dist_after_end_point / self.percision)) - 18
-        after_y = 3.75 / 2 * np.ones(before_y.shape)
-        after_a = 180 * np.ones(before_y.shape)
-        after_points = np.array(list(zip(after_x[1:], after_y[1:], after_a[1:])))
-
-        self.path = np.vstack((before_points, middle_points, after_points))
-
-    def get_init_state(self):
-        return self.path[0]
-
-    def get_next_info(self, delta_dist):
-        delta_steps = int(np.floor(delta_dist / self.percision))
-        next_index = delta_steps + self.current_step
-        self.current_step = next_index if next_index < self.total_step else self.total_step - 1
-        return self.path[self.current_step]
-
-    def is_path_finished(self):
-        return True if self.current_step == self.total_step - 1 else False
-
-
-def test_path():
-    path = Path(0.01)
-    path.reset_path(5, 1, 1, 5)
-    print(path.get_init_state())
-    x = path.path[:, 0]
-    y = path.path[:, 1]
-    print(path.get_next_info(5))
-    print(path.get_next_info((18 + 3.75 / 2) * np.pi / 2))
-    print(path.is_path_finished())
-    print(path.get_next_info(3))
-    print(path.is_path_finished())
-    print(path.get_next_info(3))
-    print(path.is_path_finished())
-
-
 if __name__ == '__main__':
-    test_path()
+    pass
