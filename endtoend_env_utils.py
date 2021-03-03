@@ -8,6 +8,110 @@
 # =====================================
 
 import math
+from collections import OrderedDict
+import os
+
+L, W = 4.8, 2.0
+LANE_WIDTH = 3.75
+LANE_NUMBER = 2
+CROSSROAD_SIZE = 36
+EXPECTED_V = 8.
+dirname = os.path.dirname(__file__)
+SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
+VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=1, du=1, ud=2, ul=2),
+                         straight=OrderedDict(dl=1, du=1, ud=1, ru=2, ur=2),
+                         right=OrderedDict(dr=1, ur=2, lr=2))
+
+
+def dict2flat(inp):
+    out = []
+    for key, val in inp.items():
+        out.extend([key]*val)
+    return out
+
+
+def dict2num(inp):
+    out = 0
+    for _, val in inp.items():
+        out += val
+    return out
+
+
+VEH_NUM = dict(left=dict2num(VEHICLE_MODE_DICT['left']),
+               straight=dict2num(VEHICLE_MODE_DICT['straight']),
+               right=dict2num(VEHICLE_MODE_DICT['right']))
+
+VEHICLE_MODE_LIST = dict(left=dict2flat(VEHICLE_MODE_DICT['left']),
+                         straight=dict2flat(VEHICLE_MODE_DICT['straight']),
+                         right=dict2flat(VEHICLE_MODE_DICT['right']))
+# Things related to lane number: static path generation (which further influences obs initialization),
+# observation formulation (especially other vehicles selection and number), rewards formulation
+# other vehicle prediction
+# feasibility judgement
+# the sumo files, obviously,
+# the render func,
+# it is hard to unify them using one set of code, better be a case-by-case setting.
+
+ROUTE2MODE = {('1o', '2i'): 'dr', ('1o', '3i'): 'du', ('1o', '4i'): 'dl',
+              ('2o', '1i'): 'rd', ('2o', '3i'): 'ru', ('2o', '4i'): 'rl',
+              ('3o', '1i'): 'ud', ('3o', '2i'): 'ur', ('3o', '4i'): 'ul',
+              ('4o', '1i'): 'ld', ('4o', '2i'): 'lr', ('4o', '3i'): 'lu'}
+
+MODE2TASK = {'dr': 'right', 'du': 'straight', 'dl': 'left',
+             'rd': 'left', 'ru': 'right', 'rl': ' straight',
+             'ud': 'straight', 'ur': 'left', 'ul': 'right',
+             'ld': 'right', 'lr': 'straight', 'lu': 'left'}
+
+TASK2ROUTEID = {'left': 'dl', 'straight': 'du', 'right': 'dr'}
+
+MODE2ROUTE = {'dr': ('1o', '2i'), 'du': ('1o', '3i'), 'dl': ('1o', '4i'),
+              'rd': ('2o', '1i'), 'ru': ('2o', '3i'), 'rl': ('2o', '4i'),
+              'ud': ('3o', '1i'), 'ur': ('3o', '2i'), 'ul': ('3o', '4i'),
+              'ld': ('4o', '1i'), 'lr': ('4o', '2i'), 'lu': ('4o', '3i')}
+
+
+def judge_feasible(orig_x, orig_y, task):  # map dependant
+    def is_in_straight_before1(orig_x, orig_y):
+        return 0 < orig_x < 3.75 and orig_y <= -18
+
+    def is_in_straight_before2(orig_x, orig_y):
+        return 3.75 < orig_x < 7.5 and orig_y <= -18
+
+    def is_in_straight_after(orig_x, orig_y):
+        return 0 < orig_x < 3.75 * 2 and orig_y >= 18
+
+    def is_in_left(orig_x, orig_y):
+        return 0 < orig_y < 3.75 * 2 and orig_x < -18
+
+    def is_in_right(orig_x, orig_y):
+        return -3.75 * 2 < orig_y < 0 and orig_x > 18
+
+    def is_in_middle(orig_x, orig_y):
+        return True if -18 < orig_y < 18 and -18 < orig_x < 18 else False
+
+    def is_in_middle_left(orig_x, orig_y):
+        return True if -18 < orig_y < 7.5 and -18 < orig_x < 7.5 else False
+        # if -18 < orig_y < 18 and -18 < orig_x < 18:
+        #     if -3.75 * 2 < orig_x < 3.75 * 2:
+        #         return True if -18 < orig_y < 18 else False
+        #     elif orig_x > 3.75 * 2:
+        #         return True if orig_x - (18 + 3.75 * 2) < orig_y < -orig_x + (18 + 3.75 * 2) else False
+        #     else:
+        #         return True if -orig_x - (18 + 3.75 * 2) < orig_y < orig_x + (18 + 3.75 * 2) else False
+        # else:
+        #     return False
+
+    # judge feasible for turn left
+    if task == 'left':
+        return True if is_in_straight_before1(orig_x, orig_y) or is_in_left(orig_x, orig_y) \
+                       or is_in_middle_left(orig_x, orig_y) else False
+    elif task == 'straight':
+        return True if is_in_straight_before1(orig_x, orig_y) or is_in_straight_after(orig_x, orig_y) \
+                       or is_in_middle(orig_x, orig_y) else False
+    else:
+        assert task == 'right'
+        return True if is_in_straight_before2(orig_x, orig_y) or is_in_right(orig_x, orig_y) \
+                       or is_in_middle(orig_x, orig_y) else False
 
 
 def shift_coordination(orig_x, orig_y, coordi_shift_x, coordi_shift_y):
