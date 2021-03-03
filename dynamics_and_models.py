@@ -546,15 +546,6 @@ class EnvironmentModel(object):  # all tensors
             ge = iter(range(0, 1000, 4))
             plt.text(text_x, text_y_start - next(ge), 'ego_x: {:.2f}m'.format(ego_x))
             plt.text(text_x, text_y_start - next(ge), 'ego_y: {:.2f}m'.format(ego_y))
-            # plt.text(text_x, text_y_start - next(ge), 'UDLR: {:.2f} {:.2f} {:.2f} {:.2f}'.format(min([up1, up2]),
-            #                                                                                          min([down1, down2]),
-            #                                                                                          min([left1, left2]),
-            #                                                                                          min([right1, right2])))
-            # plt.text(text_x, text_y_start - next(ge), '1deltas {:.2f} {:.2f}'.format(point11x, point11y))
-            # plt.text(text_x, text_y_start - next(ge), '2deltas {:.2f} {:.2f}'.format(point12x, point12y))
-            # plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
-            # plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
-            # plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
             plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
             plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
             # plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
@@ -716,7 +707,6 @@ class ReferencePath(object):
         ys_tile = tf.tile(tf.reshape(ys, (-1, 1)), tf.constant([1, reduced_len]))
         pathx_tile = tf.tile(tf.reshape(reduced_path_x, (1, -1)), tf.constant([len(xs), 1]))
         pathy_tile = tf.tile(tf.reshape(reduced_path_y, (1, -1)), tf.constant([len(xs), 1]))
-
         dist_array = tf.square(xs_tile - pathx_tile) + tf.square(ys_tile - pathy_tile)
 
         indexs = tf.argmin(dist_array, 1) * ratio

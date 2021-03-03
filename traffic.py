@@ -14,6 +14,7 @@ import random
 import sys
 from collections import defaultdict
 from math import fabs, cos, sin, pi
+import copy
 
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
@@ -53,6 +54,7 @@ class Traffic(object):
         self.mode = mode
         self.training_light_phase = 0
         self.training_task = training_task
+        self.first_add = True
         if training_task == 'right':
             if random.random() > 0.5:
                 self.training_light_phase = 2

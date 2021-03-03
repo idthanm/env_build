@@ -474,7 +474,6 @@ class CrossroadEnd2end(gym.Env):
             random_index = int(np.random.random()*(390+500)) + 700
 
         x, y, phi = self.ref_path.indexs2points(random_index)
-        # v = 7 + 6 * np.random.random()
         v = EXPECTED_V * np.random.random()
         if self.training_task == 'left':
             routeID = 'dl'
@@ -519,8 +518,6 @@ class CrossroadEnd2end(gym.Env):
             #                            square_length + 2 * extension, square_length + 2 * extension, edgecolor='black',
             #                            facecolor='none', linewidth=2))
 
-            # ax.add_patch(plt.Rectangle((-square_length / 2, -square_length / 2),
-            #                            square_length, square_length, edgecolor='black', facecolor='none'))
             ax.add_patch(plt.Rectangle((-square_length / 2 - extension, -square_length / 2 - extension),
                                        square_length + 2 * extension, square_length + 2 * extension, edgecolor='black',
                                        facecolor='none'))
@@ -675,20 +672,6 @@ class CrossroadEnd2end(gym.Env):
                         task = MODE2TASK[mode]
                         color = task2color[task]
                         draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
-
-            # plot own car
-            # dict(v_x=ego_dict['v_x'],
-            #      v_y=ego_dict['v_y'],
-            #      r=ego_dict['r'],
-            #      x=ego_dict['x'],
-            #      y=ego_dict['y'],
-            #      phi=ego_dict['phi'],
-            #      l=ego_dict['l'],
-            #      w=ego_dict['w'],
-            #      Corner_point=self.cal_corner_point_of_ego_car(ego_dict)
-            #      alpha_f_bound=alpha_f_bound,
-            #      alpha_r_bound=alpha_r_bound,
-            #      r_bound=r_bound)
 
             ego_v_x = self.ego_dynamics['v_x']
             ego_v_y = self.ego_dynamics['v_y']
