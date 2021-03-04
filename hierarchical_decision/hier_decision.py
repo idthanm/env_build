@@ -8,6 +8,7 @@
 # =====================================
 
 import datetime
+import json
 import os
 from math import cos, sin, pi
 
@@ -25,14 +26,9 @@ from utils.recorder import Recorder
 
 
 class HierarchicalDecision(object):
-    def __init__(self, task, logdir=None):
+    def __init__(self, task, train_exp_dir, ite, logdir=None):
         self.task = task
-        if self.task == 'left':
-            self.policy = LoadPolicy('../utils/models/left', 100000)
-        elif self.task == 'right':
-            self.policy = LoadPolicy('../utils/models/right', 145000)
-        elif self.task == 'straight':
-            self.policy = LoadPolicy('../utils/models/straight', 95000)
+        self.policy = LoadPolicy('../utils/models/{}/{}'.format(task, train_exp_dir), ite)
         self.env = CrossroadEnd2end(training_task=self.task)
         self.model = EnvironmentModel(self.task, mode='selecting')
         self.recorder = Recorder()
@@ -43,6 +39,10 @@ class HierarchicalDecision(object):
         self.step_timer = TimerStat()
         self.ss_timer = TimerStat()
         self.logdir = logdir
+        if self.logdir is not None:
+            config = dict(task=task, train_exp_dir=train_exp_dir, ite=ite)
+            with open(self.logdir + '/config.json', 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=4)
         self.fig = plt.figure(figsize=(8, 8))
         plt.ion()
         self.hist_posi = []
@@ -104,8 +104,8 @@ class HierarchicalDecision(object):
                 self.env.set_traj(path)
                 obs_list.append(self.env._get_obs())
             all_obs = tf.stack(obs_list, axis=0)
-            path_values = self.policy.values(all_obs).numpy().squeeze()
-            path_index = int(np.argmax(path_values[:, 0]))
+            path_values = self.policy.obj_value_batch(all_obs).numpy()
+            path_index = int(np.argmax(path_values))
 
             self.env.set_traj(path_list[path_index])
             self.obs_real = obs_list[path_index]
@@ -396,7 +396,7 @@ def main():
     time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     logdir = './results/{time}'.format(time=time_now)
     os.makedirs(logdir)
-    hier_decision = HierarchicalDecision('left', logdir)
+    hier_decision = HierarchicalDecision('left', 'experiment-2021-03-04-16-44-45', 120000, logdir)
 
     for i in range(300):
         done = 0
@@ -498,8 +498,8 @@ def plot_static_path():
 
 
 if __name__ == '__main__':
-    # main()
-    plot_static_path()
+    main()
+    # plot_static_path()
     # plot_data('./results/2021-03-03-19-18-38', 1)
 
 
