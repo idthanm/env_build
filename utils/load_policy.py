@@ -19,8 +19,7 @@ from utils.preprocessor import Preprocessor
 
 class LoadPolicy(object):
     def __init__(self, exp_dir, iter):
-        # model_dir = exp_dir + '/models'
-        model_dir = exp_dir
+        model_dir = exp_dir + '/models'
         parser = argparse.ArgumentParser()
         params = json.loads(open(exp_dir + '/config.json').read())
         for key, val in params.items():
@@ -36,16 +35,29 @@ class LoadPolicy(object):
         # self.preprocessor.load_params(load_dir)
         init_obs = env.reset()
         self.run(init_obs)
-        self.values(init_obs)
+        self.obj_value(init_obs)
 
     @tf.function
     def run(self, obs):
         processed_obs = self.preprocessor.np_process_obses(obs)
-        action, logp = self.policy.compute_action(processed_obs[np.newaxis, :])
+        action, _ = self.policy.compute_action(processed_obs[np.newaxis, :])
         return action[0]
 
     @tf.function
-    def values(self, obs):
+    def obj_value(self, obs):
         processed_obs = self.preprocessor.np_process_obses(obs)
-        values = self.policy.compute_vs(processed_obs[np.newaxis, :])
-        return values[0]
+        value = self.policy.compute_obj_v(processed_obs[np.newaxis, :])
+        return value
+
+    @tf.function
+    def run_batch(self, obses):
+        processed_obses = self.preprocessor.np_process_obses(obses)
+        actions, _ = self.policy.compute_action(processed_obses)
+        return actions
+
+    @tf.function
+    def obj_value_batch(self, obses):
+        processed_obses = self.preprocessor.np_process_obses(obses)
+        values = self.policy.compute_obj_v(processed_obses)
+        return values
+
