@@ -9,13 +9,12 @@
 # =====================================
 
 import math
-import os
 import matplotlib.pyplot as plt
 from casadi import *
 
 from endtoend import CrossroadEnd2end
 from dynamics_and_models import ReferencePath, EnvironmentModel
-from hierarchical_decision.static_traj_generator import StaticTrajectoryGenerator
+from hierarchical_decision.multi_path_generator import StaticTrajectoryGenerator_origin
 from endtoend_env_utils import CROSSROAD_SIZE, L, W, VEHICLE_MODE_LIST, LANE_WIDTH, LANE_NUMBER, rotate_coordination
 from mpc.main import TimerStat
 from utils.load_policy import LoadPolicy
@@ -333,7 +332,7 @@ class HierarchicalMpc(object):
         self.env = CrossroadEnd2end(training_task=self.task, num_future_data=self.num_future_data)
         self.model = EnvironmentModel(self.task)
         self.obs = self.env.reset()
-        self.stg = StaticTrajectoryGenerator(mode='static_traj')
+        self.stg = StaticTrajectoryGenerator_origin(mode='static_traj')
         self.data2plot = []
         self.mpc_cal_timer = TimerStat()
         self.adp_cal_timer = TimerStat()
@@ -341,7 +340,7 @@ class HierarchicalMpc(object):
 
     def reset(self):
         self.obs = self.env.reset()
-        self.stg = StaticTrajectoryGenerator(mode='static_traj')
+        self.stg = StaticTrajectoryGenerator_origin(mode='static_traj')
         self.recorder.reset()
         self.recorder.save('.')
         self.data2plot = []
@@ -390,7 +389,7 @@ class HierarchicalMpc(object):
         with self.adp_cal_timer:
             for ref_index, trajectory in enumerate(traj_list):
                 self.env.set_traj(trajectory)
-                obs = self.env._get_obs(func='selecting')[np.newaxis, :]
+                obs = self.env._get_obs()[np.newaxis, :]
                 traj_value = self.policy.values(obs)
                 ADP_traj_return_value.append(traj_value.numpy().squeeze().tolist())
 
@@ -399,7 +398,7 @@ class HierarchicalMpc(object):
             if np.amax(ADP_traj_return_value) == np.amin(ADP_traj_return_value):
                 ADP_path_index = MPC_path_index
             self.env.set_traj(traj_list[ADP_path_index])
-            self.obs_real = self.env._get_obs(func='tracking')
+            self.obs_real = self.env._get_obs()
             ADP_action = self.policy.run(self.obs_real).numpy()
 
         self.recorder.record_compare(self.obs, ADP_action, MPC_action, self.adp_cal_timer.mean * 1000, self.mpc_cal_timer.mean * 1000,
@@ -717,5 +716,5 @@ def plot_data(epi_num, logdir):
 
 
 if __name__ == '__main__':
-    # main()
+    main()
     plot_data(epi_num=0, logdir='.')
