@@ -15,6 +15,7 @@ L, W = 4.8, 2.0
 LANE_WIDTH = 3.75
 LANE_NUMBER = 3
 CROSSROAD_SIZE = 50
+EXPECTED_V = 8.
 dirname = os.path.dirname(__file__)
 SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
 VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=2, du=2, ud=2, ul=2),
@@ -60,6 +61,13 @@ MODE2TASK = {'dr': 'right', 'du': 'straight', 'dl': 'left',
              'rd': 'left', 'ru': 'right', 'rl': ' straight',
              'ud': 'straight', 'ur': 'left', 'ul': 'right',
              'ld': 'right', 'lr': 'straight', 'lu': 'left'}
+
+TASK2ROUTEID = {'left': 'dl', 'straight': 'du', 'right': 'dr'}
+
+MODE2ROUTE = {'dr': ('1o', '2i'), 'du': ('1o', '3i'), 'dl': ('1o', '4i'),
+              'rd': ('2o', '1i'), 'ru': ('2o', '3i'), 'rl': ('2o', '4i'),
+              'ud': ('3o', '1i'), 'ur': ('3o', '2i'), 'ul': ('3o', '4i'),
+              'ld': ('4o', '1i'), 'lr': ('4o', '2i'), 'lu': ('4o', '3i')}
 
 
 def judge_feasible(orig_x, orig_y, task):  # map dependant
