@@ -9,6 +9,7 @@
 # =====================================
 
 import math
+import os
 import matplotlib.pyplot as plt
 from casadi import *
 
@@ -342,7 +343,7 @@ class HierarchicalMpc(object):
         self.obs = self.env.reset()
         self.stg = StaticTrajectoryGenerator(mode='static_traj')
         self.recorder.reset()
-        self.recorder.save()
+        self.recorder.save('.')
         self.data2plot = []
         return self.obs
 
@@ -699,7 +700,7 @@ class HierarchicalMpc(object):
 
 def main():
     hier_decision = HierarchicalMpc('left')
-    for i in range(10):
+    for i in range(1):
         done = 0
         for _ in range(150):
             done = hier_decision.step()
@@ -709,13 +710,12 @@ def main():
         hier_decision.reset()
 
 
-def plot_data(i):
+def plot_data(epi_num, logdir):
     recorder = Recorder()
-    recorder.load()
-    # recorder.plot_ith_episode_curves(i)
-    recorder.plot_mpc_rl(i)
+    recorder.load(logdir)
+    recorder.plot_mpc_rl(epi_num)
 
 
 if __name__ == '__main__':
     # main()
-    plot_data(5)
+    plot_data(epi_num=0, logdir='.')
