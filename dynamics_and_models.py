@@ -140,6 +140,7 @@ class EnvironmentModel(object):  # all tensors
                                                                self.num_future_data + 1)], \
                                                    obses[:, self.ego_info_dim + self.per_tracking_info_dim * (
                                                                self.num_future_data + 1):]
+            veh_infos = tf.stop_gradient(veh_infos)
             steers, a_xs = actions[:, 0], actions[:, 1]
             # rewards related to action
             punish_steer = -tf.square(steers)
@@ -275,6 +276,7 @@ class EnvironmentModel(object):  # all tensors
                                                obses[:, self.ego_info_dim + self.per_tracking_info_dim * (
                                                            self.num_future_data + 1):]
 
+        veh_infos = tf.stop_gradient(veh_infos)
         next_ego_infos = self.ego_predict(ego_infos, actions)
         # different for training and selecting
         if self.mode != 'training':
@@ -337,17 +339,6 @@ class EnvironmentModel(object):  # all tensors
         ego_next_infos = tf.stack([v_xs, v_ys, rs, xs, ys, phis], axis=1)
         return ego_next_infos
 
-    def tracking_error_predict(self, ego_infos, tracking_infos, actions):
-        v_xs, v_ys, rs, xs, ys, phis = ego_infos[:, 0], ego_infos[:, 1], ego_infos[:, 2],\
-                                       ego_infos[:, 3], ego_infos[:, 4], ego_infos[:, 5]
-        delta_ys, delta_phis, delta_vs = tracking_infos[:, 0], tracking_infos[:, 1], tracking_infos[:, 2]
-        rela_obs = tf.stack([v_xs, v_ys, rs, xs, delta_ys, delta_phis], axis=1)
-        rela_obs_tp1, _ = self.vehicle_dynamics.prediction(rela_obs, actions, self.base_frequency)
-        v_xs_tp1, v_ys_tp1, rs_tp1, xs_tp1, delta_ys_tp1, delta_phis_tp1 = rela_obs_tp1[:, 0], rela_obs_tp1[:, 1], rela_obs_tp1[:, 2], \
-                                                                           rela_obs_tp1[:, 3], rela_obs_tp1[:, 4], rela_obs_tp1[:, 5]
-        next_tracking_infos = tf.stack([delta_ys_tp1, delta_phis_tp1, v_xs_tp1-self.exp_v], axis=1)
-        return next_tracking_infos
-
     def veh_predict(self, veh_infos):
         veh_mode_list = VEHICLE_MODE_LIST[self.task]
         predictions_to_be_concat = []
@@ -356,7 +347,8 @@ class EnvironmentModel(object):  # all tensors
             predictions_to_be_concat.append(self.predict_for_a_mode(
                 veh_infos[:, vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim],
                 veh_mode_list[vehs_index]))
-        return tf.concat(predictions_to_be_concat, 1)
+        pred = tf.stop_gradient(tf.concat(predictions_to_be_concat, 1))
+        return pred
 
     def predict_for_a_mode(self, vehs, mode):
         veh_xs, veh_ys, veh_vs, veh_phis = vehs[:, 0], vehs[:, 1], vehs[:, 2], vehs[:, 3]
