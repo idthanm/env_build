@@ -8,6 +8,7 @@
 # =====================================
 
 import datetime
+import shutil
 import json
 import os
 from math import cos, sin, pi
@@ -55,9 +56,14 @@ class HierarchicalDecision(object):
         self.hist_posi = []
         if self.logdir is not None:
             self.episode_counter += 1
-            os.makedirs(self.logdir + '/episode{}'.format(self.episode_counter))
+            os.makedirs(self.logdir + '/episode{}/figs'.format(self.episode_counter))
             self.step_counter = -1
             self.recorder.save(self.logdir)
+            if self.episode_counter >= 1:
+                select_and_rename_snapshots_of_an_episode(self.logdir, self.episode_counter-1, 12)
+                self.recorder.plot_and_save_ith_episode_curves(self.episode_counter-1,
+                                                               self.logdir + '/episode{}/figs'.format(self.episode_counter-1),
+                                                               isshow=False)
         return self.obs
 
     def safe_shield(self, real_obs, traj):
@@ -386,10 +392,12 @@ class HierarchicalDecision(object):
             plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{}.pdf'.format(self.step_counter))
 
 
-def plot_data(logdir, i):
+def plot_and_save_ith_episode_data(logdir, i):
     recorder = Recorder()
     recorder.load(logdir)
-    recorder.plot_ith_episode_curves(i)
+    save_dir = logdir + '/episode{}/figs'.format(i)
+    os.makedirs(save_dir, exist_ok=True)
+    recorder.plot_and_save_ith_episode_curves(i, save_dir, True)
 
 
 def main():
@@ -497,9 +505,23 @@ def plot_static_path():
     plt.show()
 
 
+def select_and_rename_snapshots_of_an_episode(logdir, epinum, num):
+    file_list = os.listdir(logdir + '/episode{}'.format(epinum))
+    file_num = len(file_list) - 1
+    intervavl = file_num // (num-1)
+    start = file_num % (num-1)
+    print(start, file_num, intervavl)
+    selected = [start//2] + [start//2+intervavl*i-1 for i in range(1, num)]
+    print(selected)
+    for i, j in enumerate(selected):
+        shutil.copyfile(logdir + '/episode{}/step{}.pdf'.format(epinum, j),
+                        logdir + '/episode{}/figs/{}.pdf'.format(epinum, i))
+
+
 if __name__ == '__main__':
-    main()
+    # main()
     # plot_static_path()
-    # plot_data('./results/2021-03-03-19-18-38', 1)
+    # plot_and_save_ith_episode_data('./results/2021-03-05-00-00-12', 0)
+    select_and_rename_snapshots_of_an_episode('./results/2021-03-05-16-17-42', 1, 12)
 
 

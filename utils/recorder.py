@@ -66,7 +66,7 @@ class Recorder(object):
     def load(self, logdir):
         self.data_across_all_episodes = np.load(logdir + '/data_across_all_episodes.npy', allow_pickle=True)
 
-    def plot_ith_episode_curves(self, i):
+    def plot_and_save_ith_episode_curves(self, i, save_dir, isshow=True):
         episode2plot = self.data_across_all_episodes[i]
         real_time = np.array([0.1*i for i in range(len(episode2plot))])
         all_data = [np.array([vals_in_a_timestep[index] for vals_in_a_timestep in episode2plot])
@@ -76,42 +76,53 @@ class Recorder(object):
         i = 0
         for key in data_dict.keys():
             if key in self.val2plot:
-                f = plt.figure(key)
-                ax = f.add_axes([0.20, 0.12, 0.78, 0.86])
+                f = plt.figure(key, figsize=(6, 5))
                 if key == 'ref_index':
-                    sns.lineplot(real_time, data_dict[key] + 1, linewidth=2, palette="bright", color=color[i])
+                    ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
+                    sns.lineplot(real_time, data_dict[key] + 1, linewidth=2, palette="bright", color='indigo')
                     plt.ylim([0.5, 3.5])
                     x_major_locator = MultipleLocator(10)
                     # ax.xaxis.set_major_locator(x_major_locator)
                     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
                 elif key == 'v_x':
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
+                    ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
+                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
                     plt.ylim([-0.5, 10.])
                 elif key == 'cal_time':
-                    sns.lineplot(real_time, data_dict[key] * 1000, linewidth=2, palette="bright", color=color[i])
+                    ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
+                    sns.lineplot(real_time, data_dict[key] * 1000, linewidth=2, palette="bright", color='indigo')
                     plt.ylim([0, 10])
                 elif key == 'a_x':
-                    sns.lineplot(real_time, np.clip(data_dict[key], -3.0, 1.5), linewidth=2, palette="bright", color=color[i])
+                    ax = f.add_axes([0.14, 0.12, 0.86, 0.86])
+                    sns.lineplot(real_time, np.clip(data_dict[key], -3.0, 1.5), linewidth=2, palette="bright", color='indigo')
                     # sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
                     plt.ylim([-4.5, 2.0])
                 elif key == 'steer':
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
+                    ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
+                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
                     plt.ylim([-25, 25])
                 elif key == 'beta':
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
+                    ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
+                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
                     plt.ylim([-15, 15])
                 elif key == 'r':
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
+                    ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
+                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
                     plt.ylim([-0.8, 0.8])
                 else:
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
+                    ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
+                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
 
                 ax.set_ylabel(self.key2label[key], fontsize=15)
                 ax.set_xlabel("Time [s]", fontsize=15)
                 plt.yticks(fontsize=15)
                 plt.xticks(fontsize=15)
+                plt.savefig(save_dir + '/{}.pdf'.format(key))
+                if not isshow:
+                    plt.close(f)
                 i += 1
-        plt.show()
+        if isshow:
+            plt.show()
 
 
 

@@ -24,6 +24,7 @@ from endtoend_env_utils import rotate_coordination, cal_ego_info_in_transform_co
 from hierarchical_decision.multi_path_generator import MultiPathGenerator
 from traffic import Traffic
 from utils.load_policy import LoadPolicy
+from hierarchical_decision.hier_decision import select_and_rename_snapshots_of_an_episode
 
 NAME2TASK = dict(DL='left', DU='straight', DR='right',
                  RD='left', RL='straight', RU='right',
@@ -205,7 +206,9 @@ class Simulation(object):
         if self.logdir is not None:
             self.episode_counter += 1
             self.step_counter = -1
-            os.makedirs(self.logdir + '/episode{}'.format(self.episode_counter))
+            os.makedirs(self.logdir + '/episode{}/figs'.format(self.episode_counter))
+            if self.episode_counter >= 1:
+                select_and_rename_snapshots_of_an_episode(self.logdir, self.episode_counter - 1, 12)
 
     def step(self):
         self.step_counter += 1
