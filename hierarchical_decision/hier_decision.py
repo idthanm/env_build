@@ -299,9 +299,13 @@ class HierarchicalDecision(object):
         plot_phi_line(ego_x, ego_y, ego_phi, 'fuchsia')
         draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'fuchsia')
         self.hist_posi.append((ego_x, ego_y))
-        # plot history data
-        for hist_x, hist_y in self.hist_posi:
-            plt.scatter(hist_x, hist_y, color='fuchsia', alpha=0.1)
+
+        # plot history
+        xs = [pos[0] for pos in self.hist_posi]
+        ys = [pos[1] for pos in self.hist_posi]
+        plt.scatter(np.array(xs), np.array(ys), color='fuchsia', alpha=0.1)
+
+
         # plot future data
         tracking_info = self.obs[
                         self.env.ego_info_dim:self.env.ego_info_dim + self.env.per_tracking_info_dim * (self.env.num_future_data + 1)]
@@ -513,9 +517,10 @@ def select_and_rename_snapshots_of_an_episode(logdir, epinum, num):
     print(start, file_num, intervavl)
     selected = [start//2] + [start//2+intervavl*i-1 for i in range(1, num)]
     print(selected)
-    for i, j in enumerate(selected):
-        shutil.copyfile(logdir + '/episode{}/step{}.pdf'.format(epinum, j),
-                        logdir + '/episode{}/figs/{}.pdf'.format(epinum, i))
+    if file_num > 0:
+        for i, j in enumerate(selected):
+            shutil.copyfile(logdir + '/episode{}/step{}.pdf'.format(epinum, j),
+                            logdir + '/episode{}/figs/{}.pdf'.format(epinum, i))
 
 
 if __name__ == '__main__':
