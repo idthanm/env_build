@@ -59,11 +59,9 @@ class Recorder(object):
                                                self.num_future_data + 1):]
         v_x, v_y, r, x, y, phi = ego_info
         delta_y, delta_phi, delta_v = tracking_info[:3]
-        steer, a_x = act[0]*0.4, act[1]*3-1.
+        steer, a_x = act[0]*0.4, act[1]*2.25 - 0.75
 
         # transformation
-        clip_random = np.random.uniform(-0.1, 0.1)
-        a_x = np.clip(a_x, -3.0, 1.5 + clip_random)
         beta = 0 if v_x == 0 else np.arctan(v_y/v_x) * 180 / math.pi
         steer = steer * 180 / math.pi
         self.val_list_for_an_episode.append(np.array([v_x, v_y, r, x, y, phi, steer, a_x, delta_y,
