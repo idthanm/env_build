@@ -28,7 +28,7 @@ class HierarchicalDecision(object):
     def __init__(self, task, logdir=None):
         self.task = task
         if self.task == 'left':
-            self.policy = LoadPolicy('../utils/models/left', 100000)
+            self.policy = LoadPolicy('../utils/models/experiment-2021-03-05-19-39-42', 100000)
         elif self.task == 'right':
             self.policy = LoadPolicy('../utils/models/right', 100000)
         elif self.task == 'straight':
@@ -106,6 +106,7 @@ class HierarchicalDecision(object):
             all_obs = tf.stack(obs_list, axis=0)
             path_values = self.policy.values(all_obs).numpy().squeeze()
             path_index = int(np.argmax(path_values[:, 0]))
+            # print(path_values[:, 0])
 
             self.env.set_traj(path_list[path_index])
             self.obs_real = obs_list[path_index]
@@ -115,7 +116,7 @@ class HierarchicalDecision(object):
             #     safe_action = self.safe_shield(self.obs_real, path_list[path_index])
             safe_action = self.policy.run(self.obs_real).numpy()
 
-            print('ALL TIME:', self.step_timer.mean)
+            # print('ALL TIME:', self.step_timer.mean)
         # deal with red light temporally
         # if self.env.v_light != 0 and -25 > self.env.ego_dynamics['y'] > -35 and self.env.training_task != 'right':
         #     scaled_steer = 0.
@@ -128,6 +129,7 @@ class HierarchicalDecision(object):
         self.recorder.record(self.obs_real, safe_action, self.step_timer.mean,
                              path_index, path_values, self.ss_timer.mean)
         self.obs, r, done, info = self.env.step(safe_action)
+        print(info) # todo:record the data consider move from experiment driving
         return done
 
     def render(self, traj_list, path_values, path_index):
@@ -139,7 +141,9 @@ class HierarchicalDecision(object):
         solid_line_style = '-'
 
         plt.cla()
-        ax = plt.axes([-0.05, -0.05, 1.1, 1.1])
+        # ax = plt.axes([-0.05, -0.05, 1.1, 1.1])
+        ax = plt.axes(xlim=(-square_length / 2 - extension, square_length / 2 + extension),
+                      ylim=(-square_length / 2 - extension, square_length / 2 + extension))
         for ax in self.fig.get_axes():
             ax.axis('off')
         ax.axis("equal")
@@ -304,8 +308,8 @@ class HierarchicalDecision(object):
             pass
         plt.show()
         plt.pause(0.001)
-        if self.logdir is not None:
-            plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{}.pdf'.format(self.step_counter))
+        # if self.logdir is not None:
+        #     plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{}.pdf'.format(self.step_counter))
 
 
 def plot_data(logdir, i):
@@ -315,13 +319,13 @@ def plot_data(logdir, i):
 
 
 def main():
-    # time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    # logdir = './results/{time}'.format(time=time_now)
-    # os.makedirs(logdir)
-    logdir = None
+    time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    logdir = './results/{time}'.format(time=time_now)
+    os.makedirs(logdir)
+    # logdir = None
     hier_decision = HierarchicalDecision('left', logdir)
 
-    for i in range(300):
+    for i in range(30):
         done = 0
         while not done:
             done = hier_decision.step()

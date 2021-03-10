@@ -19,8 +19,8 @@ from utils.preprocessor import Preprocessor
 
 class LoadPolicy(object):
     def __init__(self, exp_dir, iter):
-        # model_dir = exp_dir + '/models'
-        model_dir = exp_dir
+        model_dir = exp_dir + '/models'
+        # model_dir = exp_dir
         parser = argparse.ArgumentParser()
         params = json.loads(open(exp_dir + '/config.json').read())
         for key, val in params.items():

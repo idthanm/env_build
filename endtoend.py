@@ -129,7 +129,7 @@ class CrossroadEnd2end(gym.Env):
 
     def step(self, action):
         self.action = self._action_transformation_for_end2end(action)
-        reward, self.reward_info = self.compute_reward(self.obs, self.action)
+        _, self.reward_info = self.compute_reward(self.obs, self.action)
         next_ego_state, next_ego_params = self._get_next_ego_state(self.action)
         ego_dynamics = self._get_ego_dynamics(next_ego_state, next_ego_params)
         self.traffic.set_own_car(dict(ego=ego_dynamics))
@@ -137,8 +137,9 @@ class CrossroadEnd2end(gym.Env):
         all_info = self._get_all_info(ego_dynamics)
         self.obs = self._get_obs()
         self.done_type, done = self._judge_done()
+        reward = self.compute_reward_sparse(self.done_type, done)
         self.reward_info.update({'final_rew': reward})
-        all_info.update({'reward_info': self.reward_info, 'ref_index': self.ref_path.ref_index})
+        all_info.update({'reward_info': self.reward_info}) # , 'ref_index': self.ref_path.ref_index
         return self.obs, reward, done, all_info
 
     def _set_observation_space(self, observation):
@@ -209,8 +210,10 @@ class CrossroadEnd2end(gym.Env):
             return 'break_road_constrain', 1
         # elif self._deviate_too_much():
         #     return 'deviate_too_much', 1
-        # elif self._break_stability():
-        #     return 'break_stability', 1
+        elif self._too_fast():
+            return 'go_too_fast', 1
+        elif self._break_stability():
+            return 'break_stability', 1
         elif self._break_red_light():
             return 'break_red_light', 1
         elif self._is_achieve_goal():
@@ -225,6 +228,10 @@ class CrossroadEnd2end(gym.Env):
     def _break_road_constrain(self):
         results = list(map(lambda x: judge_feasible(*x, self.training_task), self.ego_dynamics['Corner_point']))
         return not all(results)
+
+    def _too_fast(self):
+        return True if self.ego_dynamics['v_x']>=10 else False
+
 
     def _break_stability(self):
         alpha_f, alpha_r, miu_f, miu_r = self.ego_dynamics['alpha_f'], self.ego_dynamics['alpha_r'], \
@@ -285,41 +292,17 @@ class CrossroadEnd2end(gym.Env):
 
         vehs_vector = self._construct_veh_vector_short(exit_)
         ego_vector = self._construct_ego_vector_short()
-        tracking_error = self.ref_path.tracking_error_vector(np.array([ego_x], dtype=np.float32),
-                                                             np.array([ego_y], dtype=np.float32),
-                                                             np.array([ego_phi], dtype=np.float32),
-                                                             np.array([ego_v_x], dtype=np.float32),
-                                                             self.num_future_data).numpy()[0]
+        # tracking_error = self.ref_path.tracking_error_vector(np.array([ego_x], dtype=np.float32),
+        #                                                      np.array([ego_y], dtype=np.float32),
+        #                                                      np.array([ego_phi], dtype=np.float32),
+        #                                                      np.array([ego_v_x], dtype=np.float32),
+        #                                                      self.num_future_data).numpy()[0]
         self.per_tracking_info_dim = 3
 
-        vector = np.concatenate((ego_vector, tracking_error, vehs_vector), axis=0)
+        vector = np.concatenate((ego_vector, vehs_vector), axis=0) # , tracking_error
         # vector = self.convert_vehs_to_rela(vector)
 
         return vector
-
-    # def convert_vehs_to_rela(self, obs_abso):
-    #     ego_infos, tracking_infos, veh_infos = obs_abso[:self.ego_info_dim], \
-    #                                            obs_abso[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
-    #                                                      self.num_future_data + 1)], \
-    #                                            obs_abso[self.ego_info_dim + self.per_tracking_info_dim * (
-    #                                                        self.num_future_data + 1):]
-    #     ego_vx, ego_vy, ego_r, ego_x, ego_y, ego_phi = ego_infos
-    #     ego = np.array([ego_x, ego_y, 0, 0]*int(len(veh_infos)/self.per_veh_info_dim), dtype=np.float32)
-    #     vehs_rela = veh_infos - ego
-    #     out = np.concatenate((ego_infos, tracking_infos, vehs_rela), axis=0)
-    #     return out
-    #
-    # def convert_vehs_to_abso(self, obs_rela):
-    #     ego_infos, tracking_infos, veh_rela = obs_rela[:self.ego_info_dim], \
-    #                                            obs_rela[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
-    #                                                    self.num_future_data + 1)], \
-    #                                            obs_rela[self.ego_info_dim + self.per_tracking_info_dim * (
-    #                                                    self.num_future_data + 1):]
-    #     ego_vx, ego_vy, ego_r, ego_x, ego_y, ego_phi = ego_infos
-    #     ego = np.array([ego_x, ego_y, 0, 0]*int(len(veh_rela)/self.per_veh_info_dim), dtype=np.float32)
-    #     vehs_abso = veh_rela + ego
-    #     out = np.concatenate((ego_infos, tracking_infos, vehs_abso), axis=0)
-    #     return out
 
     def _construct_ego_vector_short(self):
         ego_v_x = self.ego_dynamics['v_x']
@@ -473,7 +456,7 @@ class CrossroadEnd2end(gym.Env):
         else:
             random_index = int(np.random.random()*(390+500)) + 700
 
-        x, y, phi = self.ref_path.indexs2points(random_index)
+        x, y, phi = self.ref_path.indexs2points(random_index) # ref_path is used for only reset init state
         v = EXPECTED_V * np.random.random()
         if self.training_task == 'left':
             routeID = 'dl'
@@ -501,6 +484,16 @@ class CrossroadEnd2end(gym.Env):
             reward_dict[k] = v.numpy()[0]
         return reward.numpy()[0], reward_dict
 
+    def compute_reward_sparse(self, done_info, done):
+        if not done:
+            reward = -1
+        else:
+            if done_info != 'good_done':
+                reward = -100
+            else:
+                reward = 100
+        return reward
+
     def render(self, mode='human'):
         if mode == 'human':
             # plot basic map
@@ -512,8 +505,14 @@ class CrossroadEnd2end(gym.Env):
             solid_line_style = '-'
 
             plt.cla()
-            ax = plt.axes([-0.05, -0.05, 1.1, 1.1])
-            ax.axis("equal")
+            # ax = plt.axes([-0.05, -0.05, 1.1, 1.1])
+            # ax = plt.axes([0.1,0.1,0.8,0.8])
+            # ax.axis("equal")
+            # plt.axis('off')
+            ax = plt.axes(xlim=(-square_length/2 - extension, square_length/2 + extension),
+                          ylim=(-square_length/2 - extension, square_length/2 + extension))
+            plt.axis("equal")
+            plt.axis('off')
             # ax.add_patch(plt.Rectangle((-square_length / 2 - extension, -square_length / 2 - extension),
             #                            square_length + 2 * extension, square_length + 2 * extension, edgecolor='black',
             #                            facecolor='none', linewidth=2))
@@ -700,44 +699,26 @@ class CrossroadEnd2end(gym.Env):
                 plt.plot(path_x, path_y, 'g.')
                 plot_phi_line(path_x, path_y, path_phi, 'g')
 
-            delta_, _, _ = tracking_info[:3]
-            ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
-            indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
-            path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-            plt.plot(path_x, path_y, 'g.')
-            delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
-
-            # plot real time traj
-            # try:
-            #     color = ['b', 'lime']
-            #     for i, item in enumerate(real_time_traj):
-            #         if i == path_index:
-            #             plt.plot(item.path[0], item.path[1], color=color[i], alpha=1.0)
-            #         else:
-            #             plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
-            #         indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
-            #         path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-            #         plt.plot(path_x, path_y,  color=color[i])
-            # except Exception:
-            #     pass
-
-            # for j, item_point in enumerate(self.real_path.feature_points_all):
-            #     for k in range(len(item_point)):
-            #         plt.scatter(item_point[k][0], item_point[k][1], c='g')
+            # delta_, _, _ = tracking_info[:3]
+            # ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
+            # indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
+            # path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+            # plt.plot(path_x, path_y, 'g.')
+            # delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
 
             # text
             text_x, text_y_start = -110, 60
             ge = iter(range(0, 1000, 4))
             plt.text(text_x, text_y_start - next(ge), 'ego_x: {:.2f}m'.format(ego_x))
             plt.text(text_x, text_y_start - next(ge), 'ego_y: {:.2f}m'.format(ego_y))
-            plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
-            plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
-            plt.text(text_x, text_y_start - next(ge), 'delta_: {:.2f}m'.format(delta_))
-            plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
-            plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
+            # plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
+            # plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
+            # plt.text(text_x, text_y_start - next(ge), 'delta_: {:.2f}m'.format(delta_))
+            # plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
+            # plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
             plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
-            plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
-            plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
+            # plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
+            # plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
 
             plt.text(text_x, text_y_start - next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
             plt.text(text_x, text_y_start - next(ge), 'exp_v: {:.2f}m/s'.format(self.exp_v))
