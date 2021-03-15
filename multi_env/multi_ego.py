@@ -24,6 +24,7 @@ from endtoend_env_utils import rotate_coordination, cal_ego_info_in_transform_co
 from hierarchical_decision.multi_path_generator import MultiPathGenerator
 from traffic import Traffic
 from utils.load_policy import LoadPolicy
+from hierarchical_decision.hier_decision import select_and_rename_snapshots_of_an_episode
 
 NAME2TASK = dict(DL='left', DU='straight', DR='right',
                  RD='left', RL='straight', RU='right',
@@ -205,7 +206,9 @@ class Simulation(object):
         if self.logdir is not None:
             self.episode_counter += 1
             self.step_counter = -1
-            os.makedirs(self.logdir + '/episode{}'.format(self.episode_counter))
+            os.makedirs(self.logdir + '/episode{}/figs'.format(self.episode_counter))
+            if self.episode_counter >= 1:
+                select_and_rename_snapshots_of_an_episode(self.logdir, self.episode_counter - 1, 12)
 
     def step(self):
         self.step_counter += 1
@@ -391,9 +394,11 @@ class Simulation(object):
             plot_phi_line(ego_x, ego_y, ego_a, 'fuchsia')
 
         # plot history
+        xs, ys = [], []
         for egoID in self.init_n_ego_dict.keys():
-            for hist_x, hist_y in self.hist_posi[egoID]:
-                plt.scatter(hist_x, hist_y, color='fuchsia', alpha=0.1)
+            xs += [pos[0] for pos in self.hist_posi[egoID]]
+            ys += [pos[1] for pos in self.hist_posi[egoID]]
+        plt.scatter(np.array(xs), np.array(ys), color='fuchsia', alpha=0.1)
 
         # plot trajectory
         color = ['blue', 'coral', 'darkcyan']
@@ -417,8 +422,7 @@ class Simulation(object):
             plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{}.pdf'.format(self.step_counter))
 
 
-
-if __name__ == '__main__':
+def main():
     init_n_ego_dict = dict(
         DL1=dict(v_x=5, v_y=0, r=0, x=0.5 * LANE_WIDTH, y=-30, phi=90, l=4.3, w=1.9, routeID='dl'),
         DU1=dict(v_x=8, v_y=0, r=0, x=1.5 * LANE_WIDTH, y=-45, phi=90, l=4.3, w=1.9, routeID='du'),
@@ -445,7 +449,15 @@ if __name__ == '__main__':
                 start_time = time.time()
                 simulation.render()
                 end_time = time.time()
-                # print('render time:', end_time -start_time)
+                print('render time:', end_time -start_time)
         simulation.reset()
         print('NEW EPISODE*********************************')
         done = 0
+
+
+if __name__ == '__main__':
+    # main()
+    # plot_static_path()
+    # plot_and_save_ith_episode_data('./results/2021-03-05-00-00-12', 0)
+    select_and_rename_snapshots_of_an_episode('./results/2021-03-05-19-19-56', 8, 18)
+

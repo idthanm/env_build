@@ -8,6 +8,7 @@
 # =====================================
 
 import datetime
+import shutil
 import json
 import os
 from math import cos, sin, pi
@@ -55,40 +56,30 @@ class HierarchicalDecision(object):
         self.hist_posi = []
         if self.logdir is not None:
             self.episode_counter += 1
-            os.makedirs(self.logdir + '/episode{}'.format(self.episode_counter))
+            os.makedirs(self.logdir + '/episode{}/figs'.format(self.episode_counter))
             self.step_counter = -1
             self.recorder.save(self.logdir)
+            if self.episode_counter >= 1:
+                select_and_rename_snapshots_of_an_episode(self.logdir, self.episode_counter-1, 12)
+                self.recorder.plot_and_save_ith_episode_curves(self.episode_counter-1,
+                                                               self.logdir + '/episode{}/figs'.format(self.episode_counter-1),
+                                                               isshow=False)
         return self.obs
 
-    def safe_shield(self, real_obs, traj):
-        action_bound = 1.0
-        action_safe_set = [[[0, -action_bound]]]
-        real_obs = tf.convert_to_tensor(real_obs[np.newaxis, :])
+    @tf.function
+    def is_safe(self, obs, path_index):
+        self.model.ref_path.set_path(path_index)
+        action = self.policy.run(obs)
+        veh2veh4real = self.model.ss(obs, action)
+        return False if veh2veh4real[0] > 0 else True
+
+    def safe_shield(self, real_obs, path_index):
+        action_safe_set = [[[0., -1.]]]
+        real_obs = tf.convert_to_tensor(real_obs[np.newaxis, :], dtype=tf.float32)
         obs = real_obs
-        self.model.add_traj(obs, traj)
-        total_punishment = 0.0
-        for step in range(3):
-            action = self.policy.run(obs)
-            _, _, _, _, veh2veh4real, _ = self.model.rollout_out(action)
-            total_punishment += veh2veh4real
-        if total_punishment != 0:
-            print('original action will cause collision within three steps!!!')
-            for safe_action in action_safe_set:
-                obs = real_obs
-                total_punishment = 0
-                # for step in range(1):
-                #     obs, veh2veh4real = self.model.safety_calculation(obs, safe_action)
-                #     total_punishment += veh2veh4real
-                #     if veh2veh4real != 0:   # collide
-                #         break
-                # if total_punishment == 0:
-                #     print('found the safe action', safe_action)
-                #     safe_action = np.array(safe_action)
-                #     break
-                # else:
-                #     print('still collide')
-                #     safe_action = self.policy.run(real_obs).numpy().squeeze(0)
-                return np.array(safe_action).squeeze(0)
+        if not self.is_safe(obs, path_index):
+            print('SAFE SHIELD STARTED!')
+            return np.array(action_safe_set[0], dtype=np.float32).squeeze(0)
         else:
             safe_action = self.policy.run(real_obs).numpy()[0]
             return safe_action
@@ -111,11 +102,9 @@ class HierarchicalDecision(object):
             self.obs_real = obs_list[path_index]
 
             # obtain safe action
-            # with self.ss_timer:
-            #     safe_action = self.safe_shield(self.obs_real, path_list[path_index])
-            safe_action = self.policy.run(self.obs_real).numpy()
-
-            print('ALL TIME:', self.step_timer.mean)
+            with self.ss_timer:
+                safe_action = self.safe_shield(self.obs_real, path_index)
+            print('ALL TIME:', self.step_timer.mean, 'ss', self.ss_timer.mean)
         # deal with red light temporally
         # if self.env.v_light != 0 and -25 > self.env.ego_dynamics['y'] > -35 and self.env.training_task != 'right':
         #     scaled_steer = 0.
@@ -293,9 +282,13 @@ class HierarchicalDecision(object):
         plot_phi_line(ego_x, ego_y, ego_phi, 'fuchsia')
         draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'fuchsia')
         self.hist_posi.append((ego_x, ego_y))
-        # plot history data
-        for hist_x, hist_y in self.hist_posi:
-            plt.scatter(hist_x, hist_y, color='fuchsia', alpha=0.1)
+
+        # plot history
+        xs = [pos[0] for pos in self.hist_posi]
+        ys = [pos[1] for pos in self.hist_posi]
+        plt.scatter(np.array(xs), np.array(ys), color='fuchsia', alpha=0.1)
+
+
         # plot future data
         tracking_info = self.obs[
                         self.env.ego_info_dim:self.env.ego_info_dim + self.env.per_tracking_info_dim * (self.env.num_future_data + 1)]
@@ -386,17 +379,19 @@ class HierarchicalDecision(object):
             plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{}.pdf'.format(self.step_counter))
 
 
-def plot_data(logdir, i):
+def plot_and_save_ith_episode_data(logdir, i):
     recorder = Recorder()
     recorder.load(logdir)
-    recorder.plot_ith_episode_curves(i)
+    save_dir = logdir + '/episode{}/figs'.format(i)
+    os.makedirs(save_dir, exist_ok=True)
+    recorder.plot_and_save_ith_episode_curves(i, save_dir, True)
 
 
 def main():
     time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     logdir = './results/{time}'.format(time=time_now)
     os.makedirs(logdir)
-    hier_decision = HierarchicalDecision('left', 'experiment-2021-03-04-16-44-45', 120000, logdir)
+    hier_decision = HierarchicalDecision('left', 'experiment-2021-03-14-17-01-11', 145000, logdir)
 
     for i in range(300):
         done = 0
@@ -497,9 +492,24 @@ def plot_static_path():
     plt.show()
 
 
+def select_and_rename_snapshots_of_an_episode(logdir, epinum, num):
+    file_list = os.listdir(logdir + '/episode{}'.format(epinum))
+    file_num = len(file_list) - 1
+    intervavl = file_num // (num-1)
+    start = file_num % (num-1)
+    print(start, file_num, intervavl)
+    selected = [start//2] + [start//2+intervavl*i-1 for i in range(1, num)]
+    print(selected)
+    if file_num > 0:
+        for i, j in enumerate(selected):
+            shutil.copyfile(logdir + '/episode{}/step{}.pdf'.format(epinum, j),
+                            logdir + '/episode{}/figs/{}.pdf'.format(epinum, i))
+
+
 if __name__ == '__main__':
-    main()
+    # main()
     # plot_static_path()
-    # plot_data('./results/2021-03-03-19-18-38', 1)
+    # plot_and_save_ith_episode_data('./results/2021-03-05-00-00-12', 0)
+    select_and_rename_snapshots_of_an_episode('./results/2021-03-05-16-17-42', 1, 12)
 
 
