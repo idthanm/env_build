@@ -203,7 +203,7 @@ dmypy.json
 .pyre/
 
 
-mpc/mpc_rl.npy
+mpc/mpc.npy
 test.py
 test_sumo.py
 end_to_end_test.py
