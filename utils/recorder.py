@@ -8,7 +8,6 @@
 # =====================================
 import numpy as np
 import seaborn as sns
-import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.pyplot as ticker
 from matplotlib.pyplot import MultipleLocator
@@ -35,8 +34,7 @@ class Recorder(object):
                               ref_index='Selected path',
                               beta='Side slip angle[$\circ$]',
                               path_values='Path value',
-                              is_ss='Safety shield')
-                              beta='Side slip angle[$\circ$]')
+                              is_ss='Safety shield',)
 
         self.comp2record = ['v_x', 'v_y', 'r', 'x', 'y', 'phi', 'adp_steer', 'adp_a_x', 'mpc_steer', 'mpc_a_x',
                             'delta_y', 'delta_v', 'delta_phi', 'adp_time', 'mpc_time', 'adp_ref', 'mpc_ref', 'beta']
@@ -162,18 +160,22 @@ class Recorder(object):
                     plt.ylim([-0.8, 0.8])
                 elif key == 'path_values':
                     path_values = data_dict[key]
-                    df1 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 0], path_index='Ref 1'))
-                    df2 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 1], path_index='Ref 2'))
-                    df3 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 2], path_index='Ref 3'))
+                    df1 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 0], path_index='Path 1'))
+                    df2 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 1], path_index='Path 2'))
+                    df3 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 2], path_index='Path 3'))
                     total_dataframe = df1.append([df2, df3], ignore_index=True)
                     ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
                     sns.lineplot('time', 'data', linewidth=2, hue='path_index',
                                  data=total_dataframe, palette="bright", color='indigo')
+                    handles, labels = ax.get_legend_handles_labels()
+                    ax.legend(handles=handles, labels=labels, loc='lower left', frameon=False)
+                    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
                 elif key == 'is_ss':
                     df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
                     ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
                     sns.lineplot('time', 'data', linewidth=2,
                                  data=df, palette="bright", color='indigo')
+                    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
                 else:
                     ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
                     sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
