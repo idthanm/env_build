@@ -36,14 +36,16 @@ dirname = os.path.dirname(__file__)
 
 class MultiEgo(object):
     def __init__(self, init_n_ego_dict):  # init_n_ego_dict is used to init traffic (mainly) and ego dynamics
-        self.TASK2MODEL = dict(left=LoadPolicy('../utils/models/left', 100000),
-                               straight=LoadPolicy('../utils/models/straight', 95000),
-                               right=LoadPolicy('../utils/models/right', 145000),)
+        self.TASK2MODEL = dict(left=LoadPolicy('../utils/models/left/experiment-2021-03-15-16-39-00', 180000),
+                               straight=LoadPolicy('../utils/models/straight/experiment-2021-03-14-17-47-43', 180000),
+                               right=LoadPolicy('../utils/models/right/experiment-2021-03-14-17-47-17', 180000),)
         self.n_ego_instance = {}
         self.n_ego_dynamics = {}
         self.n_ego_select_index = {}
         for egoID, ego_dict in init_n_ego_dict.items():
-            self.n_ego_instance[egoID] = CrossroadEnd2end(training_task=NAME2TASK[egoID[:2]], display=True)
+            self.n_ego_instance[egoID] = CrossroadEnd2end(training_task=NAME2TASK[egoID[:2]],
+                                                          mode='testing',
+                                                          multi_display=True)
 
         self.mpp = MultiPathGenerator()
         self.virtual_model = dict(left=EnvironmentModel(training_task='left', mode='selecting'),
@@ -90,24 +92,24 @@ class MultiEgo(object):
                 obs = self.n_ego_instance[egoID]._get_obs(exit_=egoID[0])
                 obs_list.append(obs)
             all_obs = tf.stack(obs_list, axis=0)
-            path_values = self.TASK2MODEL[task].values(all_obs)
+            path_values = self.TASK2MODEL[task].obj_value_batch(all_obs).numpy()
             # select and safety shield
-            path_index = int(np.argmax(path_values[:, 0]))
+            path_index = int(np.argmin(path_values))
             # select
             # temp = path_values[:, 0]
             # if task == 'right':
             #     temp = path_values[:, 0] + np.array([170, 0, 0])
             # path_index = np.argmax(temp)
             self.n_ego_select_index[egoID] = path_index
-            # self.n_ego_instance[egoID].render(traj_list, traj_return_value, path_index, feature_points)
             self.obs_real = obs_list[path_index]
 
             # safe shield
-            if v_light_trans == 0:
-                # safe_action = self.safe_shield(self.obs_real, traj_list[path_index], egoID, task)
-                safe_action = self.TASK2MODEL[task].run(self.obs_real).numpy()
-            else:
-                safe_action = self.TASK2MODEL[task].run(self.obs_real).numpy()
+            safe_action = self.safe_shield(self.obs_real, path_index, egoID, task)
+            # if v_light_trans == 0:
+            #     # safe_action = self.safe_shield(self.obs_real, traj_list[path_index], egoID, task)
+            #     safe_action = self.TASK2MODEL[task].run(self.obs_real).numpy()
+            # else:
+            #     safe_action = self.TASK2MODEL[task].run(self.obs_real).numpy()
             action_trans = self.n_ego_instance[egoID]._action_transformation_for_end2end(safe_action)
             next_ego_state, next_ego_params = self.n_ego_instance[egoID]._get_next_ego_state(action_trans)
             next_ego_dynamics = self.n_ego_instance[egoID]._get_ego_dynamics(next_ego_state, next_ego_params)
@@ -124,7 +126,7 @@ class MultiEgo(object):
             n_ego_done[egoID] = [collision_flag, is_achieve_goal]
         return n_ego_done
 
-    def safe_shield(self, real_obs, traj, egoID, task=None):
+    def safe_shield_old(self, real_obs, traj, egoID, task=None):
         action_bound = 1.0
         action_safe_set = ([[0., -action_bound]], [[-action_bound, -action_bound]], [[-action_bound, action_bound]],
                            [[action_bound, -action_bound]], [[action_bound, action_bound]])
@@ -170,6 +172,25 @@ class MultiEgo(object):
         else:
             sa = self.TASK2MODEL[task].run(real_obs).numpy().squeeze(0)
         return sa
+
+    @tf.function
+    def is_safe(self, obs, path_index, task):
+        model = self.virtual_model[task]
+        policy = self.TASK2MODEL[task]
+        model.ref_path.set_path(path_index)
+        action = policy.run_batch(obs)
+        veh2veh4real = model.ss(obs, action)
+        return False if veh2veh4real[0] > 0 else True
+
+    def safe_shield(self, real_obs, path_index, egoID, task=None):
+        action_safe_set = ([[0., -1.]],)
+        real_obs = tf.convert_to_tensor(real_obs[np.newaxis, :], dtype=tf.float32)
+        obs = real_obs
+        if not self.is_safe(obs, path_index, task):
+            print('SAFETY SHIELD STARTED!')
+            return np.array(action_safe_set[0], dtype=np.float32).squeeze(0)
+        else:
+            return self.TASK2MODEL[task].run_batch(real_obs).numpy().squeeze(0)
 
 
 class Simulation(object):
@@ -456,8 +477,8 @@ def main():
 
 
 if __name__ == '__main__':
-    # main()
+    main()
     # plot_static_path()
     # plot_and_save_ith_episode_data('./results/2021-03-05-00-00-12', 0)
-    select_and_rename_snapshots_of_an_episode('./results/2021-03-05-19-19-56', 8, 18)
+    # select_and_rename_snapshots_of_an_episode('./results/2021-03-05-19-19-56', 8, 18)
 

@@ -33,21 +33,21 @@ class LoadPolicy(object):
                                          self.args.obs_scale, self.args.reward_scale, self.args.reward_shift,
                                          gamma=self.args.gamma)
         # self.preprocessor.load_params(load_dir)
-        init_obs = env.reset()
-        self.run(init_obs)
-        self.obj_value(init_obs)
+        # init_obs = env.reset()
+        # self.run(init_obs)
+        # self.obj_value(init_obs)
 
-    @tf.function
-    def run(self, obs):
-        processed_obs = self.preprocessor.np_process_obses(obs)
-        action, _ = self.policy.compute_action(processed_obs[np.newaxis, :])
-        return action[0]
-
-    @tf.function
-    def obj_value(self, obs):
-        processed_obs = self.preprocessor.np_process_obses(obs)
-        value = self.policy.compute_obj_v(processed_obs[np.newaxis, :])
-        return value
+    # @tf.function
+    # def run(self, obs):
+    #     processed_obs = self.preprocessor.np_process_obses(obs)
+    #     action, _ = self.policy.compute_action(processed_obs[np.newaxis, :])
+    #     return action[0]
+    #
+    # @tf.function
+    # def obj_value(self, obs):
+    #     processed_obs = self.preprocessor.np_process_obses(obs)
+    #     value = self.policy.compute_obj_v(processed_obs[np.newaxis, :])
+    #     return value
 
     @tf.function
     def run_batch(self, obses):

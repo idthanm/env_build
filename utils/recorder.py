@@ -22,10 +22,10 @@ class Recorder(object):
     def __init__(self):
         self.val2record = ['v_x', 'v_y', 'r', 'x', 'y', 'phi',
                            'steer', 'a_x', 'delta_y', 'delta_v', 'delta_phi',
-                           'cal_time', 'ref_index', 'beta', 'path_values', 'ss_time']
+                           'cal_time', 'ref_index', 'beta', 'path_values', 'ss_time', 'is_ss']
         self.val2plot = ['v_x', 'r',
                          'steer', 'a_x',
-                         'cal_time', 'ref_index', 'beta']
+                         'cal_time', 'ref_index', 'beta', 'path_values', 'is_ss']
         self.key2label = dict(v_x='Velocity [m/s]',
                               r='Yaw rate [rad/s]',
                               steer='Steer angle [$\circ$]',
@@ -33,7 +33,9 @@ class Recorder(object):
                               # a_x='Acceleration [$m/s^2$]',
                               cal_time='Computing time [ms]',
                               ref_index='Selected path',
-                              beta='Side slip angle[$\circ$]')
+                              beta='Side slip angle[$\circ$]',
+                              path_values='Path value',
+                              is_ss='Safety shield')
         self.ego_info_dim = 6
         self.per_tracking_info_dim = 3
         self.num_future_data = 0
@@ -45,7 +47,7 @@ class Recorder(object):
             self.data_across_all_episodes.append(self.val_list_for_an_episode)
         self.val_list_for_an_episode = []
 
-    def record(self, obs, act, cal_time, ref_index, path_values, ss_time):
+    def record(self, obs, act, cal_time, ref_index, path_values, ss_time, is_ss):
         ego_info, tracking_info, _ = obs[:self.ego_info_dim], \
                                      obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
                                                self.num_future_data + 1)], \
@@ -61,7 +63,7 @@ class Recorder(object):
         beta = 0 if v_x == 0 else np.arctan(v_y/v_x) * 180 / math.pi
         steer = steer * 180 / math.pi
         self.val_list_for_an_episode.append(np.array([v_x, v_y, r, x, y, phi, steer, a_x, delta_y,
-                                        delta_phi, delta_v, cal_time, ref_index, beta, path_values, ss_time]))
+                                        delta_phi, delta_v, cal_time, ref_index, beta, path_values, ss_time, is_ss]))
 
     def save(self, logdir):
         np.save(logdir + '/data_across_all_episodes.npy', np.array(self.data_across_all_episodes))
@@ -129,6 +131,20 @@ class Recorder(object):
                     sns.lineplot('time', 'data_smo', linewidth=2,
                                  data=df, palette="bright", color='indigo')
                     plt.ylim([-0.8, 0.8])
+                elif key == 'path_values':
+                    path_values = data_dict[key]
+                    df1 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 0], path_index='Ref 1'))
+                    df2 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 1], path_index='Ref 2'))
+                    df3 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 2], path_index='Ref 3'))
+                    total_dataframe = df1.append([df2, df3], ignore_index=True)
+                    ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
+                    sns.lineplot('time', 'data', linewidth=2, hue='path_index',
+                                 data=total_dataframe, palette="bright", color='indigo')
+                elif key == 'is_ss':
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
+                    ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
+                    sns.lineplot('time', 'data', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
                 else:
                     ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
                     sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
