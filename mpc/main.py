@@ -575,7 +575,7 @@ def run_mpc():
                 obs, reward, done, info = env.step(mpc_action[:2])
                 mpc.reset_init_x(obs, env.ref_path.ref_index)
                 env.render()
-            # np.save('mpc_rl.npy', np.array(data2plot))
+            # np.save('mpc.npy', np.array(data2plot))
 
 
 if __name__ == '__main__':
