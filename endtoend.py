@@ -47,9 +47,9 @@ class CrossroadEnd2end(gym.Env):
     def __init__(self,
                  training_task,  # 'left', 'straight', 'right'
                  num_future_data=0,
-                 display=False,
+                 mode='training',
+                 multi_display=False,
                  **kwargs):
-        metadata = {'render.modes': ['human']}
         self.dynamics = VehicleDynamics()
         self.interested_vehs = None
         self.training_task = training_task
@@ -82,7 +82,8 @@ class CrossroadEnd2end(gym.Env):
         self.ego_info_dim = None
         self.per_tracking_info_dim = None
         self.per_veh_info_dim = None
-        if not display:
+        self.mode = mode
+        if not multi_display:
             self.traffic = Traffic(self.step_length,
                                    mode='training',
                                    init_n_ego_dict=self.init_state,
@@ -118,8 +119,11 @@ class CrossroadEnd2end(gym.Env):
         self.action = None
         self.reward_info = None
         self.done_type = 'not_done_yet'
-        if np.random.random() > 0.9:
-            self.virtual_red_light_vehicle = True
+        if self.mode == 'training':
+            if np.random.random() > 0.9:
+                self.virtual_red_light_vehicle = True
+            else:
+                self.virtual_red_light_vehicle = False
         else:
             self.virtual_red_light_vehicle = False
         return self.obs
