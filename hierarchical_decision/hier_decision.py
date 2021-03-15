@@ -66,35 +66,20 @@ class HierarchicalDecision(object):
                                                                isshow=False)
         return self.obs
 
-    def safe_shield(self, real_obs, traj):
-        action_bound = 1.0
-        action_safe_set = [[[0, -action_bound]]]
-        real_obs = tf.convert_to_tensor(real_obs[np.newaxis, :])
+    @tf.function
+    def is_safe(self, obs, path_index):
+        self.model.ref_path.set_path(path_index)
+        action = self.policy.run(obs)
+        veh2veh4real = self.model.ss(obs, action)
+        return False if veh2veh4real[0] > 0 else True
+
+    def safe_shield(self, real_obs, path_index):
+        action_safe_set = [[[0., -1.]]]
+        real_obs = tf.convert_to_tensor(real_obs[np.newaxis, :], dtype=tf.float32)
         obs = real_obs
-        self.model.add_traj(obs, traj)
-        total_punishment = 0.0
-        for step in range(3):
-            action = self.policy.run(obs)
-            _, _, _, _, veh2veh4real, _ = self.model.rollout_out(action)
-            total_punishment += veh2veh4real
-        if total_punishment != 0:
-            print('original action will cause collision within three steps!!!')
-            for safe_action in action_safe_set:
-                obs = real_obs
-                total_punishment = 0
-                # for step in range(1):
-                #     obs, veh2veh4real = self.model.safety_calculation(obs, safe_action)
-                #     total_punishment += veh2veh4real
-                #     if veh2veh4real != 0:   # collide
-                #         break
-                # if total_punishment == 0:
-                #     print('found the safe action', safe_action)
-                #     safe_action = np.array(safe_action)
-                #     break
-                # else:
-                #     print('still collide')
-                #     safe_action = self.policy.run(real_obs).numpy().squeeze(0)
-                return np.array(safe_action).squeeze(0)
+        if not self.is_safe(obs, path_index):
+            print('SAFE SHIELD STARTED!')
+            return np.array(action_safe_set[0], dtype=np.float32).squeeze(0)
         else:
             safe_action = self.policy.run(real_obs).numpy()[0]
             return safe_action
@@ -117,11 +102,9 @@ class HierarchicalDecision(object):
             self.obs_real = obs_list[path_index]
 
             # obtain safe action
-            # with self.ss_timer:
-            #     safe_action = self.safe_shield(self.obs_real, path_list[path_index])
-            safe_action = self.policy.run(self.obs_real).numpy()
-
-            print('ALL TIME:', self.step_timer.mean)
+            with self.ss_timer:
+                safe_action = self.safe_shield(self.obs_real, path_index)
+            print('ALL TIME:', self.step_timer.mean, 'ss', self.ss_timer.mean)
         # deal with red light temporally
         # if self.env.v_light != 0 and -25 > self.env.ego_dynamics['y'] > -35 and self.env.training_task != 'right':
         #     scaled_steer = 0.
@@ -408,7 +391,7 @@ def main():
     time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     logdir = './results/{time}'.format(time=time_now)
     os.makedirs(logdir)
-    hier_decision = HierarchicalDecision('left', 'experiment-2021-03-04-16-44-45', 120000, logdir)
+    hier_decision = HierarchicalDecision('left', 'experiment-2021-03-14-17-01-11', 145000, logdir)
 
     for i in range(300):
         done = 0

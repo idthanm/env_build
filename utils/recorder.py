@@ -12,7 +12,10 @@ import matplotlib.pyplot as plt
 import matplotlib.pyplot as ticker
 from matplotlib.pyplot import MultipleLocator
 import math
+import pandas as pd
 sns.set(style="darkgrid")
+
+WINDOWSIZE = 15
 
 
 class Recorder(object):
@@ -85,29 +88,46 @@ class Recorder(object):
                     # ax.xaxis.set_major_locator(x_major_locator)
                     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
                 elif key == 'v_x':
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
+                    df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
                     ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
+                    sns.lineplot('time', 'data_smo', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
                     plt.ylim([-0.5, 10.])
                 elif key == 'cal_time':
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key] * 1000))
+                    df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
                     ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
-                    sns.lineplot(real_time, data_dict[key] * 1000, linewidth=2, palette="bright", color='indigo')
+                    sns.lineplot('time', 'data_smo', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
                     plt.ylim([0, 10])
                 elif key == 'a_x':
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
+                    df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
                     ax = f.add_axes([0.14, 0.12, 0.86, 0.86])
-                    sns.lineplot(real_time, np.clip(data_dict[key], -3.0, 1.5), linewidth=2, palette="bright", color='indigo')
-                    # sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
+                    sns.lineplot('time', 'data_smo', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
                     plt.ylim([-4.5, 2.0])
                 elif key == 'steer':
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
+                    df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
                     ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
+                    sns.lineplot('time', 'data_smo', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
                     plt.ylim([-25, 25])
                 elif key == 'beta':
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
+                    df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
                     ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
+                    sns.lineplot('time', 'data_smo', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
                     plt.ylim([-15, 15])
                 elif key == 'r':
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
+                    df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
                     ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
+                    sns.lineplot('time', 'data_smo', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
                     plt.ylim([-0.8, 0.8])
                 else:
                     ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
