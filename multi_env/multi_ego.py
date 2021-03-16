@@ -108,21 +108,10 @@ class MultiEgo(object):
             path_values = self.TASK2MODEL[task].obj_value_batch(all_obs).numpy()
             # select and safety shield
             path_index = int(np.argmin(path_values))
-            # select
-            # temp = path_values[:, 0]
-            # if task == 'right':
-            #     temp = path_values[:, 0] + np.array([170, 0, 0])
-            # path_index = np.argmax(temp)
             self.n_ego_select_index[egoID] = path_index
             self.obs_real = obs_list[path_index]
-
             # safe shield
             safe_action = self.safe_shield(self.obs_real, path_index, egoID, task)
-            # if v_light_trans == 0:
-            #     # safe_action = self.safe_shield(self.obs_real, traj_list[path_index], egoID, task)
-            #     safe_action = self.TASK2MODEL[task].run(self.obs_real).numpy()
-            # else:
-            #     safe_action = self.TASK2MODEL[task].run(self.obs_real).numpy()
             action_trans = self.n_ego_instance[egoID]._action_transformation_for_end2end(safe_action)
             next_ego_state, next_ego_params = self.n_ego_instance[egoID]._get_next_ego_state(action_trans)
             next_ego_dynamics = self.n_ego_instance[egoID]._get_ego_dynamics(next_ego_state, next_ego_params)
@@ -201,7 +190,7 @@ class MultiEgo(object):
         policy = self.TASK2MODEL[task]
         model.add_traj(obs, path_index)
         punish = 0.
-        for step in range(10):
+        for step in range(20):
             action = policy.run_batch(obs)
             obs, _, _, real_punish_term, _, _ = model.rollout_out(action)
             punish += real_punish_term[0]
@@ -499,8 +488,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # main()
     # plot_static_path()
-    # plot_and_save_ith_episode_data('./results/2021-03-05-00-00-12', 0)
-    # select_and_rename_snapshots_of_an_episode('./results/2021-03-05-19-19-56', 8, 18)
+    # plot_and_save_ith_episode_data('./results/good/2021-03-16-13-58-03', 9)
+    select_and_rename_snapshots_of_an_episode('./results/good/2021-03-16-14-35-17', 0, 18)
 
