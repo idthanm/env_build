@@ -14,8 +14,6 @@ from math import cos, sin, pi
 import gym
 import matplotlib.pyplot as plt
 import numpy as np
-import tensorflow as tf
-from tensorflow import logical_and
 from gym.utils import seeding
 
 # gym.envs.user_defined.toyota_env.
@@ -85,7 +83,7 @@ class CrossroadEnd2end(gym.Env):
         self.mode = mode
         if not multi_display:
             self.traffic = Traffic(self.step_length,
-                                   mode='training',
+                                   mode=self.mode,
                                    init_n_ego_dict=self.init_state,
                                    training_task=self.training_task)
             self.reset()

@@ -208,7 +208,6 @@ test.py
 test_sumo.py
 end_to_end_test.py
 
-/utils/models/
 /hierarchical_decision/
 /mpc/rl_experiments/
 /multi_env/models/
@@ -220,4 +219,6 @@ SearchImage/.idea/workspace.xml
 SearchImage/.idea/vcs.xml
 SearchImage/.idea/
 /multi_env/results/
-/multi_env/results/
+/utils/models/left
+/utils/models/right
+/utils/models/straight
