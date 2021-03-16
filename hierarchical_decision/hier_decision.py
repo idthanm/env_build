@@ -9,6 +9,7 @@
 
 import datetime
 import shutil
+import time
 import json
 import os
 from math import cos, sin, pi
@@ -36,7 +37,7 @@ class HierarchicalDecision(object):
         self.episode_counter = -1
         self.step_counter = -1
         self.obs = None
-        self.stg = None
+        self.stg = MultiPathGenerator()
         self.step_timer = TimerStat()
         self.ss_timer = TimerStat()
         self.logdir = logdir
@@ -48,11 +49,21 @@ class HierarchicalDecision(object):
         plt.ion()
         self.hist_posi = []
         self.old_index = 0
+        self.path_list = self.stg.generate_path(self.task)
+        # ------------------build graph for tf.function in advance-----------------------
+        for i in range(3):
+            obs = self.env.reset()
+            obs = tf.convert_to_tensor(obs[np.newaxis, :], dtype=tf.float32)
+            self.is_safe(obs, i)
+        obs = self.env.reset()
+        obs_with_specific_shape = np.tile(obs, (3, 1))
+        self.policy.run_batch(obs_with_specific_shape)
+        self.policy.obj_value_batch(obs_with_specific_shape)
+        # ------------------build graph for tf.function in advance-----------------------
         self.reset()
 
     def reset(self,):
         self.obs = self.env.reset()
-        self.stg = MultiPathGenerator()
         self.recorder.reset()
         self.old_index = 0
         self.hist_posi = []
@@ -68,12 +79,22 @@ class HierarchicalDecision(object):
                                                                isshow=False)
         return self.obs
 
+    # @tf.function
+    # def is_safe(self, obs, path_index):
+    #     self.model.ref_path.set_path(path_index)
+    #     action = self.policy.run_batch(obs)
+    #     veh2veh4real = self.model.ss(obs, action, lam=0.1)
+    #     return False if veh2veh4real[0] > 0 else True
+
     @tf.function
     def is_safe(self, obs, path_index):
-        self.model.ref_path.set_path(path_index)
-        action = self.policy.run_batch(obs)
-        veh2veh4real = self.model.ss(obs, action, lam=0.1)
-        return False if veh2veh4real[0] > 0 else True
+        self.model.add_traj(obs, path_index)
+        punish = 0.
+        for step in range(5):
+            action = self.policy.run_batch(obs)
+            obs, _, _, _, veh2veh4real, _ = self.model.rollout_out(action)
+            punish += veh2veh4real[0]
+        return False if punish > 0 else True
 
     def safe_shield(self, real_obs, path_index):
         action_safe_set = [[[0., -1.]]]
@@ -88,11 +109,9 @@ class HierarchicalDecision(object):
     def step(self):
         self.step_counter += 1
         with self.step_timer:
-            path_list = self.stg.generate_path(self.task)
             obs_list = []
-
             # select optimal path
-            for path in path_list:
+            for path in self.path_list:
                 self.env.set_traj(path)
                 obs_list.append(self.env._get_obs())
             all_obs = tf.stack(obs_list, axis=0)
@@ -102,14 +121,14 @@ class HierarchicalDecision(object):
             path_index = self.old_index if old_value - new_value < 0.1 else new_index
             self.old_index = path_index
 
-            self.env.set_traj(path_list[path_index])
+            self.env.set_traj(self.path_list[path_index])
             self.obs_real = obs_list[path_index]
 
             # obtain safe action
             with self.ss_timer:
                 safe_action, is_ss = self.safe_shield(self.obs_real, path_index)
             print('ALL TIME:', self.step_timer.mean, 'ss', self.ss_timer.mean)
-        self.render(path_list, path_values, path_index)
+        self.render(self.path_list, path_values, path_index)
         self.recorder.record(self.obs_real, safe_action, self.step_timer.mean,
                              path_index, path_values, self.ss_timer.mean, is_ss)
         self.obs, r, done, info = self.env.step(safe_action)
@@ -503,9 +522,9 @@ def select_and_rename_snapshots_of_an_episode(logdir, epinum, num):
 
 
 if __name__ == '__main__':
-    # main()
+    main()
     # plot_static_path()
-    plot_and_save_ith_episode_data('./results/2021-03-15-20-34-38', 1)
-    # select_and_rename_snapshots_of_an_episode('./results/2021-03-05-16-17-42', 1, 12)
+    # plot_and_save_ith_episode_data('./results/good/2021-03-15-23-56-21', 0)
+    # select_and_rename_snapshots_of_an_episode('./results/good/2021-03-15-23-56-21', 0, 12)
 
 

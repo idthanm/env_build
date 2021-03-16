@@ -33,9 +33,9 @@ class LoadPolicy(object):
                                          self.args.obs_scale, self.args.reward_scale, self.args.reward_shift,
                                          gamma=self.args.gamma)
         # self.preprocessor.load_params(load_dir)
-        # init_obs = env.reset()
-        # self.run(init_obs)
-        # self.obj_value(init_obs)
+        init_obs = env.reset()
+        self.run_batch(init_obs[np.newaxis, :])
+        self.obj_value_batch(init_obs[np.newaxis, :])
 
     # @tf.function
     # def run(self, obs):

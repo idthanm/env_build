@@ -37,8 +37,8 @@ dirname = os.path.dirname(__file__)
 class MultiEgo(object):
     def __init__(self, init_n_ego_dict):  # init_n_ego_dict is used to init traffic (mainly) and ego dynamics
         self.TASK2MODEL = dict(left=LoadPolicy('../utils/models/left/experiment-2021-03-15-16-39-00', 180000),
-                               straight=LoadPolicy('../utils/models/straight/experiment-2021-03-14-17-47-43', 180000),
-                               right=LoadPolicy('../utils/models/right/experiment-2021-03-14-17-47-17', 180000),)
+                               straight=LoadPolicy('../utils/models/straight/experiment-2021-03-15-19-16-13', 175000),
+                               right=LoadPolicy('../utils/models/right/experiment-2021-03-15-21-02-51', 195000),)
         self.n_ego_instance = {}
         self.n_ego_dynamics = {}
         self.n_ego_select_index = {}
@@ -52,6 +52,19 @@ class MultiEgo(object):
                                   straight=EnvironmentModel(training_task='straight', mode='selecting'),
                                   right=EnvironmentModel(training_task='right', mode='selecting'))
 
+        # ------------------build graph for tf.function in advance-----------------------
+        for task in ['left', 'straight', 'right']:
+            env = CrossroadEnd2end(training_task=task, mode='testing', multi_display=False)
+            for i in range(3):
+                obs = env.reset()
+                obs = tf.convert_to_tensor(obs[np.newaxis, :], dtype=tf.float32)
+                self.is_safe(obs, i, task)
+            obs = env.reset()
+            obs_with_specific_shape = np.tile(obs, (3, 1))
+            self.TASK2MODEL[task].run_batch(obs_with_specific_shape)
+            self.TASK2MODEL[task].obj_value_batch(obs_with_specific_shape)
+            env.close()
+        # ------------------build graph for tf.function in advance-----------------------
         self.reset(init_n_ego_dict)
 
     def reset(self, init_n_ego_dict):
@@ -173,21 +186,33 @@ class MultiEgo(object):
             sa = self.TASK2MODEL[task].run(real_obs).numpy().squeeze(0)
         return sa
 
+    # @tf.function
+    # def is_safe(self, obs, path_index, task):
+    #     model = self.virtual_model[task]
+    #     policy = self.TASK2MODEL[task]
+    #     model.ref_path.set_path(path_index)
+    #     action = policy.run_batch(obs)
+    #     veh2veh4real = model.ss(obs, action)
+    #     return False if veh2veh4real[0] > 0 else True
+
     @tf.function
     def is_safe(self, obs, path_index, task):
         model = self.virtual_model[task]
         policy = self.TASK2MODEL[task]
-        model.ref_path.set_path(path_index)
-        action = policy.run_batch(obs)
-        veh2veh4real = model.ss(obs, action)
-        return False if veh2veh4real[0] > 0 else True
+        model.add_traj(obs, path_index)
+        punish = 0.
+        for step in range(10):
+            action = policy.run_batch(obs)
+            obs, _, _, real_punish_term, _, _ = model.rollout_out(action)
+            punish += real_punish_term[0]
+        return False if punish > 0 else True
 
     def safe_shield(self, real_obs, path_index, egoID, task=None):
         action_safe_set = ([[0., -1.]],)
         real_obs = tf.convert_to_tensor(real_obs[np.newaxis, :], dtype=tf.float32)
         obs = real_obs
         if not self.is_safe(obs, path_index, task):
-            print('SAFETY SHIELD STARTED!')
+            print(egoID + ': SAFETY SHIELD STARTED!')
             return np.array(action_safe_set[0], dtype=np.float32).squeeze(0)
         else:
             return self.TASK2MODEL[task].run_batch(real_obs).numpy().squeeze(0)
@@ -236,10 +261,7 @@ class Simulation(object):
         current_n_ego_vehicles = self.traffic.n_ego_vehicles
         current_v_light = self.traffic.v_light
         current_n_ego_collision_flag = self.traffic.n_ego_collision_flag
-        start_time = time.time()
         next_n_ego_dynamics = self.multiego.get_next_n_ego_dynamics(current_n_ego_vehicles, current_v_light)
-        end_time = time.time()
-        # print('Time for all vehicles:', end_time - start_time)
         n_ego_done = self.multiego.judge_n_ego_done(current_n_ego_collision_flag)
         for egoID, flag_list in n_ego_done.items():
             if flag_list[0]:

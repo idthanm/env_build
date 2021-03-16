@@ -111,9 +111,9 @@ class EnvironmentModel(object):  # all tensors
         self.actions = None
         self.reward_info = None
 
-    def add_traj(self, obses, trajectory):
+    def add_traj(self, obses, path_index):
         self.obses = obses
-        self.ref_path = trajectory
+        self.ref_path.set_path(path_index)
 
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
@@ -156,6 +156,8 @@ class EnvironmentModel(object):  # all tensors
         veh2veh4real = tf.zeros_like(veh_infos[:, 0])
         for veh_index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):
             vehs = veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
+            ego2veh_dist = tf.sqrt(tf.square(ego_infos[:, 3] - vehs[:, 0]) + tf.square(ego_infos[:, 4] - vehs[:, 1]))
+
             next_vehs = next_veh_infos[:, veh_index * self.per_veh_info_dim:(veh_index + 1) * self.per_veh_info_dim]
 
             veh_lws = (L - W) / 2.
@@ -177,7 +179,7 @@ class EnvironmentModel(object):  # all tensors
                         tf.square(ego_point[1][0] - veh_point[1][0]) + tf.square(ego_point[1][1] - veh_point[1][1]))
                     next_g = next_veh2veh_dist - 2.5
                     g = veh2veh_dist - 2.5
-                    veh2veh4real += tf.where(next_g - (1-lam)*g < 0, tf.square(next_g - (1-lam)*g),
+                    veh2veh4real += tf.where(logical_and(next_g - (1-lam)*g < 0, ego2veh_dist < 10), tf.square(next_g - (1-lam)*g),
                                              tf.zeros_like(veh_infos[:, 0]))
         return veh2veh4real
 
