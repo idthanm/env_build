@@ -9,7 +9,7 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-import matplotlib.pyplot as ticker
+import matplotlib.patches as patches
 from matplotlib.pyplot import MultipleLocator
 import math
 import pandas as pd
@@ -115,7 +115,7 @@ class Recorder(object):
                     plt.ylim([0.5, 3.5])
                     x_major_locator = MultipleLocator(10)
                     # ax.xaxis.set_major_locator(x_major_locator)
-                    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+                    ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
                 elif key == 'v_x':
                     df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
                     df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
@@ -169,16 +169,22 @@ class Recorder(object):
                                  data=total_dataframe, palette="bright", color='indigo')
                     handles, labels = ax.get_legend_handles_labels()
                     ax.legend(handles=handles, labels=labels, loc='lower left', frameon=False)
-                    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+                    ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
                 elif key == 'is_ss':
                     df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
                     ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
                     sns.lineplot('time', 'data', linewidth=2,
                                  data=df, palette="bright", color='indigo')
-                    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+                    ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
                 else:
                     ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
                     sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
+
+                # for a specific simu with red light
+                # ylim = ax.get_ylim()
+                # ax.add_patch(patches.Rectangle((0, ylim[0]), 5, ylim[1]-ylim[0], facecolor='red', alpha=0.1))
+                # ax.add_patch(patches.Rectangle((5, ylim[0]), 3, ylim[1]-ylim[0], facecolor='orange', alpha=0.1))
+                # ax.add_patch(patches.Rectangle((8, ylim[0]), 23.6-8+1, ylim[1]-ylim[0], facecolor='green', alpha=0.1))
 
                 ax.set_ylabel(self.key2label[key], fontsize=15)
                 ax.set_xlabel("Time [s]", fontsize=15)
@@ -252,7 +258,7 @@ class Recorder(object):
         ax4.lines[1].set_linestyle("--")
         ax4.set_ylabel('Selected path', fontsize=15)
         ax4.set_xlabel("Time[s]", fontsize=15)
-        ax4.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+        ax4.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
         ax4.legend(frameon=False, fontsize=15)
         # plt.xlim(0, 3)
         # plt.ylim(-40, 80)
