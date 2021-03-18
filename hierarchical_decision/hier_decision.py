@@ -100,16 +100,17 @@ class HierarchicalDecision(object):
             obs_list = []
 
             # select optimal path
-            for path in path_list:
-                self.env.set_traj(path)
-                obs_list.append(self.env._get_obs())
-            all_obs = tf.stack(obs_list, axis=0)
-            path_values = self.policy.obj_value_batch(all_obs).numpy()
-            path_index = int(np.argmax(path_values))
-
-            self.env.set_traj(path_list[path_index])
-            self.obs_real = obs_list[path_index]
-
+            # for path in path_list:
+            #     self.env.set_traj(path)
+            #     obs_list.append(self.env._get_obs())
+            # all_obs = tf.stack(obs_list, axis=0)
+            # path_values = self.policy.values(all_obs).numpy().squeeze()
+            # path_index = int(np.argmax(path_values[:, 0]))
+            # # print(path_values[:, 0])
+            #
+            # self.env.set_traj(path_list[path_index])
+            # self.obs_real = obs_list[path_index]
+            self.obs_real = self.env._get_obs()
             # obtain safe action
             # with self.ss_timer:
             #     safe_action = self.safe_shield(self.obs_real, path_list[path_index])
@@ -124,13 +125,13 @@ class HierarchicalDecision(object):
         #     else:
         #         scaled_a_x = np.random.uniform(-0.6, -0.4)
         #     safe_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
-        self.render(path_list, path_values, path_index)
+        self.render()
         self.recorder.record(self.obs_real, safe_action, self.step_timer.mean,
-                             path_index, path_values, self.ss_timer.mean)
+                             ) # path_index, path_values, self.ss_timer.mean
         self.obs, r, done, info = self.env.step(safe_action)
         return done
 
-    def render(self, traj_list, path_values, path_index):
+    def render(self):
         square_length = CROSSROAD_SIZE
         extension = 40
         lane_width = LANE_WIDTH
@@ -313,19 +314,19 @@ class HierarchicalDecision(object):
         # plt.plot(path_x, path_y, 'g.')
         delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
 
-        # plot real time traj
-        try:
-            color = ['blue', 'coral', 'darkcyan']
-            for i, item in enumerate(traj_list):
-                if i == path_index:
-                    plt.plot(item.path[0], item.path[1], color=color[i])
-                else:
-                    plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
-                indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
-                path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-                plt.plot(path_x, path_y, color=color[i])
-        except Exception:
-            pass
+        # # plot real time traj
+        # try:
+        #     color = ['blue', 'coral', 'darkcyan']
+        #     for i, item in enumerate(traj_list):
+        #         if i == path_index:
+        #             plt.plot(item.path[0], item.path[1], color=color[i])
+        #         else:
+        #             plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
+        #         indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
+        #         path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+        #         plt.plot(path_x, path_y, color=color[i])
+        # except Exception:
+        #     pass
 
         # text
         # text_x, text_y_start = -120, 60
@@ -382,8 +383,8 @@ class HierarchicalDecision(object):
         #                      color=color[i], fontstyle='italic')
         plt.show()
         plt.pause(0.001)
-        if self.logdir is not None:
-            plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{}.pdf'.format(self.step_counter))
+        # if self.logdir is not None:
+        #     plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{}.pdf'.format(self.step_counter))
 
 
 def plot_data(logdir, i):
@@ -396,7 +397,7 @@ def main():
     time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     logdir = './results/{time}'.format(time=time_now)
     os.makedirs(logdir)
-    hier_decision = HierarchicalDecision('left', 'experiment-2021-03-04-16-44-45', 120000, logdir)
+    hier_decision = HierarchicalDecision('left', 'experiment-2020-12-21-01-08-37', 500000, logdir)
 
     for i in range(300):
         done = 0

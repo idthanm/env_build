@@ -42,7 +42,7 @@ class Recorder(object):
             self.data_across_all_episodes.append(self.val_list_for_an_episode)
         self.val_list_for_an_episode = []
 
-    def record(self, obs, act, cal_time, ref_index, path_values, ss_time):
+    def record(self, obs, act, cal_time): # , ref_index, path_values, ss_time
         ego_info, tracking_info, _ = obs[:self.ego_info_dim], \
                                      obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
                                                self.num_future_data + 1)], \
@@ -58,7 +58,7 @@ class Recorder(object):
         beta = 0 if v_x == 0 else np.arctan(v_y/v_x) * 180 / math.pi
         steer = steer * 180 / math.pi
         self.val_list_for_an_episode.append(np.array([v_x, v_y, r, x, y, phi, steer, a_x, delta_y,
-                                        delta_phi, delta_v, cal_time, ref_index, beta, path_values, ss_time]))
+                                        delta_phi, delta_v, cal_time, ])) # ref_index, beta, path_values, ss_time
 
     def save(self, logdir):
         np.save(logdir + '/data_across_all_episodes.npy', np.array(self.data_across_all_episodes))

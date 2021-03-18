@@ -13,7 +13,7 @@ import tensorflow as tf
 import numpy as np
 
 from endtoend import CrossroadEnd2end
-from utils.policy import Policy4Toyota
+from utils.policy import Policy4Toyota, PolicyWithQs
 from utils.preprocessor import Preprocessor
 
 
@@ -25,17 +25,20 @@ class LoadPolicy(object):
         for key, val in params.items():
             parser.add_argument("-" + key, default=val)
         self.args = parser.parse_args()
-        env = CrossroadEnd2end(training_task=self.args.env_kwargs_training_task,
-                               num_future_data=self.args.env_kwargs_num_future_data)
-        self.policy = Policy4Toyota(self.args)
+        env = CrossroadEnd2end(training_task=self.args.training_task,
+                               num_future_data=self.args.num_future_data)
+        self.policy = PolicyWithQs(**vars(self.args))
         self.policy.load_weights(model_dir, iter)
-        self.preprocessor = Preprocessor((self.args.obs_dim,), self.args.obs_preprocess_type, self.args.reward_preprocess_type,
-                                         self.args.obs_scale, self.args.reward_scale, self.args.reward_shift,
+        # self.preprocessor = Preprocessor((self.args.obs_dim,), self.args.obs_preprocess_type, self.args.reward_preprocess_type,
+        #                                  self.args.obs_scale, self.args.reward_scale, self.args.reward_shift,
+        #                                  gamma=self.args.gamma)
+        self.preprocessor = Preprocessor(self.args.obs_dim, self.args.obs_ptype, self.args.rew_ptype,
+                                         self.args.obs_scale, self.args.rew_scale, self.args.rew_shift,
                                          gamma=self.args.gamma)
         # self.preprocessor.load_params(load_dir)
         init_obs = env.reset()
         self.run(init_obs)
-        self.obj_value(init_obs)
+        # self.values(init_obs)
 
     @tf.function
     def run(self, obs):
