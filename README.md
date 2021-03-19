@@ -1,6 +1,6 @@
 # RL environment for large-scale autonomous driving tasks
 <div  align="center">    
-<img src="utils/illustration.jpg" alt="drawing" height="450" width="600"/>
+<img src="utils/illustration.jpg" alt="drawing" height="420" width="600"/>
 </div>
 
 This repository aims to build a general and extensible RL training and testing environment for 
