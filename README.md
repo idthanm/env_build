@@ -1,4 +1,6 @@
 # RL environment for large-scale autonomous driving tasks
+![images](utils/illustration.jpg)
+
 This repository aims to build a general and extensible RL training and testing environment for 
 the autonomous driving tasks. It is highlighted in the following way:
 
