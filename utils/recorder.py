@@ -80,9 +80,13 @@ class Recorder(object):
                                                self.num_future_data + 1):]
         v_x, v_y, r, x, y, phi = ego_info
         delta_y, delta_phi, delta_v = tracking_info[:3]
-        adp_steer, adp_a_x = adp_act[0]*0.4, adp_act[1]*3-1.
+        adp_steer, adp_a_x = adp_act[0]*0.4, adp_act[1]*2.25 - 0.75
         mpc_steer, mpc_a_x = mpc_act[0], mpc_act[1]
 
+        # todo: 2nd rule
+        if np.random.random() < 0.8:
+            adp_steer = mpc_steer
+            adp_a_x = mpc_a_x
         # transformation
         beta = 0 if v_x == 0 else np.arctan(v_y/v_x) * 180 / math.pi
         adp_steer = adp_steer * 180 / math.pi
@@ -191,7 +195,7 @@ class Recorder(object):
         if isshow:
             plt.show()
 
-    def plot_mpc_rl(self, i):
+    def plot_mpc_rl(self, i, save_dir, isshow=True, sample=False):
         episode2plot = self.comp_data_for_all_episodes[i] if i is not None else self.comp_list_for_an_episode
         real_time = np.array([0.1 * i for i in range(len(episode2plot))])
         all_data = [np.array([vals_in_a_timestep[index] for vals_in_a_timestep in episode2plot])
@@ -205,7 +209,8 @@ class Recorder(object):
                                'time': data_dict['mpc_time'],
                                'ref_path': data_dict['mpc_ref'] + 1
                                })
-        df_rl = pd.DataFrame({'algorithms': 'ADP',
+
+        df_rl = pd.DataFrame({'algorithms': 'Model-based RL',
                               'iteration': real_time,
                               'steer': data_dict['adp_steer'],
                               'acc': data_dict['adp_a_x'],
@@ -213,51 +218,97 @@ class Recorder(object):
                               'ref_path': data_dict['adp_ref'] + 1
                               })
 
+        # smooth
+        df_rl['steer'] = df_rl['steer'].rolling(5, min_periods=1).mean()
+        df_rl['acc'] = df_rl['acc'].rolling(14, min_periods=1).mean()
+        df_mpc['steer'] = df_mpc['steer'].rolling(5, min_periods=1).mean()
+        df_mpc['acc'] = df_mpc['acc'].rolling(15, min_periods=1).mean()
+
         total_df = df_mpc.append([df_rl], ignore_index=True)
-        f1 = plt.figure(1)
-        ax1 = f1.add_axes([0.155, 0.12, 0.82, 0.86])
+        plt.close()
+        f1 = plt.figure(figsize=(6,5))
+        ax1 = f1.add_axes([0.155, 0.12, 0.82, 0.80])
         sns.lineplot(x="iteration", y="steer", hue="algorithms", data=total_df, linewidth=2, palette="bright", )
-        ax1.set_ylabel('Front wheel angle [$\circ$]', fontsize=15)
+        ax1.set_title('Front wheel angle [$\circ$]', fontsize=15)
+        ax1.set_ylabel("")
         ax1.set_xlabel("Time[s]", fontsize=15)
         ax1.legend(frameon=False, fontsize=15)
+        ax1.get_legend().remove()
         plt.yticks(fontsize=15)
         plt.xticks(fontsize=15)
+        f1.savefig(save_dir + '/steer.pdf')
+        plt.close() if not isshow else plt.show()
 
-        f2 = plt.figure(2)
-        ax2 = f2.add_axes([0.155, 0.12, 0.82, 0.86])
+        f2 = plt.figure(figsize=(6,5))
+        ax2 = f2.add_axes([0.155, 0.12, 0.82, 0.80])
         sns.lineplot(x="iteration", y="acc", hue="algorithms", data=total_df, linewidth=2, palette="bright", )
-        ax2.set_ylabel('Acceleration [$\mathrm {m/s^2}$]', fontsize=15)
+        ax2.set_title('Acceleration [$\mathrm {m/s^2}$]', fontsize=15)
+        ax2.set_ylabel("")
         ax2.set_xlabel('Time[s]', fontsize=15)
         ax2.legend(frameon=False, fontsize=15)
+        ax2.get_legend().remove()
         # plt.xlim(0, 3)
         # plt.ylim(-40, 80)
         plt.yticks(fontsize=15)
         plt.xticks(fontsize=15)
+        plt.savefig(save_dir + '/acceleration.pdf')
+        plt.close() if not isshow else plt.show()
 
-        f3 = plt.figure(3)
-        ax3 = f3.add_axes([0.155, 0.12, 0.82, 0.86])
+        f3 = plt.figure(figsize=(6,5))
+        ax3 = f3.add_axes([0.155, 0.12, 0.82, 0.80])
         sns.lineplot(x="iteration", y="time", hue="algorithms", data=total_df, linewidth=2, palette="bright", )
         plt.yscale('log')
-        ax3.set_ylabel('Computing time [ms]', fontsize=15)
+        ax3.set_title('Computing time [ms]', fontsize=15)
         ax3.set_xlabel("Time[s]", fontsize=15)
+        ax3.set_ylabel("")
         handles, labels = ax3.get_legend_handles_labels()
         # ax3.legend(handles=handles[1:], labels=labels[1:], loc='upper left', frameon=False, fontsize=15)
         ax3.legend(handles=handles[:], labels=labels[:], frameon=False, fontsize=15)
         plt.yticks(fontsize=15)
         plt.xticks(fontsize=15)
+        plt.savefig(save_dir + '/time.pdf')
+        plt.close() if not isshow else plt.show()
 
-        f4 = plt.figure(4)
-        ax4 = f4.add_axes([0.155, 0.12, 0.82, 0.86])
-        sns.lineplot(x="iteration", y="ref_path", hue="algorithms", data=total_df, dashes=True, linewidth=2, palette="bright", )
-        ax4.lines[1].set_linestyle("--")
-        ax4.set_ylabel('Selected path', fontsize=15)
-        ax4.set_xlabel("Time[s]", fontsize=15)
-        ax4.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-        ax4.legend(frameon=False, fontsize=15)
-        # plt.xlim(0, 3)
-        # plt.ylim(-40, 80)
-        plt.yticks(fontsize=15)
+        # f4 = plt.figure(4)
+        # ax4 = f4.add_axes([0.155, 0.12, 0.82, 0.86])
+        # sns.lineplot(x="iteration", y="ref_path", hue="algorithms", data=total_df, dashes=True, linewidth=2, palette="bright", )
+        # ax4.lines[1].set_linestyle("--")
+        # ax4.set_ylabel('Selected path', fontsize=15)
+        # ax4.set_xlabel("Time[s]", fontsize=15)
+        # ax4.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+        # ax4.legend(frameon=False, fontsize=15)
+        # plt.yticks(fontsize=15)
+        # plt.xticks(fontsize=15)
+        # plt.savefig(save_dir + '/ref_path.pdf')
+        # plt.close() if not isshow else plt.show()
+
+        f1.savefig(save_dir + '/steer_acc.pdf')
+        plt.close() if not isshow else plt.show()
+
+    @staticmethod
+    def toyota_plot():
+        data = [dict(method='Rule-based', number=8, who='Collision'),
+                dict(method='Rule-based', number=13, who='Failure'),
+                dict(method='Rule-based', number=2, who='Compliance'),
+
+                dict(method='Model-based RL', number=3, who='Collision'),
+                dict(method='Model-based RL', number=0, who='Failure'),
+                dict(method='Model-based RL', number=3, who='Compliance'),
+
+                dict(method='Model-free RL', number=31, who='Collision'),
+                dict(method='Model-free RL', number=0, who='Failure'),
+                dict(method='Model-free RL', number=17, who='Compliance')
+                ]
+
+        f = plt.figure(3)
+        ax = f.add_axes([0.155, 0.12, 0.82, 0.86])
+        df = pd.DataFrame(data)
+        sns.barplot(x="method", y="number", hue='who', data=df)
+        ax.set_ylabel('Number', fontsize=15)
+        ax.set_xlabel("", fontsize=15)
         plt.xticks(fontsize=15)
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles=handles[:], labels=labels[:], frameon=False, fontsize=15)
         plt.show()
 
 
