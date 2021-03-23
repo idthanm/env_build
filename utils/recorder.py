@@ -11,6 +11,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.pyplot import MultipleLocator
+from matplotlib import ticker
 import math
 import pandas as pd
 sns.set(style="darkgrid")

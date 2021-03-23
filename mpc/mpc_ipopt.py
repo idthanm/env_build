@@ -731,5 +731,5 @@ def plot_data(epi_num, logdir):
 
 
 if __name__ == '__main__':
-    # main()
+    main()
     plot_data(epi_num=6, logdir='./results/2021-03-17-22-33-09')
