@@ -7,7 +7,9 @@
 # @FileName: misc.py
 # =====================================
 
+import os
 import random
+import subprocess
 import time
 
 import numpy as np
@@ -89,5 +91,9 @@ class TimerStat:
             return 0.0
         return float(sum(self._units_processed)) / time_total
 
+
+def image2video(forder):
+    os.chdir(forder)
+    subprocess.call(['ffmpeg', '-framerate', '10', '-i', 'step%03d.png', 'video.mp4'])
 
 
