@@ -110,7 +110,7 @@ class Recorder(object):
             if key in self.val2plot:
                 f = plt.figure(key, figsize=(6, 5))
                 if key == 'ref_index':
-                    ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
+                    ax = f.add_axes([0.12, 0.15, 0.88, 0.85])
                     sns.lineplot(real_time, data_dict[key] + 1, linewidth=2, palette="bright", color='indigo')
                     plt.ylim([0.5, 3.5])
                     x_major_locator = MultipleLocator(10)
@@ -119,28 +119,28 @@ class Recorder(object):
                 elif key == 'v_x':
                     df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
                     df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
-                    ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
+                    ax = f.add_axes([0.15, 0.15, 0.85, 0.85])
                     sns.lineplot('time', 'data_smo', linewidth=2,
                                  data=df, palette="bright", color='indigo')
                     plt.ylim([-0.5, 10.])
                 elif key == 'cal_time':
                     df = pd.DataFrame(dict(time=real_time, data=data_dict[key] * 1000))
                     df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
-                    ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
+                    ax = f.add_axes([0.15, 0.15, 0.85, 0.85])
                     sns.lineplot('time', 'data_smo', linewidth=2,
                                  data=df, palette="bright", color='indigo')
                     plt.ylim([0, 10])
                 elif key == 'a_x':
                     df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
                     df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
-                    ax = f.add_axes([0.14, 0.12, 0.86, 0.86])
+                    ax = f.add_axes([0.16, 0.15, 0.84, 0.85])
                     sns.lineplot('time', 'data_smo', linewidth=2,
                                  data=df, palette="bright", color='indigo')
                     plt.ylim([-4.5, 2.0])
                 elif key == 'steer':
                     df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
                     df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
-                    ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
+                    ax = f.add_axes([0.18, 0.15, 0.82, 0.85])
                     sns.lineplot('time', 'data_smo', linewidth=2,
                                  data=df, palette="bright", color='indigo')
                     plt.ylim([-25, 25])
@@ -164,11 +164,11 @@ class Recorder(object):
                     df2 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 1], path_index='Path 2'))
                     df3 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 2], path_index='Path 3'))
                     total_dataframe = df1.append([df2, df3], ignore_index=True)
-                    ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
+                    ax = f.add_axes([0.18, 0.15, 0.82, 0.85])
                     sns.lineplot('time', 'data', linewidth=2, hue='path_index',
                                  data=total_dataframe, palette="bright", color='indigo')
                     handles, labels = ax.get_legend_handles_labels()
-                    ax.legend(handles=handles, labels=labels, loc='lower left', frameon=False)
+                    ax.legend(handles=handles, labels=labels, loc='lower left', frameon=False, fontsize=20)
                     ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
                 elif key == 'is_ss':
                     df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
@@ -180,16 +180,20 @@ class Recorder(object):
                     ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
                     sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
 
-                # for a specific simu with red light
+                # for a specific simu with red light (2021-03-15-23-56-21)
                 # ylim = ax.get_ylim()
                 # ax.add_patch(patches.Rectangle((0, ylim[0]), 5, ylim[1]-ylim[0], facecolor='red', alpha=0.1))
                 # ax.add_patch(patches.Rectangle((5, ylim[0]), 3, ylim[1]-ylim[0], facecolor='orange', alpha=0.1))
                 # ax.add_patch(patches.Rectangle((8, ylim[0]), 23.6-8+1, ylim[1]-ylim[0], facecolor='green', alpha=0.1))
 
-                ax.set_ylabel(self.key2label[key], fontsize=15)
-                ax.set_xlabel("Time [s]", fontsize=15)
-                plt.yticks(fontsize=15)
-                plt.xticks(fontsize=15)
+                # ax.add_patch(patches.Rectangle((0., ylim[0]), 16, ylim[1] - ylim[0], facecolor='r', alpha=0.1))
+                # ax.add_patch(patches.Rectangle((16., ylim[0]), 5, ylim[1] - ylim[0], facecolor='orange', alpha=0.1))
+                # ax.add_patch(patches.Rectangle((21., ylim[0]), 32, ylim[1] - ylim[0], facecolor='g', alpha=0.1))
+
+                ax.set_ylabel(self.key2label[key], fontsize=20)
+                ax.set_xlabel("Time [s]", fontsize=20)
+                plt.yticks(fontsize=20)
+                plt.xticks(fontsize=20)
                 plt.savefig(save_dir + '/{}.pdf'.format(key))
                 if not isshow:
                     plt.close(f)
