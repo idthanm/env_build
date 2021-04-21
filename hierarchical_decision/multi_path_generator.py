@@ -55,7 +55,7 @@ class StaticTrajectoryGenerator_origin(object):
             self.path_list = []
             for path_index in range(self.path_num):
                 ref = ReferencePath(task)
-                ref.set_path(self.mode, path_index)
+                ref.set_path(path_index)
                 self.path_list.append(ref)
         else:
             self._future_point_choice(state, task)

@@ -8,6 +8,9 @@
 # =====================================
 
 import datetime
+import shutil
+import time
+import json
 import os
 from math import cos, sin, pi
 
@@ -17,116 +20,117 @@ import tensorflow as tf
 
 from dynamics_and_models import EnvironmentModel, ReferencePath
 from endtoend import CrossroadEnd2end
-from endtoend_env_utils import rotate_coordination, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER
+from endtoend_env_utils import rotate_coordination, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, MODE2TASK
 from hierarchical_decision.multi_path_generator import MultiPathGenerator
 from utils.load_policy import LoadPolicy
-from utils.misc import TimerStat
+from utils.misc import TimerStat, image2video
 from utils.recorder import Recorder
 
 
 class HierarchicalDecision(object):
-    def __init__(self, task, logdir=None):
+    def __init__(self, task, train_exp_dir, ite, logdir=None):
         self.task = task
-        if self.task == 'left':
-            self.policy = LoadPolicy('../utils/models/left', 100000)
-        elif self.task == 'right':
-            self.policy = LoadPolicy('../utils/models/right', 145000)
-        elif self.task == 'straight':
-            self.policy = LoadPolicy('../utils/models/straight', 95000)
-        self.env = CrossroadEnd2end(training_task=self.task)
+        self.policy = LoadPolicy('../utils/models/{}/{}'.format(task, train_exp_dir), ite)
+        self.env = CrossroadEnd2end(training_task=self.task, mode='testing')
         self.model = EnvironmentModel(self.task, mode='selecting')
         self.recorder = Recorder()
         self.episode_counter = -1
         self.step_counter = -1
         self.obs = None
-        self.stg = None
+        self.stg = MultiPathGenerator()
         self.step_timer = TimerStat()
         self.ss_timer = TimerStat()
         self.logdir = logdir
+        if self.logdir is not None:
+            config = dict(task=task, train_exp_dir=train_exp_dir, ite=ite)
+            with open(self.logdir + '/config.json', 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=4)
         self.fig = plt.figure(figsize=(8, 8))
         plt.ion()
         self.hist_posi = []
+        self.old_index = 0
+        self.path_list = self.stg.generate_path(self.task)
+        # ------------------build graph for tf.function in advance-----------------------
+        for i in range(3):
+            obs = self.env.reset()
+            obs = tf.convert_to_tensor(obs[np.newaxis, :], dtype=tf.float32)
+            self.is_safe(obs, i)
+        obs = self.env.reset()
+        obs_with_specific_shape = np.tile(obs, (3, 1))
+        self.policy.run_batch(obs_with_specific_shape)
+        self.policy.obj_value_batch(obs_with_specific_shape)
+        # ------------------build graph for tf.function in advance-----------------------
         self.reset()
 
     def reset(self,):
         self.obs = self.env.reset()
-        self.stg = MultiPathGenerator()
         self.recorder.reset()
+        self.old_index = 0
         self.hist_posi = []
         if self.logdir is not None:
             self.episode_counter += 1
-            os.makedirs(self.logdir + '/episode{}'.format(self.episode_counter))
+            os.makedirs(self.logdir + '/episode{}/figs'.format(self.episode_counter))
             self.step_counter = -1
             self.recorder.save(self.logdir)
+            if self.episode_counter >= 1:
+                select_and_rename_snapshots_of_an_episode(self.logdir, self.episode_counter-1, 12)
+                self.recorder.plot_and_save_ith_episode_curves(self.episode_counter-1,
+                                                               self.logdir + '/episode{}/figs'.format(self.episode_counter-1),
+                                                               isshow=False)
         return self.obs
 
-    def safe_shield(self, real_obs, traj):
-        action_bound = 1.0
-        action_safe_set = [[[0, -action_bound]]]
-        real_obs = tf.convert_to_tensor(real_obs[np.newaxis, :])
+    # @tf.function
+    # def is_safe(self, obs, path_index):
+    #     self.model.ref_path.set_path(path_index)
+    #     action = self.policy.run_batch(obs)
+    #     veh2veh4real = self.model.ss(obs, action, lam=0.1)
+    #     return False if veh2veh4real[0] > 0 else True
+
+    @tf.function
+    def is_safe(self, obs, path_index):
+        self.model.add_traj(obs, path_index)
+        punish = 0.
+        for step in range(5):
+            action = self.policy.run_batch(obs)
+            obs, _, _, _, veh2veh4real, _ = self.model.rollout_out(action)
+            punish += veh2veh4real[0]
+        return False if punish > 0 else True
+
+    def safe_shield(self, real_obs, path_index):
+        action_safe_set = [[[0., -1.]]]
+        real_obs = tf.convert_to_tensor(real_obs[np.newaxis, :], dtype=tf.float32)
         obs = real_obs
-        self.model.add_traj(obs, traj)
-        total_punishment = 0.0
-        for step in range(3):
-            action = self.policy.run(obs)
-            _, _, _, _, veh2veh4real, _ = self.model.rollout_out(action)
-            total_punishment += veh2veh4real
-        if total_punishment != 0:
-            print('original action will cause collision within three steps!!!')
-            for safe_action in action_safe_set:
-                obs = real_obs
-                total_punishment = 0
-                # for step in range(1):
-                #     obs, veh2veh4real = self.model.safety_calculation(obs, safe_action)
-                #     total_punishment += veh2veh4real
-                #     if veh2veh4real != 0:   # collide
-                #         break
-                # if total_punishment == 0:
-                #     print('found the safe action', safe_action)
-                #     safe_action = np.array(safe_action)
-                #     break
-                # else:
-                #     print('still collide')
-                #     safe_action = self.policy.run(real_obs).numpy().squeeze(0)
-                return np.array(safe_action).squeeze(0)
+        if not self.is_safe(obs, path_index):
+            print('SAFETY SHIELD STARTED!')
+            return np.array(action_safe_set[0], dtype=np.float32).squeeze(0), True
         else:
-            safe_action = self.policy.run(real_obs).numpy()[0]
-            return safe_action
+            return self.policy.run_batch(real_obs).numpy()[0], False
 
     def step(self):
         self.step_counter += 1
         with self.step_timer:
-            path_list = self.stg.generate_path(self.task)
             obs_list = []
-
             # select optimal path
-            for path in path_list:
+            for path in self.path_list:
                 self.env.set_traj(path)
                 obs_list.append(self.env._get_obs())
             all_obs = tf.stack(obs_list, axis=0)
-            path_values = self.policy.values(all_obs).numpy().squeeze()
-            path_index = int(np.argmax(path_values[:, 0]))
+            path_values = self.policy.obj_value_batch(all_obs).numpy()
+            old_value = path_values[self.old_index]
+            new_index, new_value = int(np.argmin(path_values)), min(path_values)  # value is to approximate (- sum of reward)
+            path_index = self.old_index if old_value - new_value < 0.1 else new_index
+            self.old_index = path_index
 
-            self.env.set_traj(path_list[path_index])
+            self.env.set_traj(self.path_list[path_index])
             self.obs_real = obs_list[path_index]
 
             # obtain safe action
-            # with self.ss_timer:
-            #     safe_action = self.safe_shield(self.obs_real, path_list[path_index])
-            safe_action = self.policy.run(self.obs_real).numpy()
-
-            print('ALL TIME:', self.step_timer.mean)
-        # deal with red light temporally
-        # if self.env.v_light != 0 and -25 > self.env.ego_dynamics['y'] > -35 and self.env.training_task != 'right':
-        #     scaled_steer = 0.
-        #     if self.env.ego_dynamics['v_x'] == 0.0:
-        #         scaled_a_x = 0.33
-        #     else:
-        #         scaled_a_x = np.random.uniform(-0.6, -0.4)
-        #     safe_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
-        self.render(path_list, path_values, path_index)
+            with self.ss_timer:
+                safe_action, is_ss = self.safe_shield(self.obs_real, path_index)
+            print('ALL TIME:', self.step_timer.mean, 'ss', self.ss_timer.mean)
+        self.render(self.path_list, path_values, path_index)
         self.recorder.record(self.obs_real, safe_action, self.step_timer.mean,
-                             path_index, path_values, self.ss_timer.mean)
+                             path_index, path_values, self.ss_timer.mean, is_ss)
         self.obs, r, done, info = self.env.step(safe_action)
         return done
 
@@ -260,9 +264,9 @@ class HierarchicalDecision(object):
                 draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, 'black')
 
         # plot_interested vehs
-        # for mode, num in self.veh_mode_dict.items():
+        # for mode, num in self.env.veh_mode_dict.items():
         #     for i in range(num):
-        #         veh = self.interested_vehs[mode][i]
+        #         veh = self.env.interested_vehs[mode][i]
         #         veh_x = veh['x']
         #         veh_y = veh['y']
         #         veh_phi = veh['phi']
@@ -274,7 +278,7 @@ class HierarchicalDecision(object):
         #             plot_phi_line(veh_x, veh_y, veh_phi, 'black')
         #             task = MODE2TASK[mode]
         #             color = task2color[task]
-        #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
+        #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
 
         ego_v_x = self.env.ego_dynamics['v_x']
         ego_v_y = self.env.ego_dynamics['v_y']
@@ -293,9 +297,13 @@ class HierarchicalDecision(object):
         plot_phi_line(ego_x, ego_y, ego_phi, 'fuchsia')
         draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'fuchsia')
         self.hist_posi.append((ego_x, ego_y))
-        # plot history data
-        for hist_x, hist_y in self.hist_posi:
-            plt.scatter(hist_x, hist_y, color='fuchsia', alpha=0.1)
+
+        # plot history
+        xs = [pos[0] for pos in self.hist_posi]
+        ys = [pos[1] for pos in self.hist_posi]
+        plt.scatter(np.array(xs), np.array(ys), color='fuchsia', alpha=0.1)
+
+
         # plot future data
         tracking_info = self.obs[
                         self.env.ego_info_dim:self.env.ego_info_dim + self.env.per_tracking_info_dim * (self.env.num_future_data + 1)]
@@ -383,20 +391,25 @@ class HierarchicalDecision(object):
         plt.show()
         plt.pause(0.001)
         if self.logdir is not None:
-            plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{}.pdf'.format(self.step_counter))
+            plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{:03d}.png'.format(self.step_counter))
 
 
-def plot_data(logdir, i):
+def plot_and_save_ith_episode_data(logdir, i):
     recorder = Recorder()
     recorder.load(logdir)
-    recorder.plot_ith_episode_curves(i)
+    save_dir = logdir + '/episode{}/figs'.format(i)
+    os.makedirs(save_dir, exist_ok=True)
+    recorder.plot_and_save_ith_episode_curves(i, save_dir, True)
 
 
 def main():
     time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     logdir = './results/{time}'.format(time=time_now)
     os.makedirs(logdir)
-    hier_decision = HierarchicalDecision('left', logdir)
+    hier_decision = HierarchicalDecision('right', 'experiment-2021-03-15-21-02-51', 195000, logdir)
+    # 'left', 'experiment-2021-03-15-16-39-00', 180000
+    # 'straight', 'experiment-2021-03-15-19-16-13', 175000
+    # 'right', 'experiment-2021-03-15-21-02-51', 195000
 
     for i in range(300):
         done = 0
@@ -497,9 +510,25 @@ def plot_static_path():
     plt.show()
 
 
+def select_and_rename_snapshots_of_an_episode(logdir, epinum, num):
+    file_list = os.listdir(logdir + '/episode{}'.format(epinum))
+    file_num = len(file_list) - 1
+    intervavl = file_num // (num-1)
+    start = file_num % (num-1)
+    print(start, file_num, intervavl)
+    selected = [start//2] + [start//2+intervavl*i-1 for i in range(1, num)]
+    print(selected)
+    if file_num > 0:
+        for i, j in enumerate(selected):
+            shutil.copyfile(logdir + '/episode{}/step{:03d}.pdf'.format(epinum, j),
+                            logdir + '/episode{}/figs/{:03d}.pdf'.format(epinum, i))
+
+
 if __name__ == '__main__':
     # main()
-    plot_static_path()
-    # plot_data('./results/2021-03-03-19-18-38', 1)
+    image2video('./results/forvideos/2021-03-28-17-30-47/episode6')
+    # plot_static_path()
+    # plot_and_save_ith_episode_data('./results/good/2021-03-15-23-56-21', 0)
+    # select_and_rename_snapshots_of_an_episode('./results/good/2021-03-15-23-56-21', 0, 12)
 
 
