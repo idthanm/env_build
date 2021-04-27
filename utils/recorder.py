@@ -26,7 +26,7 @@ class Recorder(object):
         self.val2plot = ['v_x', 'r',
                          'steer', 'a_x',
                          'cal_time', 'ref_index', 'beta', 'path_values', 'is_ss']
-        self.key2label = dict(v_x='Velocity [m/s]',
+        self.key2label = dict(v_x='Speed [m/s]',
                               r='Yaw rate [rad/s]',
                               steer='Steer angle [$\circ$]',
                               a_x='Acceleration [$\mathrm {m/s^2}$]',
@@ -172,7 +172,7 @@ class Recorder(object):
                     ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
                 elif key == 'is_ss':
                     df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
-                    ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
+                    ax = f.add_axes([0.12, 0.15, 0.88, 0.85])
                     sns.lineplot('time', 'data', linewidth=2,
                                  data=df, palette="bright", color='indigo')
                     ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
