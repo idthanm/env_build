@@ -406,7 +406,7 @@ def main():
     time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     logdir = './results/{time}'.format(time=time_now)
     os.makedirs(logdir)
-    hier_decision = HierarchicalDecision('right', 'experiment-2021-03-15-21-02-51', 195000, logdir)
+    hier_decision = HierarchicalDecision('left', 'experiment-2021-03-15-16-39-00', 95000, logdir)
     # 'left', 'experiment-2021-03-15-16-39-00', 180000
     # 'straight', 'experiment-2021-03-15-19-16-13', 175000
     # 'right', 'experiment-2021-03-15-21-02-51', 195000
@@ -525,8 +525,8 @@ def select_and_rename_snapshots_of_an_episode(logdir, epinum, num):
 
 
 if __name__ == '__main__':
-    # main()
-    image2video('./results/forvideos/2021-03-28-17-30-47/episode6')
+    main()
+    # image2video('./results/forvideos/2021-03-28-17-30-47/episode6')
     # plot_static_path()
     # plot_and_save_ith_episode_data('./results/good/2021-03-15-23-56-21', 0)
     # select_and_rename_snapshots_of_an_episode('./results/good/2021-03-15-23-56-21', 0, 12)
