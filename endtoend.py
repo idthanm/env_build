@@ -524,23 +524,24 @@ class CrossroadEnd2end(gym.Env):
             #                            facecolor='none', linewidth=2))
 
             # ----------arrow--------------
-            plt.arrow(lane_width/2, -square_length / 2-10, 0, 5, color='b')
-            plt.arrow(lane_width/2, -square_length / 2-10+5, -0.5, 0, color='b', head_width=1)
-            plt.arrow(lane_width*1.5, -square_length / 2-10, 0, 4, color='b', head_width=1)
-            plt.arrow(lane_width*2.5, -square_length / 2 - 10, 0, 5, color='b')
-            plt.arrow(lane_width*2.5, -square_length / 2 - 10+5, 0.5, 0, color='b', head_width=1)
+            plt.arrow(lane_width / 2, -square_length / 2 - 10, 0, 3, color='darkviolet')
+            plt.arrow(lane_width / 2, -square_length / 2 - 10 + 3, -0.5, 1.0, color='darkviolet', head_width=0.7)
+            plt.arrow(lane_width * 1.5, -square_length / 2 - 10, 0, 4, color='darkviolet', head_width=0.7)
+            plt.arrow(lane_width * 2.5, -square_length / 2 - 10, 0, 3, color='darkviolet')
+            plt.arrow(lane_width * 2.5, -square_length / 2 - 10 + 3, 0.5, 1.0, color='darkviolet', head_width=0.7)
+
 
             # ----------horizon--------------
 
-            plt.plot([-square_length / 2 - extension, -square_length / 2], [0.3, 0.3], color='orange')
-            plt.plot([-square_length / 2 - extension, -square_length / 2], [-0.3, -0.3], color='orange')
-            plt.plot([square_length / 2 + extension, square_length / 2], [0.3, 0.3], color='orange')
-            plt.plot([square_length / 2 + extension, square_length / 2], [-0.3, -0.3], color='orange')
+            plt.plot([-square_length / 2 - extension, -square_length / 2], [0.2, 0.2], color='orange')
+            plt.plot([-square_length / 2 - extension, -square_length / 2], [-0.2, -0.2], color='orange')
+            plt.plot([square_length / 2 + extension, square_length / 2], [0.2, 0.2], color='orange')
+            plt.plot([square_length / 2 + extension, square_length / 2], [-0.2, -0.2], color='orange')
 
             #
             for i in range(1, LANE_NUMBER + 1):
                 linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
-                linewidth = 1 if i < LANE_NUMBER else 2
+                linewidth = 1 if i < LANE_NUMBER else 1
                 plt.plot([-square_length / 2 - extension, -square_length / 2], [i * lane_width, i * lane_width],
                          linestyle=linestyle, color='black', linewidth=linewidth)
                 plt.plot([square_length / 2 + extension, square_length / 2], [i * lane_width, i * lane_width],
@@ -550,16 +551,33 @@ class CrossroadEnd2end(gym.Env):
                 plt.plot([square_length / 2 + extension, square_length / 2], [-i * lane_width, -i * lane_width],
                          linestyle=linestyle, color='black', linewidth=linewidth)
 
+            for i in range(4, 5 + 1):
+                linestyle = dotted_line_style if i < 5 else solid_line_style
+                linewidth = 1 if i < 5 else 2
+                plt.plot([-square_length / 2 - extension, -square_length / 2],
+                         [3 * lane_width + (i - 3) * 2, 3 * lane_width + (i - 3) * 2],
+                         linestyle=linestyle, color='black', linewidth=linewidth)
+                plt.plot([square_length / 2 + extension, square_length / 2],
+                         [3 * lane_width + (i - 3) * 2, 3 * lane_width + (i - 3) * 2],
+                         linestyle=linestyle, color='black', linewidth=linewidth)
+                plt.plot([-square_length / 2 - extension, -square_length / 2],
+                         [-3 * lane_width - (i - 3) * 2, -3 * lane_width - (i - 3) * 2],
+                         linestyle=linestyle, color='black', linewidth=linewidth)
+                plt.plot([square_length / 2 + extension, square_length / 2],
+                         [-3 * lane_width - (i - 3) * 2, -3 * lane_width - (i - 3) * 2],
+                         linestyle=linestyle, color='black', linewidth=linewidth)
+
             # ----------vertical----------------
-            plt.plot([0.3, 0.3], [-square_length / 2 - extension, -square_length / 2], color='orange')
-            plt.plot([-0.3, -0.3], [-square_length / 2 - extension, -square_length / 2], color='orange')
-            plt.plot([0.3, 0.3], [square_length / 2 + extension, square_length / 2], color='orange')
-            plt.plot([-0.3, -0.3], [square_length / 2 + extension, square_length / 2], color='orange')
+
+            plt.plot([0.2, 0.2], [-square_length / 2 - extension, -square_length / 2], color='orange')
+            plt.plot([-0.2, -0.2], [-square_length / 2 - extension, -square_length / 2], color='orange')
+            plt.plot([0.2, 0.2], [square_length / 2 + extension, square_length / 2], color='orange')
+            plt.plot([-0.2, -0.2], [square_length / 2 + extension, square_length / 2], color='orange')
 
             #
             for i in range(1, LANE_NUMBER + 1):
                 linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
-                linewidth = 1 if i < LANE_NUMBER else 2
+                linewidth = 1
                 plt.plot([i * lane_width, i * lane_width], [-square_length / 2 - extension, -square_length / 2],
                          linestyle=linestyle, color='black', linewidth=linewidth)
                 plt.plot([i * lane_width, i * lane_width], [square_length / 2 + extension, square_length / 2],
@@ -567,6 +585,22 @@ class CrossroadEnd2end(gym.Env):
                 plt.plot([-i * lane_width, -i * lane_width], [-square_length / 2 - extension, -square_length / 2],
                          linestyle=linestyle, color='black', linewidth=linewidth)
                 plt.plot([-i * lane_width, -i * lane_width], [square_length / 2 + extension, square_length / 2],
+                         linestyle=linestyle, color='black', linewidth=linewidth)
+
+            for i in range(4, 5 + 1):
+                linestyle = dotted_line_style if i < 5 else solid_line_style
+                linewidth = 1 if i < 5 else 2
+                plt.plot([3 * lane_width + (i - 3) * 2, 3 * lane_width + (i - 3) * 2],
+                         [-square_length / 2 - extension, -square_length / 2],
+                         linestyle=linestyle, color='black', linewidth=linewidth)
+                plt.plot([3 * lane_width + (i - 3) * 2, 3 * lane_width + (i - 3) * 2],
+                         [square_length / 2 + extension, square_length / 2],
+                         linestyle=linestyle, color='black', linewidth=linewidth)
+                plt.plot([-3 * lane_width - (i - 3) * 2, -3 * lane_width - (i - 3) * 2],
+                         [-square_length / 2 - extension, -square_length / 2],
+                         linestyle=linestyle, color='black', linewidth=linewidth)
+                plt.plot([-3 * lane_width - (i - 3) * 2, -3 * lane_width - (i - 3) * 2],
+                         [square_length / 2 + extension, square_length / 2],
                          linestyle=linestyle, color='black', linewidth=linewidth)
 
             # ----------stop line--------------
@@ -609,14 +643,50 @@ class CrossroadEnd2end(gym.Env):
                      color='green', linewidth=light_line_width)
 
             # ----------Oblique--------------
-            plt.plot([LANE_NUMBER * lane_width, square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
+
+            plt.plot([LANE_NUMBER * lane_width + 4, square_length / 2],
+                     [-square_length / 2, -LANE_NUMBER * lane_width - 4],
                      color='black', linewidth=2)
-            plt.plot([LANE_NUMBER * lane_width, square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
+            plt.plot([LANE_NUMBER * lane_width + 4, square_length / 2],
+                     [square_length / 2, LANE_NUMBER * lane_width + 4],
                      color='black', linewidth=2)
-            plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
+            plt.plot([-LANE_NUMBER * lane_width - 4, -square_length / 2],
+                     [-square_length / 2, -LANE_NUMBER * lane_width - 4],
                      color='black', linewidth=2)
-            plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
+            plt.plot([-LANE_NUMBER * lane_width - 4, -square_length / 2],
+                     [square_length / 2, LANE_NUMBER * lane_width + 4],
                      color='black', linewidth=2)
+
+            # ----------人行横道--------------
+            jj = 3.5
+            for ii in range(23):
+                if ii <= 3:
+                    continue
+                ax.add_patch(plt.Rectangle((-square_length / 2 + jj + ii * 1.6, -square_length / 2 + 0.5), 0.8, 4,
+                                           color='lightgray', alpha=0.5))
+                ii += 1
+            for ii in range(23):
+                if ii <= 3:
+                    continue
+                ax.add_patch(plt.Rectangle((-square_length / 2 + jj + ii * 1.6, square_length / 2 - 0.5 - 4), 0.8, 4,
+                                           color='lightgray', alpha=0.5))
+                ii += 1
+            for ii in range(23):
+                if ii <= 3:
+                    continue
+                ax.add_patch(
+                    plt.Rectangle((-square_length / 2 + 0.5, square_length / 2 - jj - 0.8 - ii * 1.6), 4, 0.8,
+                                  color='lightgray',
+                                  alpha=0.5))
+                ii += 1
+            for ii in range(23):
+                if ii <= 3:
+                    continue
+                ax.add_patch(
+                    plt.Rectangle((square_length / 2 - 0.5 - 4, square_length / 2 - jj - 0.8 - ii * 1.6), 4, 0.8,
+                                  color='lightgray',
+                                  alpha=0.5))
+                ii += 1
 
             def is_in_plot_area(x, y, tolerance=5):
                 if -square_length / 2 - extension + tolerance < x < square_length / 2 + extension - tolerance and \
@@ -635,8 +705,14 @@ class CrossroadEnd2end(gym.Env):
                 ax.plot([LD_x + x, RD_x + x], [LD_y + y, RD_y + y], color=color, linestyle=linestyle)
                 ax.plot([LD_x + x, LU_x + x], [LD_y + y, LU_y + y], color=color, linestyle=linestyle)
 
-            def plot_phi_line(x, y, phi, color):
-                line_length = 5
+            def plot_phi_line(type, x, y, phi, color):
+                # TODO:新增一个type项输入
+                if type in ['bicycle_1', 'bicycle_2', 'bicycle_3']:
+                    line_length = 2
+                elif type == 'DEFAULT_PEDTYPE':
+                    line_length = 1
+                else:
+                    line_length = 5
                 x_forw, y_forw = x + line_length * cos(phi*pi/180.),\
                                  y + line_length * sin(phi*pi/180.)
                 plt.plot([x, x_forw], [y, y_forw], color=color, linewidth=0.5)
@@ -648,9 +724,16 @@ class CrossroadEnd2end(gym.Env):
                 veh_phi = veh['phi']
                 veh_l = veh['l']
                 veh_w = veh['w']
+                veh_type = veh['type']
+                if veh_type in ['bicycle_1', 'bicycle_2', 'bicycle_3']:
+                    veh_color = 'navy'
+                elif veh_type == 'DEFAULT_PEDTYPE':
+                    veh_color = 'purple'
+                else:
+                    veh_color = 'black'
                 if is_in_plot_area(veh_x, veh_y):
-                    plot_phi_line(veh_x, veh_y, veh_phi, 'black')
-                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, 'black')
+                    plot_phi_line(veh_type, veh_x, veh_y, veh_phi, veh_color)
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, veh_color)
 
             # plot_interested vehs
             for mode, num in self.veh_mode_dict.items():
@@ -661,10 +744,14 @@ class CrossroadEnd2end(gym.Env):
                     veh_phi = veh['phi']
                     veh_l = veh['l']
                     veh_w = veh['w']
+                    # veh_type = veh['type']
+                    #TODO: 定义veh_type
+                    print("车辆信息", veh)
+                    veh_type = 'car_1'
                     task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
 
                     if is_in_plot_area(veh_x, veh_y):
-                        plot_phi_line(veh_x, veh_y, veh_phi, 'black')
+                        plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
                         task = MODE2TASK[mode]
                         color = task2color[task]
                         draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
@@ -697,7 +784,7 @@ class CrossroadEnd2end(gym.Env):
             alpha_r_bound = self.ego_dynamics['alpha_r_bound']
             r_bound = self.ego_dynamics['r_bound']
 
-            plot_phi_line(ego_x, ego_y, ego_phi, 'red')
+            plot_phi_line('self_car', ego_x, ego_y, ego_phi, 'red')
             draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'red')
 
             # plot future data
@@ -708,7 +795,7 @@ class CrossroadEnd2end(gym.Env):
                                                           (i+1)*self.per_tracking_info_dim]
                 path_x, path_y, path_phi = ego_x+delta_x, ego_y+delta_y, ego_phi-delta_phi
                 plt.plot(path_x, path_y, 'g.')
-                plot_phi_line(path_x, path_y, path_phi, 'g')
+                plot_phi_line('self_car', path_x, path_y, path_phi, 'g')
 
             delta_, _, _ = tracking_info[:3]
             ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
@@ -796,7 +883,7 @@ class CrossroadEnd2end(gym.Env):
 
 
 def test_end2end():
-    env = CrossroadEnd2end(training_task='straight', num_future_data=0)
+    env = CrossroadEnd2end(training_task='left', num_future_data=0)
     obs = env.reset()
     i = 0
     done = 0

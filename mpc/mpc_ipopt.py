@@ -732,4 +732,5 @@ def plot_data(epi_num, logdir):
 
 if __name__ == '__main__':
     # main()
-    plot_data(epi_num=6, logdir='./results/2021-03-17-22-33-09')  # 6 or 3
+    run_mpc()
+    # plot_data(epi_num=6, logdir='./results/2021-03-17-22-33-09')  # 6 or 3
