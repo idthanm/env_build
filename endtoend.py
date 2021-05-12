@@ -19,7 +19,7 @@ from gym.utils import seeding
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath, EnvironmentModel
 from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination, deal_with_phi, \
-    L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, VEH_NUM, EXPECTED_V
+    L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, BICYCLE_MODE_DICT, PERSON_MODE_DICT, VEH_NUM, EXPECTED_V
 from traffic import Traffic
 
 warnings.filterwarnings("ignore")
@@ -72,6 +72,8 @@ class CrossroadEnd2end(gym.Env):
         self.obs = None
         self.action = None
         self.veh_mode_dict = VEHICLE_MODE_DICT[self.training_task]
+        self.bicycle_mode_dict = BICYCLE_MODE_DICT[self.training_task]
+        self.person_mode_dict = PERSON_MODE_DICT[self.training_task]
         self.veh_num = VEH_NUM[self.training_task]
         self.virtual_red_light_vehicle = False
 
@@ -350,7 +352,242 @@ class CrossroadEnd2end(gym.Env):
 
         name_setting = name_settings[exit_]
 
+        def filter_interested_participants(vs, task):
+
+            dl, du, dr, rd, rl, ru, ur, ud, ul, lu, lr, ld = [], [], [], [], [], [], [], [], [], [], [], []
+            du_b, dr_b, rl_b, ru_b, ud_b, ul_b, lr_b, ld_b = [], [], [], [], [], [], [], []
+            i1_0, o1_0, i2_0, o2_0, i3_0, o3_0, i4_0, o4_0, c0, c1, c2, c3, c_w0, c_w1, c_w2, c_w3 = [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
+
+            # slice or fill to some number
+            def slice_or_fill(sorted_list, fill_value, num):
+                if len(sorted_list) >= num:
+                    return sorted_list[:num]
+                else:
+                    while len(sorted_list) < num:
+                        sorted_list.append(fill_value)
+                    return sorted_list
+
+            for v in vs:
+                if v['type'] in ['bicycle_1', 'bicycle_2', 'bicycle_3']:
+                    # print(v)
+                    route_list = v['route']
+                    # print(route_list)
+                    start = route_list[0]
+                    end = route_list[1]
+
+                    if start == name_setting['do'] and end == name_setting['ui']:
+                        du_b.append(v)
+                    elif start == name_setting['do'] and end == name_setting['ri']:
+                        dr_b.append(v)
+
+                    elif start == name_setting['ro'] and end == name_setting['li']:
+                        rl_b.append(v)
+                    elif start == name_setting['ro'] and end == name_setting['ui']:
+                        ru_b.append(v)
+
+                    elif start == name_setting['uo'] and end == name_setting['di']:
+                        ud_b.append(v)
+                    elif start == name_setting['uo'] and end == name_setting['li']:
+                        ul_b.append(v)
+
+                    elif start == name_setting['lo'] and end == name_setting['ri']:
+                        lr_b.append(v)
+                    elif start == name_setting['lo'] and end == name_setting['di']:
+                        ld_b.append(v)
+
+                elif v['type'] == 'DEFAULT_PEDTYPE':
+                    # 执行一次or每步执行一次
+                    # print(v)
+                    road_list = v['road']
+                    # print(road_list)
+                    # if road_list == ':1i_0':
+                    #     i1_0.append(v)
+                    # elif road_list == ':1o_0':
+                    #     o1_0.append(v)
+                    # elif road_list == ':2i_0':
+                    #     i2_0.append(v)
+                    # elif road_list == ':2o_0':
+                    #     o2_0.append(v)
+                    # elif road_list == ':3i_0':
+                    #     i3_0.append(v)
+                    # elif road_list == ':3o_0':
+                    #     o3_0.append(v)
+                    # elif road_list == ':4i_0':
+                    #     i4_0.append(v)
+                    # elif road_list == ':4o_0':
+                    #     o4_0.append(v)
+                    if road_list == ':0_c0':
+                        c0.append(v)
+                    elif road_list == ':0_c1':
+                        c1.append(v)
+                    elif road_list == ':0_c2':
+                        c2.append(v)
+                    elif road_list == ':0_c3':
+                        c3.append(v)
+                    # elif road_list == 'c_w0':
+                    #     c_w0.append(v)
+                    # elif road_list == 'c_w1':
+                    #     c_w1.append(v)
+                    # elif road_list == 'c_w2':
+                    #     c_w2.append(v)
+                    # elif road_list == 'c_w3':
+                    #     c_w3.append(v)
+
+                else:
+                    route_list = v['route']
+                    start = route_list[0]
+                    end = route_list[1]
+                    if start == name_setting['do'] and end == name_setting['li']:
+                        dl.append(v)
+                    elif start == name_setting['do'] and end == name_setting['ui']:
+                        du.append(v)
+                    elif start == name_setting['do'] and end == name_setting['ri']:
+                        dr.append(v)
+
+                    elif start == name_setting['ro'] and end == name_setting['di']:
+                        rd.append(v)
+                    elif start == name_setting['ro'] and end == name_setting['li']:
+                        rl.append(v)
+                    elif start == name_setting['ro'] and end == name_setting['ui']:
+                        ru.append(v)
+
+                    elif start == name_setting['uo'] and end == name_setting['ri']:
+                        ur.append(v)
+                    elif start == name_setting['uo'] and end == name_setting['di']:
+                        ud.append(v)
+                    elif start == name_setting['uo'] and end == name_setting['li']:
+                        ul.append(v)
+
+                    elif start == name_setting['lo'] and end == name_setting['ui']:
+                        lu.append(v)
+                    elif start == name_setting['lo'] and end == name_setting['ri']:
+                        lr.append(v)
+                    elif start == name_setting['lo'] and end == name_setting['di']:
+                        ld.append(v)
+
+            # fetch bicycle in range
+            du_b = list(filter(lambda v: ego_y - 2 < v['y'] < 0 and v['x'] < ego_x + 8, du_b))  # interest of right
+            # dr_b = list(filter(lambda v: v['x'] < CROSSROAD_SIZE / 2 + 10 and v['y'] > ego_y - 2, dr_b))  # interest of right
+            # rl_b = rl_b  # not interest in case of traffic light
+            # ru_b = list(filter(lambda v: v['x'] < CROSSROAD_SIZE / 2 + 10 and v['y'] < CROSSROAD_SIZE / 2 + 10, ru_b))  # interest of straight
+            ud_b = list(filter(lambda v: max(ego_y - 2, -8) < v['y'] < CROSSROAD_SIZE / 2 and ego_x > v['x'], ud_b))  # interest of left
+            # ul_b = list(filter(lambda v: -CROSSROAD_SIZE / 2 - 10 < v['x'] < ego_x and v['y'] < CROSSROAD_SIZE / 2, ul_b))  # interest of left
+            lr_b = list(filter(lambda v: 0 < v['x'] < CROSSROAD_SIZE / 2 + 10, lr_b))  # interest of right
+            # ld_b = ld_b  # not interest in case of traffic light
+
+            c1 = list(filter(lambda v: v['y'] < 3, c1))  # interest of right
+            c2 = list(filter(lambda v: 0 < v['x'], c2))  # interest of right
+            c3 = list(filter(lambda v: -5 < v['y'], c3))  # interest of left
+
+
+            # sort
+            du_b = sorted(du_b, key=lambda v: v['y'])
+            # dr_b = sorted(dr_b, key=lambda v: (v['y'], v['x']))
+            # ru_b = sorted(ru_b, key=lambda v: (-v['x'], v['y']), reverse=True)
+            ud_b = sorted(ud_b, key=lambda v: v['y'])
+            # ul_b = sorted(ul_b, key=lambda v: (-v['y'], -v['x']), reverse=True)
+            lr_b = sorted(lr_b, key=lambda v: -v['x'])
+
+            mode2fillvalue_b = dict(
+                du_b=dict(type="bicycle_1", x=LANE_WIDTH * LANE_NUMBER + 1, y=-(CROSSROAD_SIZE / 2 + 30), v=0,
+                        phi=90, w=0.48, l=2, route=('1o', '3i')),
+                # dr=dict(type="bicycle_1", x=LANE_WIDTH * LANE_NUMBER + 1, y=-(CROSSROAD_SIZE / 2 + 30), v=0,
+                #         phi=90, w=0.48, l=2, route=('1o', '2i')),
+                # ru=dict(type="bicycle_1", x=(CROSSROAD_SIZE / 2 + 15), y=LANE_WIDTH * LANE_NUMBER + 1, v=0,
+                #         phi=180, w=0.48, l=2, route=('2o', '3i')),
+                ud_b=dict(type="bicycle_1", x=-LANE_WIDTH * LANE_NUMBER - 1, y=(CROSSROAD_SIZE / 2 + 20), v=0,
+                        phi=-90, w=0.48, l=2, route=('3o', '1i')),
+                # ul=dict(type="bicycle_1", x=-LANE_WIDTH * LANE_NUMBER - 1, y=(CROSSROAD_SIZE / 2 + 20), v=0,
+                #         phi=-90, w=0.48, l=2, route=('3o', '4i')),
+                lr_b=dict(type="bicycle_1", x=-(CROSSROAD_SIZE / 2 + 20), y=-LANE_WIDTH * LANE_NUMBER - 1,
+                        v=0, phi=0, w=0.48, l=2, route=('4o', '2i')))
+
+            tmp_b = OrderedDict()
+            for mode, num in BICYCLE_MODE_DICT[task].items():
+                tmp_b[mode] = slice_or_fill(eval(mode), mode2fillvalue_b[mode], num)
+
+            # fetch person in range
+            # print('c1',c1)
+            # print('c2',c2)
+            # print('c3',c3)
+            c1 = list(filter(lambda v: v['y'] < 3, c1))  # interest of right
+            c2 = list(filter(lambda v: 0 < v['x'], c2))  # interest of right
+            c3 = list(filter(lambda v: -5 < v['y'], c3))  # interest of left
+            # c_w2 = c_w2  # interest of right
+
+            # sort
+            c1 = sorted(c1, key=lambda v: (v['y'], v['x']))
+            c2 = sorted(c2, key=lambda v: (-v['x'], v['y']))
+            c3 = sorted(c3, key=lambda v: (v['y'], -v['x']))
+
+            mode2fillvalue_p = dict(
+                c1=dict(type='DEFAULT_PEDTYPE', x=LANE_WIDTH*LANE_NUMBER+3, y=-(CROSSROAD_SIZE / 2 + 30), v=0, phi=90, w=0.525,l=0.75, road="0_c1"),
+                c2=dict(type='DEFAULT_PEDTYPE', x=-(CROSSROAD_SIZE/2+20), y=-(LANE_WIDTH*LANE_NUMBER+3), v=0, phi=0, w=0.525, l=0.75, road="0_c2"),
+                c3=dict(type='DEFAULT_PEDTYPE', x=-(LANE_WIDTH*LANE_NUMBER+3), y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=0.525, l=0.75, road="0_c3"))
+
+            tmp_p = OrderedDict()
+            for mode, num in PERSON_MODE_DICT[task].items():
+                tmp_p[mode] = slice_or_fill(eval(mode), mode2fillvalue_p[mode], num)
+
+            if self.training_task != 'right':
+                if (v_light >1 and ego_y < -CROSSROAD_SIZE/2) \
+                        or (self.virtual_red_light_vehicle and ego_y < -CROSSROAD_SIZE/2):
+                    dl.append(dict(type="car_1", x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None))
+                    du.append(dict(type="car_1", x=LANE_WIDTH*1.5, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None))
+
+            # fetch veh in range
+            dl = list(filter(lambda v: v['x'] > -CROSSROAD_SIZE/2-10 and v['y'] > ego_y-2, dl))  # interest of left straight
+            du = list(filter(lambda v: ego_y-2 < v['y'] < CROSSROAD_SIZE/2+10 and v['x'] < ego_x+5, du))  # interest of left straight
+            dr = list(filter(lambda v: v['x'] < CROSSROAD_SIZE/2+10 and v['y'] > ego_y, dr))  # interest of right
+            rd = rd  # not interest in case of traffic light
+            rl = rl  # not interest in case of traffic light
+            ru = list(filter(lambda v: v['x'] < CROSSROAD_SIZE/2+10 and v['y'] < CROSSROAD_SIZE/2+10, ru))  # interest of straight
+            if task == 'straight':
+                ur = list(filter(lambda v: v['x'] < ego_x + 7 and ego_y < v['y'] < CROSSROAD_SIZE/2+10, ur))  # interest of straight
+            elif task == 'right':
+                ur = list(filter(lambda v: v['x'] < CROSSROAD_SIZE/2+10 and v['y'] < CROSSROAD_SIZE/2, ur))  # interest of right
+            ud = list(filter(lambda v: max(ego_y-2, -CROSSROAD_SIZE/2) < v['y'] < CROSSROAD_SIZE/2 and ego_x > v['x'], ud))  # interest of left
+            ul = list(filter(lambda v: -CROSSROAD_SIZE/2-10 < v['x'] < ego_x and v['y'] < CROSSROAD_SIZE/2, ul))  # interest of left
+            lu = lu  # not interest in case of traffic light
+            lr = list(filter(lambda v: -CROSSROAD_SIZE/2-10 < v['x'] < CROSSROAD_SIZE/2+10, lr))  # interest of right
+            ld = ld  # not interest in case of traffic light
+
+            # sort
+            dl = sorted(dl, key=lambda v: (v['y'], -v['x']))
+            du = sorted(du, key=lambda v: v['y'])
+            dr = sorted(dr, key=lambda v: (v['y'], v['x']))
+            ru = sorted(ru, key=lambda v: (-v['x'], v['y']), reverse=True)
+            if task == 'straight':
+                ur = sorted(ur, key=lambda v: v['y'])
+            elif task == 'right':
+                ur = sorted(ur, key=lambda v: (-v['y'], v['x']), reverse=True)
+            ud = sorted(ud, key=lambda v: v['y'])
+            ul = sorted(ul, key=lambda v: (-v['y'], -v['x']), reverse=True)
+            lr = sorted(lr, key=lambda v: -v['x'])
+
+            mode2fillvalue = dict(
+                dl=dict(type="car_1", x=LANE_WIDTH/2, y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=2.5, l=5, route=('1o', '4i')),
+                du=dict(type="car_1", x=LANE_WIDTH*1.5, y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=2.5, l=5, route=('1o', '3i')),
+                dr=dict(type="car_1", x=LANE_WIDTH*(LANE_NUMBER-0.5), y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=2.5, l=5, route=('1o', '2i')),
+                ru=dict(type="car_1", x=(CROSSROAD_SIZE/2+15), y=LANE_WIDTH*(LANE_NUMBER-0.5), v=0, phi=180, w=2.5, l=5, route=('2o', '3i')),
+                ur=dict(type="car_1", x=-LANE_WIDTH/2, y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '2i')),
+                ud=dict(type="car_1", x=-LANE_WIDTH*1.5, y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '1i')),
+                ul=dict(type="car_1", x=-LANE_WIDTH*(LANE_NUMBER-0.5), y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '4i')),
+                lr=dict(type="car_1", x=-(CROSSROAD_SIZE/2+20), y=-LANE_WIDTH*1.5, v=0, phi=0, w=2.5, l=5, route=('4o', '2i')))
+
+            tmp_v = OrderedDict()
+            for mode, num in VEHICLE_MODE_DICT[task].items():
+                tmp_v[mode] = slice_or_fill(eval(mode), mode2fillvalue[mode], num)
+
+            # print("tmp_b", tmp_b)
+            # print("tmp_p", tmp_p)
+            # print("tmp_v",tmp_v)
+            tmp1 = dict(tmp_b, **tmp_p)
+            tmp = dict(tmp1, **tmp_v)
+            return tmp
+
         def filter_interested_vehicles(vs, task):
+            # print("vs", vs)
             dl, du, dr, rd, rl, ru, ur, ud, ul, lu, lr, ld = [], [], [], [], [], [], [], [], [], [], [], []
             for v in vs:
                 route_list = v['route']
@@ -437,14 +674,185 @@ class CrossroadEnd2end(gym.Env):
                     return sorted_list
 
             mode2fillvalue = dict(
-                dl=dict(x=LANE_WIDTH/2, y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=2.5, l=5, route=('1o', '4i')),
-                du=dict(x=LANE_WIDTH*1.5, y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=2.5, l=5, route=('1o', '3i')),
-                dr=dict(x=LANE_WIDTH*(LANE_NUMBER-0.5), y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=2.5, l=5, route=('1o', '2i')),
-                ru=dict(x=(CROSSROAD_SIZE/2+15), y=LANE_WIDTH*(LANE_NUMBER-0.5), v=0, phi=180, w=2.5, l=5, route=('2o', '3i')),
-                ur=dict(x=-LANE_WIDTH/2, y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '2i')),
-                ud=dict(x=-LANE_WIDTH*1.5, y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '1i')),
-                ul=dict(x=-LANE_WIDTH*(LANE_NUMBER-0.5), y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '4i')),
-                lr=dict(x=-(CROSSROAD_SIZE/2+20), y=-LANE_WIDTH*1.5, v=0, phi=0, w=2.5, l=5, route=('4o', '2i')))
+                dl=dict(type="car_1", x=LANE_WIDTH/2, y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=2.5, l=5, route=('1o', '4i')),
+                du=dict(type="car_1", x=LANE_WIDTH*1.5, y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=2.5, l=5, route=('1o', '3i')),
+                dr=dict(type="car_1", x=LANE_WIDTH*(LANE_NUMBER-0.5), y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=2.5, l=5, route=('1o', '2i')),
+                ru=dict(type="car_1", x=(CROSSROAD_SIZE/2+15), y=LANE_WIDTH*(LANE_NUMBER-0.5), v=0, phi=180, w=2.5, l=5, route=('2o', '3i')),
+                ur=dict(type="car_1", x=-LANE_WIDTH/2, y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '2i')),
+                ud=dict(type="car_1", x=-LANE_WIDTH*1.5, y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '1i')),
+                ul=dict(type="car_1", x=-LANE_WIDTH*(LANE_NUMBER-0.5), y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=2.5, l=5, route=('3o', '4i')),
+                lr=dict(type="car_1", x=-(CROSSROAD_SIZE/2+20), y=-LANE_WIDTH*1.5, v=0, phi=0, w=2.5, l=5, route=('4o', '2i')))
+
+            tmp = OrderedDict()
+            for mode, num in VEHICLE_MODE_DICT[task].items():
+                tmp[mode] = slice_or_fill(eval(mode), mode2fillvalue[mode], num)
+            # print("tmp",tmp)
+            return tmp
+
+        def filter_interested_bicycles(vs, task):
+            # dl, du, dr, rd, rl, ru, ur, ud, ul, lu, lr, ld = [], [], [], [], [], [], [], [], [], [], [], []
+            du, dr, rl, ru, ud, ul, lr, ld = [], [], [], [], [], [], [], []
+            for v in vs:
+                route_list = v['route']
+                start = route_list[0]
+                end = route_list[1]
+                # if start == name_setting['do'] and end == name_setting['li']:
+                #     dl.append(v)
+                if start == name_setting['do'] and end == name_setting['ui']:
+                    du.append(v)
+                elif start == name_setting['do'] and end == name_setting['ri']:
+                    dr.append(v)
+
+                # elif start == name_setting['ro'] and end == name_setting['di']:
+                #     rd.append(v)
+                elif start == name_setting['ro'] and end == name_setting['li']:
+                    rl.append(v)
+                elif start == name_setting['ro'] and end == name_setting['ui']:
+                    ru.append(v)
+
+                # elif start == name_setting['uo'] and end == name_setting['ri']:
+                #     ur.append(v)
+                elif start == name_setting['uo'] and end == name_setting['di']:
+                    ud.append(v)
+                elif start == name_setting['uo'] and end == name_setting['li']:
+                    ul.append(v)
+
+                # elif start == name_setting['lo'] and end == name_setting['ui']:
+                #     lu.append(v)
+                elif start == name_setting['lo'] and end == name_setting['ri']:
+                    lr.append(v)
+                elif start == name_setting['lo'] and end == name_setting['di']:
+                    ld.append(v)
+
+            # if self.training_task != 'right':
+            #     if (v_light != 0 and ego_y < -CROSSROAD_SIZE/2) \
+            #             or (self.virtual_red_light_vehicle and ego_y < -CROSSROAD_SIZE/2):
+            #         dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None))
+            #         du.append(dict(x=LANE_WIDTH*1.5, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None))
+
+            # fetch veh in range
+            du = list(filter(lambda v: ego_y-2 < v['y'] < CROSSROAD_SIZE/2+10 and v['x'] < ego_x+8, du))  # interest of right straight
+            dr = list(filter(lambda v: v['x'] < CROSSROAD_SIZE/2+10 and v['y'] > ego_y-2, dr))  # interest of right
+
+            rl = rl  # not interest in case of traffic light
+            ru = list(filter(lambda v: v['x'] < CROSSROAD_SIZE/2+10 and v['y'] < CROSSROAD_SIZE/2+10, ru))  # interest of straight
+
+            ud = list(filter(lambda v: max(ego_y-2, -CROSSROAD_SIZE/2) < v['y'] < CROSSROAD_SIZE/2 and ego_x > v['x'], ud))  # interest of left
+            ul = list(filter(lambda v: -CROSSROAD_SIZE/2-10 < v['x'] < ego_x and v['y'] < CROSSROAD_SIZE/2, ul))  # interest of left
+
+            lr = list(filter(lambda v: -CROSSROAD_SIZE/2-10 < v['x'] < CROSSROAD_SIZE/2+10, lr))  # interest of right
+            ld = ld  # not interest in case of traffic light
+
+            # sort
+            du = sorted(du, key=lambda v: v['y'])
+            dr = sorted(dr, key=lambda v: (v['y'], v['x']))
+
+            ru = sorted(ru, key=lambda v: (-v['x'], v['y']), reverse=True)
+
+            ud = sorted(ud, key=lambda v: v['y'])
+            ul = sorted(ul, key=lambda v: (-v['y'], -v['x']), reverse=True)
+
+            lr = sorted(lr, key=lambda v: -v['x'])
+
+            # slice or fill to some number
+            def slice_or_fill(sorted_list, fill_value, num):
+                if len(sorted_list) >= num:
+                    return sorted_list[:num]
+                else:
+                    while len(sorted_list) < num:
+                        sorted_list.append(fill_value)
+                    return sorted_list
+
+            mode2fillvalue = dict(
+                du=dict(type="bicycle_1", x=LANE_WIDTH*LANE_NUMBER+1, y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=0.48, l=2, route=('1o', '3i')),
+                dr=dict(type="bicycle_1", x=LANE_WIDTH*LANE_NUMBER+1, y=-(CROSSROAD_SIZE/2+30), v=0, phi=90, w=0.48, l=2, route=('1o', '2i')),
+                ru=dict(type="bicycle_1", x=(CROSSROAD_SIZE/2+15), y=LANE_WIDTH*LANE_NUMBER+1, v=0, phi=180, w=0.48, l=2, route=('2o', '3i')),
+                ud=dict(type="bicycle_1", x=-LANE_WIDTH*LANE_NUMBER-1, y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=0.48, l=2, route=('3o', '1i')),
+                ul=dict(type="bicycle_1", x=-LANE_WIDTH*LANE_NUMBER-1, y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=0.48, l=2, route=('3o', '4i')),
+                lr=dict(type="bicycle_1", x=-(CROSSROAD_SIZE/2+20), y=-LANE_WIDTH*LANE_NUMBER-1, v=0, phi=0, w=0.48, l=2, route=('4o', '2i')))
+
+            tmp = OrderedDict()
+            for mode, num in VEHICLE_MODE_DICT[task].items():
+                tmp[mode] = slice_or_fill(eval(mode), mode2fillvalue[mode], num)
+
+            return tmp
+
+        def filter_interested_persons(vs, task):
+            # dl, du, dr, rd, rl, ru, ur, ud, ul, lu, lr, ld = [], [], [], [], [], [], [], [], [], [], [], []
+            i1_0, o1_0, i2_0, o2_0, i3_0, o3_0, i4_0, o4_0, c0, c1, c2, c3, c_w0, c_w1, c_w2, c_w3 = [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
+            for v in vs:
+                road_list = v['road']
+                if road_list == '1i_0':
+                    i1_0.append(v)
+                elif road_list == '1o_0':
+                    o1_0.append(v)
+                elif road_list == '2i_0':
+                    i2_0.append(v)
+                elif road_list == '2o_0':
+                    o2_0.append(v)
+                elif road_list == '3i_0':
+                    i3_0.append(v)
+                elif road_list == '3o_0':
+                    o3_0.append(v)
+                elif road_list == '4i_0':
+                    i4_0.append(v)
+                elif road_list == '4o_0':
+                    o4_0.append(v)
+                elif road_list == '0_c0':
+                    c0.append(v)
+                elif road_list == '0_c1':
+                    c1.append(v)
+                elif road_list == '0_c2':
+                    c2.append(v)
+                elif road_list == '0_c3':
+                    c3.append(v)
+                elif road_list == 'c_w0':
+                    c_w0.append(v)
+                elif road_list == 'c_w1':
+                    c_w1.append(v)
+                elif road_list == 'c_w2':
+                    c_w2.append(v)
+                elif road_list == 'c_w3':
+                    c_w3.append(v)
+
+            # fetch person in range
+            c1 = c1  # interest of right
+            c2 = c2  # interest of right
+            c3 = c3  # interest of left
+            c_w2 = c_w2  # interest of right
+
+
+            # sort
+            dl = sorted(dl, key=lambda v: (v['y'], -v['x']))
+            du = sorted(du, key=lambda v: v['y'])
+            dr = sorted(dr, key=lambda v: (v['y'], v['x']))
+
+            ru = sorted(ru, key=lambda v: (-v['x'], v['y']), reverse=True)
+
+            if task == 'straight':
+                ur = sorted(ur, key=lambda v: v['y'])
+            elif task == 'right':
+                ur = sorted(ur, key=lambda v: (-v['y'], v['x']), reverse=True)
+
+            ud = sorted(ud, key=lambda v: v['y'])
+            ul = sorted(ul, key=lambda v: (-v['y'], -v['x']), reverse=True)
+
+            lr = sorted(lr, key=lambda v: -v['x'])
+
+            # slice or fill to some number
+            def slice_or_fill(sorted_list, fill_value, num):
+                if len(sorted_list) >= num:
+                    return sorted_list[:num]
+                else:
+                    while len(sorted_list) < num:
+                        sorted_list.append(fill_value)
+                    return sorted_list
+
+            mode2fillvalue = dict(
+                c1=dict(type='DEFAULT_PEDTYPE', x=LANE_WIDTH*LANE_NUMBER+3, y=-(CROSSROAD_SIZE / 2 + 30), v=0, phi=90, w=0.525,l=0.75, road="0_c1"),
+                c2=dict(type='DEFAULT_PEDTYPE', x=-(CROSSROAD_SIZE/2+20), y=-(LANE_WIDTH*LANE_NUMBER+3), v=0, phi=0, w=0.525, l=0.75, road="0_c2"),
+                c3=dict(type='DEFAULT_PEDTYPE', x=-(LANE_WIDTH*LANE_NUMBER+3), y=(CROSSROAD_SIZE/2+20), v=0, phi=-90, w=0.525, l=0.75, road="0_c3"),
+                c_w2=dict(type='DEFAULT_PEDTYPE', x=(CROSSROAD_SIZE/2+15), y=LANE_WIDTH*LANE_NUMBER+3, v=0, phi=0, w=0.525, l=0.75, road="c_w2"))
 
             tmp = OrderedDict()
             for mode, num in VEHICLE_MODE_DICT[task].items():
@@ -453,7 +861,8 @@ class CrossroadEnd2end(gym.Env):
             return tmp
 
         list_of_interested_veh_dict = []
-        self.interested_vehs = filter_interested_vehicles(self.all_vehicles, self.training_task)
+        # self.interested_vehs = filter_interested_vehicles(self.all_vehicles, self.training_task)
+        self.interested_vehs = filter_interested_participants(self.all_vehicles, self.training_task)
         for part in list(self.interested_vehs.values()):
             list_of_interested_veh_dict.extend(part)
 
@@ -613,11 +1022,11 @@ class CrossroadEnd2end(gym.Env):
             # plt.plot([square_length / 2, square_length / 2], [2 * lane_width, 0],
             #          color='black')
             v_light = self.v_light
-            if v_light == 0:
+            if v_light == 0 or v_light == 1:
                 v_color, h_color = 'green', 'red'
-            elif v_light == 1:
-                v_color, h_color = 'orange', 'red'
             elif v_light == 2:
+                v_color, h_color = 'orange', 'red'
+            elif v_light == 3 or v_light == 4:
                 v_color, h_color = 'red', 'green'
             else:
                 v_color, h_color = 'red', 'orange'
@@ -744,10 +1153,52 @@ class CrossroadEnd2end(gym.Env):
                     veh_phi = veh['phi']
                     veh_l = veh['l']
                     veh_w = veh['w']
-                    # veh_type = veh['type']
+                    veh_type = veh['type']
                     #TODO: 定义veh_type
-                    print("车辆信息", veh)
-                    veh_type = 'car_1'
+                    # print("车辆信息", veh)
+                    # veh_type = 'car_1'
+                    task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+
+                    if is_in_plot_area(veh_x, veh_y):
+                        plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+                        task = MODE2TASK[mode]
+                        color = task2color[task]
+                        draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
+
+            # plot_interested bicycle
+            for mode, num in self.bicycle_mode_dict.items():
+                for i in range(num):
+                    veh = self.interested_vehs[mode][i]
+                    veh_x = veh['x']
+                    veh_y = veh['y']
+                    veh_phi = veh['phi']
+                    veh_l = veh['l']
+                    veh_w = veh['w']
+                    veh_type = veh['type']
+                    # TODO: 定义veh_type
+                    # print("车辆信息", veh)
+                    # veh_type = 'bicycle_1'
+                    task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+
+                    if is_in_plot_area(veh_x, veh_y):
+                        plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+                        task = MODE2TASK[mode]
+                        color = task2color[task]
+                        draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
+
+            # plot_interested person
+            for mode, num in self.person_mode_dict.items():
+                for i in range(num):
+                    veh = self.interested_vehs[mode][i]
+                    veh_x = veh['x']
+                    veh_y = veh['y']
+                    veh_phi = veh['phi']
+                    veh_l = veh['l']
+                    veh_w = veh['w']
+                    veh_type = veh['type']
+                    # TODO: 定义veh_type
+                    # print("车辆信息", veh)
+                    # veh_type = 'bicycle_1'
                     task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
 
                     if is_in_plot_area(veh_x, veh_y):

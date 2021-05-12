@@ -124,7 +124,7 @@ class Traffic(object):
                                                 traci.constants.VAR_LENGTH,
                                                 traci.constants.VAR_WIDTH,
                                                 traci.constants.VAR_ANGLE,
-                                                # traci.constants.VAR_SIGNALS,
+                                                traci.constants.VAR_SIGNALS,
                                                 traci.constants.VAR_SPEED,
                                                 traci.constants.VAR_TYPE,
                                                 # traci.constants.VAR_EMERGENCY_DECEL,
@@ -149,7 +149,7 @@ class Traffic(object):
                                                 # traci.constants.VAR_LANEPOSITION,
                                                 # traci.constants.VAR_EDGES,
                                                 traci.constants.VAR_ROAD_ID,
-                                                traci.constants.VAR_NEXT_EDGE,
+                                                # traci.constants.VAR_NEXT_EDGE,
                                                 # traci.constants.VAR_ROUTE_ID,
                                                 # traci.constants.VAR_ROUTE_INDEX
                                                 ],begin=0.0, end=2147483647.0)
@@ -197,7 +197,7 @@ class Traffic(object):
         random_traffic_01 = traci.junction.getContextSubscriptionResults('a3')
         random_traffic_02 = traci.junction.getContextSubscriptionResults('a4')
         random_traffic = dict(random_traffic_01, **random_traffic_02)
-        print("randomtraffic",random_traffic)
+        # print("randomtraffic",random_traffic)
         random_traffic = copy.deepcopy(random_traffic)
 
         for ego_id in self.n_ego_dict.keys():
@@ -261,16 +261,23 @@ class Traffic(object):
         veh_infos_02 = traci.junction.getContextSubscriptionResults('a4')
         veh_infos = dict(veh_infos_01, **veh_infos_02)
         # veh_infos = traci.junction.getContextSubscriptionResults('a4')
-        print("订阅器输出信息：", len(veh_infos), veh_infos)
+        # print("订阅器输出信息：", len(veh_infos), veh_infos)
         for egoID in self.n_ego_dict.keys():
             veh_info_dict = copy.deepcopy(veh_infos)
             for i, veh in enumerate(veh_info_dict):
                 if veh != egoID:
                     length = veh_info_dict[veh][traci.constants.VAR_LENGTH]
                     width = veh_info_dict[veh][traci.constants.VAR_WIDTH]
-                    # route = veh_info_dict[veh][traci.constants.VAR_EDGES]
-                    route = "4i 3o"
                     type = veh_info_dict[veh][traci.constants.VAR_TYPE]
+                    if type == 'DEFAULT_PEDTYPE':
+                        # TODO: 0为暂时赋值
+                        route = '0 0'
+                    else:
+                        route = veh_info_dict[veh][traci.constants.VAR_EDGES]
+                    if type == 'DEFAULT_PEDTYPE':
+                        road = veh_info_dict[veh][traci.constants.VAR_ROAD_ID]
+                    else:
+                        road = '0'
                     if route[0] == '4i':
                         continue
                     x_in_sumo, y_in_sumo = veh_info_dict[veh][traci.constants.VAR_POSITION]
@@ -279,7 +286,7 @@ class Traffic(object):
                     x, y, a = _convert_sumo_coord_to_car_coord(x_in_sumo, y_in_sumo, a_in_sumo, length)
                     v = veh_info_dict[veh][traci.constants.VAR_SPEED]
                     self.n_ego_vehicles[egoID].append(dict(type=type, x=x, y=y, v=v, phi=a, l=length,
-                                                           w=width, route=route))
+                                                           w=width, route=route, road=road))
 
     def _get_traffic_light(self):
         self.v_light = traci.trafficlight.getPhase('0')

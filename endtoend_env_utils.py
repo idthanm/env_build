@@ -28,6 +28,7 @@ PERSON_MODE_DICT = dict(left=OrderedDict(c3=2),
                          straight=OrderedDict(),
                          right=OrderedDict(c1=2, c2=2))
 
+
 def dict2flat(inp):
     out = []
     for key, val in inp.items():
