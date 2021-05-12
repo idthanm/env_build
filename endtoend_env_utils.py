@@ -21,7 +21,12 @@ SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
 VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=2, du=2, ud=2, ul=2),
                          straight=OrderedDict(dl=1, du=2, ud=2, ru=2, ur=2),
                          right=OrderedDict(dr=1, ur=2, lr=2))
-
+BICYCLE_MODE_DICT = dict(left=OrderedDict(ud_b=2),
+                         straight=OrderedDict(),
+                         right=OrderedDict(du_b=2, lr_b=2))
+PERSON_MODE_DICT = dict(left=OrderedDict(c3=2),
+                         straight=OrderedDict(),
+                         right=OrderedDict(c1=2, c2=2))
 
 def dict2flat(inp):
     out = []
@@ -60,7 +65,9 @@ ROUTE2MODE = {('1o', '2i'): 'dr', ('1o', '3i'): 'du', ('1o', '4i'): 'dl',
 MODE2TASK = {'dr': 'right', 'du': 'straight', 'dl': 'left',
              'rd': 'left', 'ru': 'right', 'rl': ' straight',
              'ud': 'straight', 'ur': 'left', 'ul': 'right',
-             'ld': 'right', 'lr': 'straight', 'lu': 'left'}
+             'ld': 'right', 'lr': 'straight', 'lu': 'left',
+             'ud_b': 'straight', 'du_b':'straight', 'lr_b':'straight',
+             'c1':'straight', 'c2':'straight', 'c3':'straight'}
 
 TASK2ROUTEID = {'left': 'dl', 'straight': 'du', 'right': 'dr'}
 

@@ -11,9 +11,9 @@
            sigma="0.5" tau="1" minGap="10" maxSpeed="7" speedDev="0" color="255,255,255,186" vClass="passenger"
            guiShape="passenger" impatience="0" laneChangeModel="LC2013" carFollowModel="Krauss" latAlignment="center"
            minGapLat="0.1" maxSpeedLat="1"/>
-    <vType id="bicycle_1" length="1" width="0.48" minGap="2.5" maxSpeed="2.39" vClass="bicycle" latAlignment="right" />
-	<vType id="bicycle_2" length="1" width="0.48" minGap="2.5" maxSpeed="2.39" vClass="bicycle" latAlignment="arbitrary" />
-	<vType id="bicycle_3" length="1" width="0.48" minGap="2.5" maxSpeed="2.39" vClass="bicycle" latAlignment="arbitrary" />
+    <vType id="bicycle_1" length="2" width="0.48" minGap="4" maxSpeed="2.39" vClass="bicycle" latAlignment="right" />
+	<vType id="bicycle_2" length="2" width="0.48" minGap="4" maxSpeed="2.39" vClass="bicycle" latAlignment="arbitrary" />
+	<vType id="bicycle_3" length="2" width="0.48" minGap="4" maxSpeed="2.39" vClass="bicycle" latAlignment="arbitrary" />
     <vType id="self_car" length="5" width="1.8" accel="3.5" decel="2.2" sigma="1.0" guiShape="passenger/wagon"
            color="1,0,1" maxSpeed="30"/>
 
