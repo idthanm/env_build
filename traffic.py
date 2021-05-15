@@ -250,7 +250,7 @@ class Traffic(object):
                     if veh_type == 'DEFAULT_PEDTYPE':
                         traci.person.removeStages(veh)
                     else:
-                        traci.vehicle.moveToXY(veh, '4i', 1, -80, 1.85, 180, 2)
+                        traci.vehicle.remove(veh)
 
                     # traci.vehicle.remove(vehID=veh)
                 # if 0<x_in_sumo<3.5 and -22<y_in_sumo<-15:# and veh_sig!=1 and veh_sig!=9:
