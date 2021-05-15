@@ -123,12 +123,13 @@ class EnvironmentModel(object):  # all tensors
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
             self.actions = self._action_transformation_for_end2end(actions)
-            rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, _ \
-                = self.compute_rewards(self.obses, self.actions)
+            rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, \
+                veh2bike4real, veh2person4real, _ = self.compute_rewards(self.obses, self.actions)
             self.obses = self.compute_next_obses(self.obses, self.actions)
             # self.reward_info.update({'final_rew': rewards.numpy()[0]})
 
-        return self.obses, rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real
+        return self.obses, rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, \
+               veh2bike4real, veh2person4real
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
