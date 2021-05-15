@@ -12,7 +12,10 @@ import os
 from collections import OrderedDict
 
 L, W = 4.8, 2.0
+L_BIKE, W_BIKE = 2.0, 0.48
 LANE_WIDTH = 3.75
+BIKE_LANE_WIDTH = 2.0
+PERSON_LANE_WIDTH = 2.0
 LANE_NUMBER = 3
 CROSSROAD_SIZE = 50
 EXPECTED_V = 8.
@@ -21,6 +24,12 @@ SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
 VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=2, du=2, ud=2, ul=2),
                          straight=OrderedDict(dl=1, du=2, ud=2, ru=2, ur=2),
                          right=OrderedDict(dr=1, ur=2, lr=2))
+BIKE_MODE_DICT = dict(left=OrderedDict(ud_b=2),
+                         straight=OrderedDict(),
+                         right=OrderedDict(du_b=2, lr_b=2))
+PERSON_MODE_DICT = dict(left=OrderedDict(c3=2),
+                         straight=OrderedDict(),
+                         right=OrderedDict(c1=2, c2=2))
 
 
 def dict2flat(inp):
@@ -41,9 +50,15 @@ VEH_NUM = dict(left=dict2num(VEHICLE_MODE_DICT['left']),
                straight=dict2num(VEHICLE_MODE_DICT['straight']),
                right=dict2num(VEHICLE_MODE_DICT['right']))
 
+BIKE_NUM = dict(left=dict2num(BIKE_MODE_DICT['left']))      # todo: unfinished
+
+PERSON_NUM = dict(left=dict2num(PERSON_MODE_DICT['left']))  # todo: unfinished
+
 VEHICLE_MODE_LIST = dict(left=dict2flat(VEHICLE_MODE_DICT['left']),
                          straight=dict2flat(VEHICLE_MODE_DICT['straight']),
                          right=dict2flat(VEHICLE_MODE_DICT['right']))
+BIKE_MODE_LIST = dict(left=dict2flat(BIKE_MODE_DICT['left']))
+PERSON_MODE_LIST = dict(left=dict2flat(PERSON_MODE_DICT['left']))
 # Things related to lane number: static path generation (which further influences obs initialization),
 # observation formulation (especially other vehicles selection and number), rewards formulation
 # other vehicle prediction
@@ -60,7 +75,9 @@ ROUTE2MODE = {('1o', '2i'): 'dr', ('1o', '3i'): 'du', ('1o', '4i'): 'dl',
 MODE2TASK = {'dr': 'right', 'du': 'straight', 'dl': 'left',
              'rd': 'left', 'ru': 'right', 'rl': ' straight',
              'ud': 'straight', 'ur': 'left', 'ul': 'right',
-             'ld': 'right', 'lr': 'straight', 'lu': 'left'}
+             'ld': 'right', 'lr': 'straight', 'lu': 'left',
+             'ud_b': 'straight', 'du_b':'straight', 'lr_b':'straight',
+             'c1':'straight', 'c2':'straight', 'c3':'straight'}
 
 TASK2ROUTEID = {'left': 'dl', 'straight': 'du', 'right': 'dr'}
 

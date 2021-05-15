@@ -23,7 +23,7 @@ from endtoend import CrossroadEnd2end
 from endtoend_env_utils import rotate_coordination, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, MODE2TASK
 from hierarchical_decision.multi_path_generator import MultiPathGenerator
 from utils.load_policy import LoadPolicy
-from utils.misc import TimerStat
+from utils.misc import TimerStat, image2video
 from utils.recorder import Recorder
 
 
@@ -391,7 +391,7 @@ class HierarchicalDecision(object):
         plt.show()
         plt.pause(0.001)
         if self.logdir is not None:
-            plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{}.pdf'.format(self.step_counter))
+            plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{:03d}.png'.format(self.step_counter))
 
 
 def plot_and_save_ith_episode_data(logdir, i):
@@ -406,7 +406,10 @@ def main():
     time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     logdir = './results/{time}'.format(time=time_now)
     os.makedirs(logdir)
-    hier_decision = HierarchicalDecision('left', 'experiment-2021-03-15-16-39-00', 180000, logdir)
+    hier_decision = HierarchicalDecision('left', 'experiment-2021-03-15-16-39-00', 95000, logdir)
+    # 'left', 'experiment-2021-03-15-16-39-00', 180000
+    # 'straight', 'experiment-2021-03-15-19-16-13', 175000
+    # 'right', 'experiment-2021-03-15-21-02-51', 195000
 
     for i in range(300):
         done = 0
@@ -429,22 +432,23 @@ def plot_static_path():
     ax.axis("equal")
 
     # ----------arrow--------------
-    plt.arrow(lane_width / 2, -square_length / 2 - 10, 0, 5, color='b')
-    plt.arrow(lane_width / 2, -square_length / 2 - 10 + 5, -0.5, 0, color='b', head_width=1)
-    plt.arrow(lane_width * 1.5, -square_length / 2 - 10, 0, 4, color='b', head_width=1)
-    plt.arrow(lane_width * 2.5, -square_length / 2 - 10, 0, 5, color='b')
-    plt.arrow(lane_width * 2.5, -square_length / 2 - 10 + 5, 0.5, 0, color='b', head_width=1)
+    plt.arrow(lane_width / 2 , -square_length / 2 - 10, 0, 3, color='darkviolet')
+    plt.arrow(lane_width / 2 , -square_length / 2 - 10 + 3, -0.5, 1.0, color='darkviolet', head_width=0.7)
+    plt.arrow(lane_width * 1.5, -square_length / 2 - 10, 0, 4, color='darkviolet', head_width=0.7)
+    plt.arrow(lane_width * 2.5, -square_length / 2 - 10, 0, 3, color='darkviolet')
+    plt.arrow(lane_width * 2.5, -square_length / 2 - 10 + 3, 0.5, 1.0, color='darkviolet', head_width=0.7)
 
     # ----------horizon--------------
 
-    plt.plot([-square_length / 2 - extension, -square_length / 2], [0.3, 0.3], color='orange')
-    plt.plot([-square_length / 2 - extension, -square_length / 2], [-0.3, -0.3], color='orange')
-    plt.plot([square_length / 2 + extension, square_length / 2], [0.3, 0.3], color='orange')
-    plt.plot([square_length / 2 + extension, square_length / 2], [-0.3, -0.3], color='orange')
+    plt.plot([-square_length / 2 - extension, -square_length / 2], [0.2, 0.2], color='orange')
+    plt.plot([-square_length / 2 - extension, -square_length / 2], [-0.2, -0.2], color='orange')
+    plt.plot([square_length / 2 + extension, square_length / 2], [0.2, 0.2], color='orange')
+    plt.plot([square_length / 2 + extension, square_length / 2], [-0.2, -0.2], color='orange')
 
     for i in range(1, LANE_NUMBER + 1):
+    # for i in range(1, 5+1):
         linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
-        linewidth = 1 if i < LANE_NUMBER else 2
+        linewidth = 1 if i < LANE_NUMBER else 1
         plt.plot([-square_length / 2 - extension, -square_length / 2], [i * lane_width, i * lane_width],
                  linestyle=linestyle, color='black', linewidth=linewidth)
         plt.plot([square_length / 2 + extension, square_length / 2], [i * lane_width, i * lane_width],
@@ -454,15 +458,27 @@ def plot_static_path():
         plt.plot([square_length / 2 + extension, square_length / 2], [-i * lane_width, -i * lane_width],
                  linestyle=linestyle, color='black', linewidth=linewidth)
 
+    for i in range(4, 5+1):
+        linestyle = dotted_line_style if i < 5 else solid_line_style
+        linewidth = 1 if i < 5 else 2
+        plt.plot([-square_length / 2 - extension, -square_length / 2], [3 * lane_width + (i-3)* 2, 3 * lane_width + (i-3)* 2],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+        plt.plot([square_length / 2 + extension, square_length / 2], [3 * lane_width + (i-3)* 2, 3 * lane_width + (i-3)* 2],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+        plt.plot([-square_length / 2 - extension, -square_length / 2], [-3 * lane_width - (i-3)* 2, -3 * lane_width - (i-3)* 2],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+        plt.plot([square_length / 2 + extension, square_length / 2], [-3 * lane_width - (i-3)* 2, -3 * lane_width - (i-3)* 2],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+
     # ----------vertical----------------
-    plt.plot([0.3, 0.3], [-square_length / 2 - extension, -square_length / 2], color='orange')
-    plt.plot([-0.3, -0.3], [-square_length / 2 - extension, -square_length / 2], color='orange')
-    plt.plot([0.3, 0.3], [square_length / 2 + extension, square_length / 2], color='orange')
-    plt.plot([-0.3, -0.3], [square_length / 2 + extension, square_length / 2], color='orange')
+    plt.plot([0.2, 0.2], [-square_length / 2 - extension, -square_length / 2], color='orange')
+    plt.plot([-0.2, -0.2], [-square_length / 2 - extension, -square_length / 2], color='orange')
+    plt.plot([0.2, 0.2], [square_length / 2 + extension, square_length / 2], color='orange')
+    plt.plot([-0.2, -0.2], [square_length / 2 + extension, square_length / 2], color='orange')
 
     for i in range(1, LANE_NUMBER + 1):
         linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
-        linewidth = 1 if i < LANE_NUMBER else 2
+        linewidth = 1
         plt.plot([i * lane_width, i * lane_width], [-square_length / 2 - extension, -square_length / 2],
                  linestyle=linestyle, color='black', linewidth=linewidth)
         plt.plot([i * lane_width, i * lane_width], [square_length / 2 + extension, square_length / 2],
@@ -471,38 +487,118 @@ def plot_static_path():
                  linestyle=linestyle, color='black', linewidth=linewidth)
         plt.plot([-i * lane_width, -i * lane_width], [square_length / 2 + extension, square_length / 2],
                  linestyle=linestyle, color='black', linewidth=linewidth)
-    plt.plot([0, LANE_NUMBER * lane_width], [-square_length / 2, -square_length / 2],
+
+    for i in range(4, 5+1):
+        linestyle = dotted_line_style if i < 5 else solid_line_style
+        linewidth = 1 if i < 5 else 2
+        plt.plot([3 * lane_width + (i-3)* 2, 3 * lane_width + (i-3)* 2], [-square_length / 2 - extension, -square_length / 2],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+        plt.plot([3 * lane_width + (i-3)* 2, 3 * lane_width + (i-3)* 2], [square_length / 2 + extension, square_length / 2],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+        plt.plot([-3 * lane_width - (i-3)* 2, -3 * lane_width - (i-3)* 2], [-square_length / 2 - extension, -square_length / 2],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+        plt.plot([-3 * lane_width - (i-3)* 2, -3 * lane_width - (i-3)* 2], [square_length / 2 + extension, square_length / 2],
+                 linestyle=linestyle, color='black', linewidth=linewidth)
+
+    # stop line
+    plt.plot([0, LANE_NUMBER * lane_width + 2 * 2], [-square_length / 2, -square_length / 2],
              color='black', linewidth=light_line_width, alpha=0.3)
-    plt.plot([LANE_NUMBER * lane_width, 0], [square_length / 2, square_length / 2],
+    plt.plot([LANE_NUMBER * lane_width + 2 * 2, 0], [square_length / 2, square_length / 2],
              color='black', linewidth=light_line_width, alpha=0.3)
-    plt.plot([-square_length / 2, -square_length / 2], [0, LANE_NUMBER * lane_width],
+    plt.plot([-square_length / 2, -square_length / 2], [0, LANE_NUMBER * lane_width + 2 * 2],
              color='black', linewidth=light_line_width, alpha=0.3)
-    plt.plot([square_length / 2, square_length / 2], [-LANE_NUMBER * lane_width, 0],
+    plt.plot([square_length / 2, square_length / 2], [-LANE_NUMBER * lane_width - 2 * 2, 0],
              color='black', linewidth=light_line_width, alpha=0.3)
 
     # ----------Oblique--------------
-    plt.plot([LANE_NUMBER * lane_width, square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
+    plt.plot([LANE_NUMBER * lane_width+4, square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width -4],
              color='black', linewidth=2)
-    plt.plot([LANE_NUMBER * lane_width, square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
+    plt.plot([LANE_NUMBER * lane_width+4, square_length / 2], [square_length / 2, LANE_NUMBER * lane_width+4],
              color='black', linewidth=2)
-    plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
+    plt.plot([-LANE_NUMBER * lane_width-4, -square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width-4],
              color='black', linewidth=2)
-    plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
+    plt.plot([-LANE_NUMBER * lane_width-4, -square_length / 2], [square_length / 2, LANE_NUMBER * lane_width+4],
              color='black', linewidth=2)
+
+    # 人行横道
+    # for renxingdao in range(5):
+    jj = 3.5
+    for ii in range(23):
+        if ii <= 3:
+            continue
+        ax.add_patch(plt.Rectangle((-square_length / 2 + jj + ii * 1.6, -square_length / 2 + 0.5), 0.8, 4, color='lightgray', alpha=0.5))
+
+        # plt.plot([-square_length / 2 + jj + ii * 1.6, -square_length / 2 + jj + 0.8 + ii * 1.6],
+        #          [-square_length / 2 + 0.5, -square_length / 2 + 0.5], color='silver', linewidth=1, alpha=0.5)
+        # plt.plot([-square_length / 2 + jj + ii * 1.6, -square_length / 2 + jj + 0.8 + ii * 1.6],
+        #          [-square_length / 2 + 0.5 +4 , -square_length / 2 + 0.5+4], color='silver', linewidth=1, alpha=0.5)
+        # plt.plot([-square_length / 2 + jj + ii * 1.6, -square_length / 2 + jj + ii * 1.6],
+        #          [-square_length / 2 + 0.5, -square_length / 2 + 0.5 +4], color='silver', linewidth=1, alpha=0.5)
+        # plt.plot([-square_length / 2 + jj + 0.8+ ii*1.6, -square_length / 2 + jj + 0.8+ ii*1.6],
+        #          [-square_length / 2 + 0.5, -square_length / 2 + 0.5 + 4], color='silver', linewidth=1, alpha=0.5)
+        ii += 1
+    for ii in range(23):
+        if ii <= 3:
+            continue
+        ax.add_patch(plt.Rectangle((-square_length / 2 + jj + ii * 1.6, square_length / 2 - 0.5 - 4), 0.8, 4, color='lightgray',alpha=0.5))
+
+        # plt.plot([-square_length / 2 + jj + ii * 1.6, -square_length / 2 + jj + 0.8 + ii * 1.6],
+        #          [square_length / 2 - 0.5, square_length / 2 - 0.5], color='silver', linewidth=1, alpha=0.5)
+        # plt.plot([-square_length / 2 + jj + ii * 1.6, -square_length / 2 + jj + 0.8 + ii * 1.6],
+        #          [square_length / 2 - 0.5 -4 , square_length / 2 - 0.5-4], color='silver', linewidth=1, alpha=0.5)
+        # plt.plot([-square_length / 2 + jj + ii * 1.6, -square_length / 2 + jj + ii * 1.6],
+        #          [square_length / 2 - 0.5, square_length / 2 - 0.5 -4], color='silver', linewidth=1, alpha=0.5)
+        # plt.plot([-square_length / 2 + jj + 0.8+ ii*1.6, -square_length / 2 + jj + 0.8+ ii*1.6],
+        #          [square_length / 2 - 0.5, square_length / 2 - 0.5 - 4], color='silver', linewidth=1, alpha=0.5)
+        ii += 1
+    for ii in range(23):
+        if ii <= 3:
+            continue
+        ax.add_patch(
+            plt.Rectangle((-square_length / 2 + 0.5, square_length / 2 - jj - 0.8 - ii * 1.6), 4,0.8,  color='lightgray',
+                          alpha=0.5))
+        # plt.plot([-square_length / 2 + 0.5, -square_length / 2 + 0.5],
+        #          [square_length / 2 - jj - ii * 1.6, square_length / 2 - jj - 0.8 - ii * 1.6], color='silver', linewidth=1, alpha=0.5)
+        # plt.plot([-square_length / 2 + 0.5 +4, -square_length / 2 + 0.5+4],
+        #          [square_length / 2 - jj - ii * 1.6, square_length / 2 - jj - 0.8 - ii * 1.6], color='silver', linewidth=1, alpha=0.5)
+        # plt.plot([-square_length / 2 + 0.5, -square_length / 2 + 0.5 +4],
+        #          [square_length / 2 - jj - ii * 1.6, square_length / 2 - jj - ii * 1.6], color='silver', linewidth=1, alpha=0.5)
+        # plt.plot([-square_length / 2 + 0.5, -square_length / 2 + 0.5+4],
+        #          [square_length / 2 - jj - 0.8 - ii * 1.6, square_length / 2 - jj - 0.8 - ii * 1.6], color='silver', linewidth=1, alpha=0.5)
+        ii += 1
+    for ii in range(23):
+        if ii <= 3:
+            continue
+        ax.add_patch(
+            plt.Rectangle((square_length / 2 - 0.5 -4, square_length / 2 - jj - 0.8 - ii * 1.6), 4, 0.8,
+                          color='lightgray',
+                          alpha=0.5))
+        # plt.plot([square_length / 2 - 0.5, square_length / 2 - 0.5],
+        #          [square_length / 2 - jj - ii * 1.6, square_length / 2 - jj - 0.8 - ii * 1.6], color='silver', linewidth=1, alpha=0.5)
+        # plt.plot([square_length / 2 - 0.5 -4, square_length / 2 - 0.5-4],
+        #          [square_length / 2 - jj - ii * 1.6, square_length / 2 - jj - 0.8 - ii * 1.6], color='silver', linewidth=1, alpha=0.5)
+        # plt.plot([square_length / 2 - 0.5, square_length / 2 - 0.5 -4],
+        #          [square_length / 2 - jj - ii * 1.6, square_length / 2 - jj - ii * 1.6], color='silver', linewidth=1, alpha=0.5)
+        # plt.plot([square_length / 2 - 0.5, square_length / 2 - 0.5-4],
+        #          [square_length / 2 - jj - 0.8 - ii * 1.6, square_length / 2 - jj - 0.8 - ii * 1.6], color='silver', linewidth=1, alpha=0.5)
+        ii += 1
+
 
     for task in ['left', 'straight', 'right']:
         path = ReferencePath(task)
         path_list = path.path_list
         control_points = path.control_points
-        color = ['blue', 'coral', 'darkcyan']
+        color = ['royalblue', 'orangered', 'teal']
+
         for i, (path_x, path_y, _) in enumerate(path_list):
             plt.plot(path_x[600:-600], path_y[600:-600], color=color[i])
         for i, four_points in enumerate(control_points):
             for point in four_points:
-                plt.scatter(point[0], point[1], color=color[i])
-            plt.plot([four_points[0][0], four_points[1][0]], [four_points[0][1], four_points[1][1]], linestyle='--', color=color[i])
-            plt.plot([four_points[1][0], four_points[2][0]], [four_points[1][1], four_points[2][1]], linestyle='--', color=color[i])
-            plt.plot([four_points[2][0], four_points[3][0]], [four_points[2][1], four_points[3][1]], linestyle='--', color=color[i])
+                plt.scatter(point[0], point[1], color=color[i], s=20, alpha=0.7)
+            plt.plot([four_points[0][0], four_points[1][0]], [four_points[0][1], four_points[1][1]], linestyle='--', color=color[i], alpha=0.5)
+            plt.plot([four_points[1][0], four_points[2][0]], [four_points[1][1], four_points[2][1]], linestyle='--', color=color[i], alpha=0.5)
+            plt.plot([four_points[2][0], four_points[3][0]], [four_points[2][1], four_points[3][1]], linestyle='--', color=color[i], alpha=0.5)
+
     plt.savefig('./multipath_planning.pdf')
     plt.show()
 
@@ -517,12 +613,13 @@ def select_and_rename_snapshots_of_an_episode(logdir, epinum, num):
     print(selected)
     if file_num > 0:
         for i, j in enumerate(selected):
-            shutil.copyfile(logdir + '/episode{}/step{}.pdf'.format(epinum, j),
-                            logdir + '/episode{}/figs/{}.pdf'.format(epinum, i))
+            shutil.copyfile(logdir + '/episode{}/step{:03d}.pdf'.format(epinum, j),
+                            logdir + '/episode{}/figs/{:03d}.pdf'.format(epinum, i))
 
 
 if __name__ == '__main__':
     main()
+    # image2video('./results/forvideos/2021-03-28-17-30-47/episode6')
     # plot_static_path()
     # plot_and_save_ith_episode_data('./results/good/2021-03-15-23-56-21', 0)
     # select_and_rename_snapshots_of_an_episode('./results/good/2021-03-15-23-56-21', 0, 12)
