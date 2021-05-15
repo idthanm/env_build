@@ -19,7 +19,8 @@ from gym.utils import seeding
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath, EnvironmentModel
 from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination, deal_with_phi, \
-    L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, BICYCLE_MODE_DICT, PERSON_MODE_DICT, VEH_NUM, EXPECTED_V
+    L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, BIKE_MODE_DICT, PERSON_MODE_DICT, \
+    VEH_NUM, BIKE_NUM, PERSON_NUM, EXPECTED_V
 from traffic import Traffic
 
 warnings.filterwarnings("ignore")
@@ -72,9 +73,11 @@ class CrossroadEnd2end(gym.Env):
         self.obs = None
         self.action = None
         self.veh_mode_dict = VEHICLE_MODE_DICT[self.training_task]
-        self.bicycle_mode_dict = BICYCLE_MODE_DICT[self.training_task]
+        self.bicycle_mode_dict = BIKE_MODE_DICT[self.training_task]
         self.person_mode_dict = PERSON_MODE_DICT[self.training_task]
         self.veh_num = VEH_NUM[self.training_task]
+        self.bike_num = BIKE_NUM[self.training_task]
+        self.person_num = PERSON_NUM[self.training_task]
         self.virtual_red_light_vehicle = False
 
         self.done_type = 'not_done_yet'
@@ -503,7 +506,7 @@ class CrossroadEnd2end(gym.Env):
                         v=0, phi=0, w=0.48, l=2, route=('4o', '2i')))
 
             tmp_b = OrderedDict()
-            for mode, num in BICYCLE_MODE_DICT[task].items():
+            for mode, num in BIKE_MODE_DICT[task].items():
                 tmp_b[mode] = slice_or_fill(eval(mode), mode2fillvalue_b[mode], num)
 
             # fetch person in range
@@ -909,7 +912,7 @@ class CrossroadEnd2end(gym.Env):
 
     def compute_reward(self, obs, action):
         obses, actions = obs[np.newaxis, :], action[np.newaxis, :]
-        reward, _, _, _, _, reward_dict = \
+        reward, _, _, _, _, _, _, reward_dict = \
             self.env_model.compute_rewards(obses, actions)
         for k, v in reward_dict.items():
             reward_dict[k] = v.numpy()[0]
@@ -1335,11 +1338,12 @@ class CrossroadEnd2end(gym.Env):
 
 def test_end2end():
     env = CrossroadEnd2end(training_task='left', num_future_data=0)
+    env_model = EnvironmentModel(training_task='left', num_future_data=0)
     obs = env.reset()
     i = 0
     done = 0
     while i < 100000:
-        for j in range(80):
+        for j in range(200):
             # print(i)
             i += 1
             # action=2*np.random.random(2)-1
@@ -1348,7 +1352,12 @@ def test_end2end():
             else:
                 action = np.array([0.5, 0.33], dtype=np.float32)
             obs, reward, done, info = env.step(action)
+            env_model.reset(obs[np.newaxis, :], env.ref_path.ref_index)
+            env_model.mode = 'testing'
+            pred_obs = env_model.compute_next_obses(obs[np.newaxis, :], action[np.newaxis,:])
             env.render()
+            if done:
+                break
         done = 0
         obs = env.reset()
         env.render()
