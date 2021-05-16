@@ -72,11 +72,11 @@ class HierarchicalDecision(object):
             os.makedirs(self.logdir + '/episode{}/figs'.format(self.episode_counter))
             self.step_counter = -1
             self.recorder.save(self.logdir)
-            if self.episode_counter >= 1:
-                select_and_rename_snapshots_of_an_episode(self.logdir, self.episode_counter-1, 12)
-                self.recorder.plot_and_save_ith_episode_curves(self.episode_counter-1,
-                                                               self.logdir + '/episode{}/figs'.format(self.episode_counter-1),
-                                                               isshow=False)
+            # if self.episode_counter >= 1:
+            #     select_and_rename_snapshots_of_an_episode(self.logdir, self.episode_counter-1, 12)
+            #     self.recorder.plot_and_save_ith_episode_curves(self.episode_counter-1,
+            #                                                    self.logdir + '/episode{}/figs'.format(self.episode_counter-1),
+            #                                                    isshow=False)
         return self.obs
 
     # @tf.function
@@ -127,7 +127,7 @@ class HierarchicalDecision(object):
             # obtain safe action
             with self.ss_timer:
                 safe_action, is_ss = self.safe_shield(self.obs_real, path_index)
-            print('ALL TIME:', self.step_timer.mean, 'ss', self.ss_timer.mean)
+            # print('ALL TIME:', self.step_timer.mean, 'ss', self.ss_timer.mean)
         self.render(self.path_list, path_values, path_index)
         self.recorder.record(self.obs_real, safe_action, self.step_timer.mean,
                              path_index, path_values, self.ss_timer.mean, is_ss)
@@ -317,9 +317,9 @@ class HierarchicalDecision(object):
         def plot_phi_line(type, x, y, phi, color):
             # TODO:新增一个type项输入
             if type in ['bicycle_1', 'bicycle_2', 'bicycle_3']:
-                line_length = 1.5
+                line_length = 1
             elif type == 'DEFAULT_PEDTYPE':
-                line_length = 1.5
+                line_length = 1
             else:
                 line_length = 3
             x_forw, y_forw = x + line_length * cos(phi*pi/180.),\
@@ -342,24 +342,70 @@ class HierarchicalDecision(object):
                 veh_color = 'black'
             if is_in_plot_area(veh_x, veh_y):
                 plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
-                draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, 'black')
+                draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, veh_color)
 
         # plot_interested vehs
-        # for mode, num in self.env.veh_mode_dict.items():
-        #     for i in range(num):
-        #         veh = self.env.interested_vehs[mode][i]
-        #         veh_x = veh['x']
-        #         veh_y = veh['y']
-        #         veh_phi = veh['phi']
-        #         veh_l = veh['l']
-        #         veh_w = veh['w']
-        #         task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
-        #
-        #         if is_in_plot_area(veh_x, veh_y):
-        #             plot_phi_line(veh_x, veh_y, veh_phi, 'black')
-        #             task = MODE2TASK[mode]
-        #             color = task2color[task]
-        #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
+        for mode, num in self.env.veh_mode_dict.items():
+            for i in range(num):
+                veh = self.env.interested_vehs[mode][i]
+                veh_x = veh['x']
+                veh_y = veh['y']
+                veh_phi = veh['phi']
+                veh_l = veh['l']
+                veh_w = veh['w']
+                veh_type = veh['type']
+                #TODO: 定义veh_type
+                # print("车辆信息", veh)
+                # veh_type = 'car_1'
+                task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+
+                if is_in_plot_area(veh_x, veh_y):
+                    plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+                    task = MODE2TASK[mode]
+                    color = task2color[task]
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
+
+        # plot_interested bicycle
+        for mode, num in self.env.bicycle_mode_dict.items():
+            for i in range(num):
+                veh = self.env.interested_vehs[mode][i]
+                veh_x = veh['x']
+                veh_y = veh['y']
+                veh_phi = veh['phi']
+                veh_l = veh['l']
+                veh_w = veh['w']
+                veh_type = veh['type']
+                # TODO: 定义veh_type
+                # print("车辆信息", veh)
+                # veh_type = 'bicycle_1'
+                task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+
+                if is_in_plot_area(veh_x, veh_y):
+                    plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+                    task = MODE2TASK[mode]
+                    color = task2color[task]
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
+
+        # plot_interested person
+        for mode, num in self.env.person_mode_dict.items():
+            for i in range(num):
+                veh = self.env.interested_vehs[mode][i]
+                veh_x = veh['x']
+                veh_y = veh['y']
+                veh_phi = veh['phi']
+                veh_l = veh['l']
+                veh_w = veh['w']
+                veh_type = veh['type']
+                # TODO: 定义veh_type
+                # print("车辆信息", veh)
+                # veh_type = 'bicycle_1'
+                task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+
+                if is_in_plot_area(veh_x, veh_y):
+                    plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+                    task = MODE2TASK[mode]
+                    color = task2color[task]
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
 
         ego_v_x = self.env.ego_dynamics['v_x']
         ego_v_y = self.env.ego_dynamics['v_y']
@@ -386,13 +432,12 @@ class HierarchicalDecision(object):
 
 
         # plot future data
-        tracking_info = self.obs[
-                        self.env.ego_info_dim:self.env.ego_info_dim + self.env.per_tracking_info_dim * (self.env.num_future_data + 1)]
+        tracking_info = self.obs[self.env.ego_info_dim:self.env.ego_info_dim + self.env.per_tracking_info_dim * (self.env.num_future_data+1)]
         future_path = tracking_info[self.env.per_tracking_info_dim:]
         for i in range(self.env.num_future_data):
-            delta_x, delta_y, delta_phi = future_path[i * self.env.per_tracking_info_dim:
-                                                      (i + 1) * self.env.per_tracking_info_dim]
-            path_x, path_y, path_phi = ego_x + delta_x, ego_y + delta_y, ego_phi - delta_phi
+            delta_x, delta_y, delta_phi = future_path[i*self.env.per_tracking_info_dim:
+                                                      (i+1)*self.env.per_tracking_info_dim]
+            path_x, path_y, path_phi = ego_x+delta_x, ego_y+delta_y, ego_phi-delta_phi
             plt.plot(path_x, path_y, 'g.')
             plot_phi_line('self_car', path_x, path_y, path_phi, 'g')
 
@@ -403,8 +448,8 @@ class HierarchicalDecision(object):
         delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
 
         # plot real time traj
+        color = ['blue', 'coral', 'darkcyan']
         try:
-            color = ['blue', 'coral', 'darkcyan']
             for i, item in enumerate(traj_list):
                 if i == path_index:
                     plt.plot(item.path[0], item.path[1], color=color[i])
@@ -443,8 +488,7 @@ class HierarchicalDecision(object):
         #                                                                                         alpha_r_bound))
         # if self.env.action is not None:
         #     steer, a_x = self.env.action[0], self.env.action[1]
-        #     plt.text(text_x, text_y_start - next(ge),
-        #              r'steer: {:.2f}rad (${:.2f}\degree$)'.format(steer, steer * 180 / np.pi))
+        #     plt.text(text_x, text_y_start - next(ge), r'steer: {:.2f}rad (${:.2f}\degree$)'.format(steer, steer * 180 / np.pi))
         #     plt.text(text_x, text_y_start - next(ge), 'a_x: {:.2f}m/s^2'.format(a_x))
         #
         # text_x, text_y_start = 70, 60
@@ -457,18 +501,18 @@ class HierarchicalDecision(object):
         # if self.env.reward_info is not None:
         #     for key, val in self.env.reward_info.items():
         #         plt.text(text_x, text_y_start - next(ge), '{}: {:.4f}'.format(key, val))
-        #
-        # # indicator for trajectory selection
-        # text_x, text_y_start = -18, -70
-        # ge = iter(range(0, 1000, 6))
-        # if path_values is not None:
-        #     for i, value in enumerate(path_values):
-        #         if i == path_index:
-        #             plt.text(text_x, text_y_start - next(ge), 'Path reward={:.4f}'.format(value[0]), fontsize=14,
-        #                      color=color[i], fontstyle='italic')
-        #         else:
-        #             plt.text(text_x, text_y_start - next(ge), 'Path reward={:.4f}'.format(value[0]), fontsize=12,
-        #                      color=color[i], fontstyle='italic')
+
+        # indicator for trajectory selection
+        text_x, text_y_start = 25, -50
+        ge = iter(range(0, 1000, 6))
+        if path_values is not None:
+            for i, value in enumerate(path_values):
+                if i == path_index:
+                    plt.text(text_x, text_y_start - next(ge), 'Path reward={:.4f}'.format(value), fontsize=14,
+                             color=color[i], fontstyle='italic')
+                else:
+                    plt.text(text_x, text_y_start - next(ge), 'Path reward={:.4f}'.format(value), fontsize=12,
+                             color=color[i], fontstyle='italic')
         plt.show()
         plt.pause(0.001)
         if self.logdir is not None:
@@ -487,7 +531,7 @@ def main():
     time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     logdir = './results/{time}'.format(time=time_now)
     os.makedirs(logdir)
-    hier_decision = HierarchicalDecision('left', 'experiment-2021-05-15-13-27-44', 180000, logdir)
+    hier_decision = HierarchicalDecision('left', 'experiment-2021-05-16-01-12-54', 300000, logdir)
     # 'left', 'experiment-2021-03-15-16-39-00', 180000
     # 'straight', 'experiment-2021-03-15-19-16-13', 175000
     # 'right', 'experiment-2021-03-15-21-02-51', 195000

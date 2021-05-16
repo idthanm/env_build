@@ -27,7 +27,7 @@ VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=2, du=2, ud=2, ul=2),
 BIKE_MODE_DICT = dict(left=OrderedDict(ud_b=2),
                          straight=OrderedDict(),
                          right=OrderedDict(du_b=2, lr_b=2))
-PERSON_MODE_DICT = dict(left=OrderedDict(c3=2),
+PERSON_MODE_DICT = dict(left=OrderedDict(c3=4),
                          straight=OrderedDict(),
                          right=OrderedDict(c1=2, c2=2))
 

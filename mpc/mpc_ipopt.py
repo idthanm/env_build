@@ -380,7 +380,7 @@ class ModelPredictiveControl(object):
             ubw += [8.] + [inf] * (self.DYNAMICS_DIM - 1)
 
             # Cost function
-            F_cost = Function('F_cost', [x, u], [0.05 * power(x[8], 2)
+            F_cost = Function('F_cost', [x, u], [0.5 * power(x[8], 2)
                                                  + 0.8 * power(x[6], 2)
                                                  + 30 * power(x[7] * np.pi / 180., 2)
                                                  + 0.02 * power(x[2], 2)
@@ -524,6 +524,7 @@ class HierarchicalMpc(object):
         plt.arrow(lane_width * 2.5, -square_length / 2 - 10 + 5, 0.5, 0, color='b', head_width=1)
 
         # ----------horizon--------------
+
         plt.plot([-square_length / 2 - extension, -square_length / 2], [0.3, 0.3], color='orange')
         plt.plot([-square_length / 2 - extension, -square_length / 2], [-0.3, -0.3], color='orange')
         plt.plot([square_length / 2 + extension, square_length / 2], [0.3, 0.3], color='orange')
@@ -540,6 +541,22 @@ class HierarchicalMpc(object):
             plt.plot([-square_length / 2 - extension, -square_length / 2], [-i * lane_width, -i * lane_width],
                      linestyle=linestyle, color='black', linewidth=linewidth)
             plt.plot([square_length / 2 + extension, square_length / 2], [-i * lane_width, -i * lane_width],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+
+        for i in range(4, 5 + 1):
+            linestyle = dotted_line_style if i < 5 else solid_line_style
+            linewidth = 1 if i < 5 else 2
+            plt.plot([-square_length / 2 - extension, -square_length / 2],
+                     [3 * lane_width + (i - 3) * 2, 3 * lane_width + (i - 3) * 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+            plt.plot([square_length / 2 + extension, square_length / 2],
+                     [3 * lane_width + (i - 3) * 2, 3 * lane_width + (i - 3) * 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+            plt.plot([-square_length / 2 - extension, -square_length / 2],
+                     [-3 * lane_width - (i - 3) * 2, -3 * lane_width - (i - 3) * 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+            plt.plot([square_length / 2 + extension, square_length / 2],
+                     [-3 * lane_width - (i - 3) * 2, -3 * lane_width - (i - 3) * 2],
                      linestyle=linestyle, color='black', linewidth=linewidth)
 
         # ----------vertical----------------
@@ -561,12 +578,28 @@ class HierarchicalMpc(object):
             plt.plot([-i * lane_width, -i * lane_width], [square_length / 2 + extension, square_length / 2],
                      linestyle=linestyle, color='black', linewidth=linewidth)
 
+        for i in range(4, 5 + 1):
+            linestyle = dotted_line_style if i < 5 else solid_line_style
+            linewidth = 1 if i < 5 else 2
+            plt.plot([3 * lane_width + (i - 3) * 2, 3 * lane_width + (i - 3) * 2],
+                     [-square_length / 2 - extension, -square_length / 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+            plt.plot([3 * lane_width + (i - 3) * 2, 3 * lane_width + (i - 3) * 2],
+                     [square_length / 2 + extension, square_length / 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+            plt.plot([-3 * lane_width - (i - 3) * 2, -3 * lane_width - (i - 3) * 2],
+                     [-square_length / 2 - extension, -square_length / 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+            plt.plot([-3 * lane_width - (i - 3) * 2, -3 * lane_width - (i - 3) * 2],
+                     [square_length / 2 + extension, square_length / 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+
         v_light = self.env.v_light
-        if v_light == 0:
+        if v_light == 0 or v_light == 1:
             v_color, h_color = 'green', 'red'
-        elif v_light == 1:
-            v_color, h_color = 'orange', 'red'
         elif v_light == 2:
+            v_color, h_color = 'orange', 'red'
+        elif v_light == 3 or v_light == 4:
             v_color, h_color = 'red', 'green'
         else:
             v_color, h_color = 'red', 'orange'
@@ -592,14 +625,50 @@ class HierarchicalMpc(object):
                  color='green', linewidth=light_line_width)
 
         # ----------Oblique--------------
-        plt.plot([LANE_NUMBER * lane_width, square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
+
+        plt.plot([LANE_NUMBER * lane_width + 4, square_length / 2],
+                 [-square_length / 2, -LANE_NUMBER * lane_width - 4],
                  color='black', linewidth=2)
-        plt.plot([LANE_NUMBER * lane_width, square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
+        plt.plot([LANE_NUMBER * lane_width + 4, square_length / 2],
+                 [square_length / 2, LANE_NUMBER * lane_width + 4],
                  color='black', linewidth=2)
-        plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
+        plt.plot([-LANE_NUMBER * lane_width - 4, -square_length / 2],
+                 [-square_length / 2, -LANE_NUMBER * lane_width - 4],
                  color='black', linewidth=2)
-        plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
+        plt.plot([-LANE_NUMBER * lane_width - 4, -square_length / 2],
+                 [square_length / 2, LANE_NUMBER * lane_width + 4],
                  color='black', linewidth=2)
+
+        # ----------人行横道--------------
+        jj = 3.5
+        for ii in range(23):
+            if ii <= 3:
+                continue
+            ax.add_patch(plt.Rectangle((-square_length / 2 + jj + ii * 1.6, -square_length / 2 + 0.5), 0.8, 4,
+                                       color='lightgray', alpha=0.5))
+            ii += 1
+        for ii in range(23):
+            if ii <= 3:
+                continue
+            ax.add_patch(plt.Rectangle((-square_length / 2 + jj + ii * 1.6, square_length / 2 - 0.5 - 4), 0.8, 4,
+                                       color='lightgray', alpha=0.5))
+            ii += 1
+        for ii in range(23):
+            if ii <= 3:
+                continue
+            ax.add_patch(
+                plt.Rectangle((-square_length / 2 + 0.5, square_length / 2 - jj - 0.8 - ii * 1.6), 4, 0.8,
+                              color='lightgray',
+                              alpha=0.5))
+            ii += 1
+        for ii in range(23):
+            if ii <= 3:
+                continue
+            ax.add_patch(
+                plt.Rectangle((square_length / 2 - 0.5 - 4, square_length / 2 - jj - 0.8 - ii * 1.6), 4, 0.8,
+                              color='lightgray',
+                              alpha=0.5))
+            ii += 1
 
         def is_in_plot_area(x, y, tolerance=5):
             if -square_length / 2 - extension + tolerance < x < square_length / 2 + extension - tolerance and \
@@ -613,10 +682,16 @@ class HierarchicalMpc(object):
             ax.add_patch(plt.Rectangle((x + bottom_left_x, y + bottom_left_y), w, l, edgecolor=c,
                                        facecolor='white', angle=-(90 - a), zorder=50))
 
-        def plot_phi_line(x, y, phi, color):
-            line_length = 3
-            x_forw, y_forw = x + line_length * cos(phi * pi / 180.), \
-                             y + line_length * sin(phi * pi / 180.)
+        def plot_phi_line(type, x, y, phi, color):
+            # TODO:新增一个type项输入
+            if type in ['bicycle_1', 'bicycle_2', 'bicycle_3']:
+                line_length = 1.5
+            elif type == 'DEFAULT_PEDTYPE':
+                line_length = 1.5
+            else:
+                line_length = 3
+            x_forw, y_forw = x + line_length * cos(phi*pi/180.),\
+                             y + line_length * sin(phi*pi/180.)
             plt.plot([x, x_forw], [y, y_forw], color=color, linewidth=0.5)
 
         # plot cars
@@ -626,8 +701,15 @@ class HierarchicalMpc(object):
             veh_phi = veh['phi']
             veh_l = veh['l']
             veh_w = veh['w']
+            veh_type = veh['type']
+            if veh_type in ['bicycle_1', 'bicycle_2', 'bicycle_3']:
+                veh_color = 'navy'
+            elif veh_type == 'DEFAULT_PEDTYPE':
+                veh_color = 'purple'
+            else:
+                veh_color = 'black'
             if is_in_plot_area(veh_x, veh_y):
-                plot_phi_line(veh_x, veh_y, veh_phi, 'black')
+                plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
                 draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, 'black')
 
         # plot_interested vehs
@@ -647,6 +729,70 @@ class HierarchicalMpc(object):
         #             color = task2color[task]
         #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
 
+
+        # plot_interested vehs
+        for mode, num in self.veh_mode_dict.items():
+            for i in range(num):
+                veh = self.interested_vehs[mode][i]
+                veh_x = veh['x']
+                veh_y = veh['y']
+                veh_phi = veh['phi']
+                veh_l = veh['l']
+                veh_w = veh['w']
+                veh_type = veh['type']
+                #TODO: 定义veh_type
+                # print("车辆信息", veh)
+                # veh_type = 'car_1'
+                task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+
+                if is_in_plot_area(veh_x, veh_y):
+                    plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+                    task = MODE2TASK[mode]
+                    color = task2color[task]
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
+
+        # plot_interested bicycle
+        for mode, num in self.bicycle_mode_dict.items():
+            for i in range(num):
+                veh = self.interested_vehs[mode][i]
+                veh_x = veh['x']
+                veh_y = veh['y']
+                veh_phi = veh['phi']
+                veh_l = veh['l']
+                veh_w = veh['w']
+                veh_type = veh['type']
+                # TODO: 定义veh_type
+                # print("车辆信息", veh)
+                # veh_type = 'bicycle_1'
+                task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+
+                if is_in_plot_area(veh_x, veh_y):
+                    plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+                    task = MODE2TASK[mode]
+                    color = task2color[task]
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
+
+        # plot_interested person
+        for mode, num in self.person_mode_dict.items():
+            for i in range(num):
+                veh = self.interested_vehs[mode][i]
+                veh_x = veh['x']
+                veh_y = veh['y']
+                veh_phi = veh['phi']
+                veh_l = veh['l']
+                veh_w = veh['w']
+                veh_type = veh['type']
+                # TODO: 定义veh_type
+                # print("车辆信息", veh)
+                # veh_type = 'bicycle_1'
+                task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+
+                if is_in_plot_area(veh_x, veh_y):
+                    plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+                    task = MODE2TASK[mode]
+                    color = task2color[task]
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
+
         ego_v_x = self.env.ego_dynamics['v_x']
         ego_v_y = self.env.ego_dynamics['v_y']
         ego_r = self.env.ego_dynamics['r']
@@ -661,7 +807,7 @@ class HierarchicalMpc(object):
         alpha_r_bound = self.env.ego_dynamics['alpha_r_bound']
         r_bound = self.env.ego_dynamics['r_bound']
 
-        plot_phi_line(ego_x, ego_y, ego_phi, 'fuchsia')
+        plot_phi_line('self_car', ego_x, ego_y, ego_phi, 'fuchsia')
         draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'fuchsia')
         self.hist_posi.append((ego_x, ego_y))
 
