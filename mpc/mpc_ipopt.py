@@ -16,7 +16,7 @@ from casadi import *
 from endtoend import CrossroadEnd2end
 from dynamics_and_models import ReferencePath, EnvironmentModel
 from hierarchical_decision.multi_path_generator import StaticTrajectoryGenerator_origin
-from endtoend_env_utils import CROSSROAD_SIZE, L, W, L_BIKE, W_BIKE, BIKE_MODE_LIST, PERSON_MODE_LIST, VEHICLE_MODE_LIST, BIKE_LANE_WIDTH, LANE_WIDTH, LANE_NUMBER, rotate_coordination
+from endtoend_env_utils import CROSSROAD_SIZE, L, W, L_BIKE, W_BIKE, BIKE_MODE_LIST, PERSON_MODE_LIST, VEHICLE_MODE_LIST, BIKE_LANE_WIDTH, LANE_WIDTH, LANE_NUMBER, rotate_coordination, MODE2TASK
 from mpc.main import TimerStat
 from utils.load_policy import LoadPolicy
 from utils.recorder import Recorder
@@ -517,11 +517,11 @@ class HierarchicalMpc(object):
                                    facecolor='none'))
 
         # ----------arrow--------------
-        plt.arrow(lane_width / 2, -square_length / 2 - 10, 0, 5, color='b')
-        plt.arrow(lane_width / 2, -square_length / 2 - 10 + 5, -0.5, 0, color='b', head_width=1)
-        plt.arrow(lane_width * 1.5, -square_length / 2 - 10, 0, 4, color='b', head_width=1)
-        plt.arrow(lane_width * 2.5, -square_length / 2 - 10, 0, 5, color='b')
-        plt.arrow(lane_width * 2.5, -square_length / 2 - 10 + 5, 0.5, 0, color='b', head_width=1)
+        plt.arrow(lane_width / 2, -square_length / 2 - 10, 0, 3, color='darkviolet')
+        plt.arrow(lane_width / 2, -square_length / 2 - 10 + 3, -0.5, 1.0, color='darkviolet', head_width=0.7)
+        plt.arrow(lane_width * 1.5, -square_length / 2 - 10, 0, 4, color='darkviolet', head_width=0.7)
+        plt.arrow(lane_width * 2.5, -square_length / 2 - 10, 0, 3, color='darkviolet')
+        plt.arrow(lane_width * 2.5, -square_length / 2 - 10 + 3, 0.5, 1.0, color='darkviolet', head_width=0.7)
 
         # ----------horizon--------------
 
@@ -713,34 +713,16 @@ class HierarchicalMpc(object):
                 draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, 'black')
 
         # plot_interested vehs
-        # for mode, num in self.veh_mode_dict.items():
-        #     for i in range(num):
-        #         veh = self.interested_vehs[mode][i]
-        #         veh_x = veh['x']
-        #         veh_y = veh['y']
-        #         veh_phi = veh['phi']
-        #         veh_l = veh['l']
-        #         veh_w = veh['w']
-        #         task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
-        #
-        #         if is_in_plot_area(veh_x, veh_y):
-        #             plot_phi_line(veh_x, veh_y, veh_phi, 'black')
-        #             task = MODE2TASK[mode]
-        #             color = task2color[task]
-        #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
-
-
-        # plot_interested vehs
-        for mode, num in self.veh_mode_dict.items():
+        for mode, num in self.env.veh_mode_dict.items():
             for i in range(num):
-                veh = self.interested_vehs[mode][i]
+                veh = self.env.interested_vehs[mode][i]
                 veh_x = veh['x']
                 veh_y = veh['y']
                 veh_phi = veh['phi']
                 veh_l = veh['l']
                 veh_w = veh['w']
                 veh_type = veh['type']
-                #TODO: 定义veh_type
+                # TODO: 定义veh_type
                 # print("车辆信息", veh)
                 # veh_type = 'car_1'
                 task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
@@ -749,12 +731,12 @@ class HierarchicalMpc(object):
                     plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
                     task = MODE2TASK[mode]
                     color = task2color[task]
-                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
 
         # plot_interested bicycle
-        for mode, num in self.bicycle_mode_dict.items():
+        for mode, num in self.env.bicycle_mode_dict.items():
             for i in range(num):
-                veh = self.interested_vehs[mode][i]
+                veh = self.env.interested_vehs[mode][i]
                 veh_x = veh['x']
                 veh_y = veh['y']
                 veh_phi = veh['phi']
@@ -770,12 +752,12 @@ class HierarchicalMpc(object):
                     plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
                     task = MODE2TASK[mode]
                     color = task2color[task]
-                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
 
         # plot_interested person
-        for mode, num in self.person_mode_dict.items():
+        for mode, num in self.env.person_mode_dict.items():
             for i in range(num):
-                veh = self.interested_vehs[mode][i]
+                veh = self.env.interested_vehs[mode][i]
                 veh_x = veh['x']
                 veh_y = veh['y']
                 veh_phi = veh['phi']
@@ -791,7 +773,7 @@ class HierarchicalMpc(object):
                     plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
                     task = MODE2TASK[mode]
                     color = task2color[task]
-                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
 
         ego_v_x = self.env.ego_dynamics['v_x']
         ego_v_y = self.env.ego_dynamics['v_y']
