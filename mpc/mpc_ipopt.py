@@ -15,7 +15,7 @@ from casadi import *
 
 from endtoend import CrossroadEnd2end
 from dynamics_and_models import ReferencePath, EnvironmentModel
-from hierarchical_decision.multi_path_generator import StaticTrajectoryGenerator_origin
+from hierarchical_decision.multi_path_generator import MultiPathGenerator
 from endtoend_env_utils import CROSSROAD_SIZE, L, W, L_BIKE, W_BIKE, BIKE_MODE_LIST, PERSON_MODE_LIST, VEHICLE_MODE_LIST, BIKE_LANE_WIDTH, LANE_WIDTH, LANE_NUMBER, rotate_coordination, MODE2TASK
 from mpc.main import TimerStat
 from utils.load_policy import LoadPolicy
@@ -384,10 +384,10 @@ class ModelPredictiveControl(object):
                                                  + 0.8 * power(x[6], 2)
                                                  + 30 * power(x[7] * np.pi / 180., 2)
                                                  + 0.02 * power(x[2], 2)
-                                                 + 5 * power(u[0], 2)
+                                                 + 0.5 * power(u[0], 2)
                                                  + 0.05 * power(u[1], 2)
                                                  ])
-            J += F_cost(w[k * 2], w[k * 2 - 1])
+            J += F_cost(w[k * 2-2], w[k * 2 - 1])
 
         # Create NLP solver
         nlp = dict(f=J, g=vertcat(*G), x=vertcat(*w))
@@ -412,8 +412,8 @@ class ModelPredictiveControl(object):
 class HierarchicalMpc(object):
     def __init__(self, task, logdir):
         self.task = task
-        # if self.task == 'left':
-        #     self.policy = LoadPolicy('../utils/models/left/experiment-2021-03-15-16-39-00', 180000)
+        if self.task == 'left':
+            self.policy = LoadPolicy('../utils/models/left/experiment-2021-05-16-23-27-24', 380000)
         # elif self.task == 'right':
         #     self.policy = LoadPolicy('G:\\env_build\\utils\\models\\right', 145000)
         # elif self.task == 'straight':
@@ -426,7 +426,8 @@ class HierarchicalMpc(object):
         self.env = CrossroadEnd2end(training_task=self.task, num_future_data=self.num_future_data)
         self.model = EnvironmentModel(self.task)
         self.obs = self.env.reset()
-        self.stg = StaticTrajectoryGenerator_origin(mode='static_traj')
+        self.stg = MultiPathGenerator()
+        self.traj_list = self.stg.generate_path(self.task)
         self.mpc_cal_timer = TimerStat()
         self.adp_cal_timer = TimerStat()
         self.recorder = Recorder()
@@ -434,7 +435,6 @@ class HierarchicalMpc(object):
 
     def reset(self):
         self.obs = self.env.reset()
-        self.stg = StaticTrajectoryGenerator_origin(mode='static_traj')
         self.recorder.reset()
         self.hist_posi = []
 
@@ -458,17 +458,16 @@ class HierarchicalMpc(object):
         return out
 
     def step(self):
-        traj_list, _ = self.stg.generate_traj(self.task, self.obs)
         ADP_traj_return_value, MPC_traj_return_value = [], []
         action_total = []
         state_total = []
 
         with self.mpc_cal_timer:
-            for ref_index, trajectory in enumerate(traj_list):
+            for ref_index, trajectory in enumerate(self.traj_list):
                 mpc = ModelPredictiveControl(self.horizon, self.task, self.num_future_data, ref_index)
                 state_all = np.array((list(self.obs[:6 + 3 * (1 + self.num_future_data)]) + [0, 0]) * self.horizon +
                                       list(self.obs[:6 + 3 * (1 + self.num_future_data)])).reshape((-1, 1))
-                state, control, state_all, g_all, cost = mpc.mpc_solver(list(self.convert_vehs_to_abso(self.obs)), state_all)
+                state, control, state_all, g_all, cost = mpc.mpc_solver(list(self.obs), state_all)
                 state_total.append(state)
                 if any(g_all < -1):
                     print('optimization fail')
@@ -485,11 +484,30 @@ class HierarchicalMpc(object):
 
             MPC_traj_return_value = np.array(MPC_traj_return_value, dtype=np.float32)
             MPC_path_index = np.argmin(MPC_traj_return_value)                           # todo: minimize
-            MPC_action = action_total[MPC_path_index]
+            # MPC_action = action_total[MPC_path_index]
+
+        with self.adp_cal_timer:
+            obs_list = []
+            for ref_index, trajectory in enumerate(self.traj_list):
+                self.env.set_traj(trajectory)
+                obs_list.append(self.env._get_obs())
+            all_obs = np.stack(obs_list, axis=0)
+            ADP_traj_return_value = self.policy.obj_value_batch(all_obs).numpy()
+            ADP_path_index = np.argmin(ADP_traj_return_value)
+
+            if np.amax(ADP_traj_return_value) == np.amin(ADP_traj_return_value):
+                ADP_path_index = MPC_path_index
+
+            self.obs_real = obs_list[ADP_path_index][np.newaxis, :]
+            ADP_action = self.policy.run_batch(self.obs_real).numpy()[0]
+            MPC_action = action_total[ADP_path_index]
+
+        self.recorder.record_compare(self.obs, ADP_action, MPC_action, self.adp_cal_timer.mean * 1000, self.mpc_cal_timer.mean * 1000,
+                             ADP_path_index, MPC_path_index, 'both')
 
         self.obs, rew, done, _ = self.env.step(MPC_action)
-        self.render(traj_list, MPC_traj_return_value, MPC_path_index, method='MPC')
-        state = state_total[MPC_path_index]
+        self.render(self.traj_list, MPC_traj_return_value, MPC_path_index, method='MPC')
+        state = state_total[ADP_path_index]
         plt.plot([state[i][3] for i in range(1, self.horizon - 1)], [state[i][4] for i in range(1, self.horizon - 1)], 'r*')
         plt.pause(0.001)
 

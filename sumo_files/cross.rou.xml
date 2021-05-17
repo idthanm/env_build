@@ -1,50 +1,55 @@
 <routes>
-    <vType id="car_1" length="4.754264" width="1.596668" accel="2.6" decel="4.5" apparentDecel="4.5" emergencyDecel="4.5"
-           sigma="0.5" tau="1" minGap="10" maxSpeed="8" speedDev="0" color="24,0,255,255" vClass="passenger"
+    <vType id="car_1" length="4.8" width="2.0" accel="2.6" decel="4.5" apparentDecel="4.5" emergencyDecel="4.5"
+           sigma="0.5" tau="1" minGap="4.5" maxSpeed="8" speedDev="0" color="red" vClass="passenger"
            guiShape="passenger" impatience="0" laneChangeModel="LC2013" carFollowModel="Krauss" latAlignment="center"
-           minGapLat="0.1" maxSpeedLat="1"/>
-    <vType id="car_2" length="4.173896" width="1.77515" accel="2.6" decel="4.5" apparentDecel="4.5" emergencyDecel="4.5"
-           sigma="0.5" tau="1" minGap="10" maxSpeed="8" speedDev="0" color="62,62,62,235" vClass="passenger"
+           minGapLat="0.1" jmCrossingGap="4" maxSpeedLat="1"/>
+    <vType id="car_2" length="4.8" width="2.0" accel="2.6" decel="4.5" apparentDecel="4.5" emergencyDecel="4.5"
+           sigma="0.5" tau="1" minGap="4.5" maxSpeed="8" speedDev="0" color="255,255,0" vClass="passenger"
            guiShape="passenger" impatience="0" laneChangeModel="LC2013" carFollowModel="Krauss" latAlignment="center"
-           minGapLat="0.1" maxSpeedLat="1"/>
-    <vType id="car_3" length="4.173896" width="1.77515" accel="2.6" decel="4.5" apparentDecel="4.5" emergencyDecel="4.5"
-           sigma="0.5" tau="1" minGap="10" maxSpeed="7" speedDev="0" color="255,255,255,186" vClass="passenger"
+           minGapLat="0.1" jmCrossingGap="4" maxSpeedLat="1"/>
+    <vType id="car_3" length="4.8" width="2.0" accel="2.6" decel="4.5" apparentDecel="4.5" emergencyDecel="4.5"
+           sigma="0.5" tau="1" minGap="4.5" maxSpeed="7" speedDev="0" color="255,255,255,186" vClass="passenger"
            guiShape="passenger" impatience="0" laneChangeModel="LC2013" carFollowModel="Krauss" latAlignment="center"
-           minGapLat="0.1" maxSpeedLat="1"/>
-    <vType id="bicycle_1" length="2" width="0.48" minGap="4" maxSpeed="2.39" vClass="bicycle" latAlignment="right" />
-	<vType id="bicycle_2" length="2" width="0.48" minGap="4" maxSpeed="2.39" vClass="bicycle" latAlignment="arbitrary" />
-	<vType id="bicycle_3" length="2" width="0.48" minGap="4" maxSpeed="2.39" vClass="bicycle" latAlignment="arbitrary" />
+           minGapLat="0.1" jmCrossingGap="4" maxSpeedLat="1"/>
+    <vType id="car_4" length="4.8" width="2.0" accel="2.6" decel="4.5" apparentDecel="4.5" emergencyDecel="4.5"
+           sigma="0.5" tau="1" minGap="9.5" maxSpeed="8" speedDev="0" color="255,255,0" vClass="passenger"
+           guiShape="passenger" impatience="0" laneChangeModel="LC2013" carFollowModel="Krauss" latAlignment="center"
+           minGapLat="0.1" jmCrossingGap="4" maxSpeedLat="1"/>
+
+    <vType id="bicycle_1" length="2" width="0.48" minGap="1" maxSpeed="2.5" vClass="bicycle" jmCrossingGap="2" latAlignment="right" />
+    <vType id="bicycle_2" length="2" width="0.48" minGap="1" maxSpeed="2.5" vClass="bicycle" jmCrossingGap="2" latAlignment="arbitrary" />
+    <vType id="bicycle_3" length="2" width="0.48" minGap="1" maxSpeed="2.5" vClass="bicycle" jmCrossingGap="2" latAlignment="arbitrary" />
     <vType id="self_car" length="5" width="1.8" accel="3.5" decel="2.2" sigma="1.0" guiShape="passenger/wagon"
            color="1,0,1" maxSpeed="30"/>
 
 
     <flow id="carflow_1.1" type="car_1" beg="0" from="1o" to="4i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="800"/>
+          departPos="random" departSpeed="random" vehsPerHour="600"/>
     <flow id="carflow_2.1" type="car_2" beg="0" from="1o" to="3i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="800"/>
+          departPos="random" departSpeed="random" vehsPerHour="600"/>
     <flow id="carflow_3.1" type="car_3" beg="0" from="1o" to="2i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="800"/>
+          departPos="random" departSpeed="random" vehsPerHour="600"/>
 
     <flow id="carflow_1.2" type="car_1" beg="0" from="2o" to="1i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="600"/>
+          departPos="random" departSpeed="random" vehsPerHour="400"/>
     <flow id="carflow_2.2" type="car_2" beg="0" from="2o" to="4i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="600"/>
+          departPos="random" departSpeed="random" vehsPerHour="400"/>
     <flow id="carflow_3.2" type="car_3" beg="0" from="2o" to="3i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="800"/>
+          departPos="random" departSpeed="random" vehsPerHour="600"/>
 
     <flow id="carflow_1.3" type="car_1" beg="0" from="3o" to="2i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="800"/>
-    <flow id="carflow_2.3" type="car_2" beg="0" from="3o" to="1i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="800"/>
+          departPos="random" departSpeed="random" vehsPerHour="600"/>
+    <flow id="carflow_2.3" type="car_4" beg="0" from="3o" to="1i" departLane="best"
+          departPos="random" departSpeed="random" vehsPerHour="600"/>
     <flow id="carflow_3.3" type="car_3" beg="0" from="3o" to="4i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="800"/>
+          departPos="random" departSpeed="random" vehsPerHour="600"/>
 
     <flow id="carflow_1.4" type="car_1" beg="0" from="4o" to="3i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="600"/>
+          departPos="random" departSpeed="random" vehsPerHour="400"/>
     <flow id="carflow_2.4" type="car_2" beg="0" from="4o" to="2i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="800"/>
+          departPos="random" departSpeed="random" vehsPerHour="600"/>
     <flow id="carflow_3.4" type="car_3" beg="0" from="4o" to="1i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="800"/>
+          departPos="random" departSpeed="random" vehsPerHour="600"/>
 
     <!--<flow id="carflow_1.1." type="bicycle_1" beg="0" from="1o" to="4i" departLane="best"-->
           <!--departPos="random" departSpeed="random" vehsPerHour="800"/>-->
@@ -56,7 +61,7 @@
     <!--<flow id="carflow_1.2." type="bicycle_1" beg="0" from="2o" to="1i" departLane="best"-->
           <!--departPos="random" departSpeed="random" vehsPerHour="600"/>-->
     <flow id="carflow_2.2." type="bicycle_2" beg="0" from="2o" to="4i" departLane="best"
-          departPos="random" departSpeed="random" vehsPerHour="100"/>
+          departPos="random" departSpeed="random" vehsPerHour="80"/>
     <flow id="carflow_3.2." type="bicycle_3" beg="0" from="2o" to="3i" departLane="best"
           departPos="random" departSpeed="random" vehsPerHour="100"/>
 
