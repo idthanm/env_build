@@ -23,7 +23,7 @@ from endtoend import CrossroadEnd2end
 from endtoend_env_utils import rotate_coordination, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, MODE2TASK
 from hierarchical_decision.multi_path_generator import MultiPathGenerator
 from utils.load_policy import LoadPolicy
-from utils.misc import TimerStat, image2video
+from utils.misc import TimerStat, image2video, pdf_image
 from utils.recorder import Recorder
 
 
@@ -524,9 +524,23 @@ def select_and_rename_snapshots_of_an_episode(logdir, epinum, num):
                             logdir + '/episode{}/figs/{:03d}.pdf'.format(epinum, i))
 
 
+def change_name(logdir, epinum):
+    file_list = os.listdir(logdir + '/episode{}'.format(epinum))
+    os.makedirs(logdir + '/episode{}_changename'.format(epinum), exist_ok=True)
+    for file in file_list:
+        file1 = file.strip('.pdf')
+        file1 = file1.strip('step')
+        num = int(file1)
+        pdf_image(logdir + '/episode{}/{}'.format(epinum, file),
+                  logdir + '/episode{}_changename/step{:03d}.png'.format(epinum, num))
+        # shutil.copyfile(logdir + '/episode{}/{}'.format(epinum, file),
+        #                 logdir + '/episode{}_changename/step{:03d}.pdf'.format(epinum, num))
+
+
 if __name__ == '__main__':
     # main()
-    image2video('./results/forvideos/2021-03-28-17-30-47/episode6')
+    image2video('./results/forvideos/2021-03-15-23-56-21/episode0_changename')
+    # change_name('./results/forvideos/2021-03-15-23-56-21', 0)
     # plot_static_path()
     # plot_and_save_ith_episode_data('./results/good/2021-03-15-23-56-21', 0)
     # select_and_rename_snapshots_of_an_episode('./results/good/2021-03-15-23-56-21', 0, 12)

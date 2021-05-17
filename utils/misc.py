@@ -11,6 +11,7 @@ import os
 import random
 import subprocess
 import time
+import fitz
 
 import numpy as np
 
@@ -95,5 +96,36 @@ class TimerStat:
 def image2video(forder):
     os.chdir(forder)
     subprocess.call(['ffmpeg', '-framerate', '10', '-i', 'step%03d.png', 'video.mp4'])
+
+
+def pdf_image(pdf_path, img_path=None, zoom_x=5, zoom_y=5, theta=0):
+    """
+    PDF转PNG
+    :param pdf_path: pdf文件的路径
+    :param img_path: 图像要保存的文件夹
+    :param zoom_x: x方向的缩放系数
+    :param zoom_y: y方向的缩放系数
+    :param theta: 旋转角度
+    :return: dst_path
+    """
+    if not img_path:
+        img_path = os.path.abspath(os.path.join(pdf_path, '../'))
+    # 打开PDF文件
+    with fitz.open(pdf_path) as pdf:
+        # pdf = fitz.open(pdf_path)
+        name = os.path.splitext(pdf.name)[0]
+        if os.sep in name:
+            file_name = name.split(os.sep)[-1]
+        else:
+            file_name = name.split('/')[-1]
+        page = pdf[0]
+        # 设置缩放和旋转
+        trans = fitz.Matrix(zoom_x, zoom_y).preRotate(theta)
+        pm = page.getPixmap(matrix=trans, alpha=False)
+        # 保存
+        dst_path = f'{img_path}'
+        pm.writePNG(dst_path)
+
+    return dst_path
 
 
