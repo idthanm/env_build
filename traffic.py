@@ -186,7 +186,7 @@ class Traffic(object):
                 traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
                                         # depart=0, pos=20, lane=lane, speed=ego_dict['v_x'],
                                         typeID='self_car')
-            traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=1)
+            traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=2)
             traci.vehicle.setLength(egoID, ego_dict['l'])
             traci.vehicle.setWidth(egoID, ego_dict['w'])
             traci.vehicle.setSpeed(egoID, math.sqrt(ego_v_x ** 2 + ego_v_y ** 2))
@@ -329,7 +329,7 @@ class Traffic(object):
             ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi,
                                                                                            self.n_ego_dict[egoID]['l'])
             egdeID, lane = xy2_edgeID_lane(ego_x, ego_y)
-            keeproute = 1
+            keeproute = 2
             # if self.training_task == 'left':  # TODO
             #     keeproute = 2 if ego_x > 0 and ego_y > -7 else 1
             try:
