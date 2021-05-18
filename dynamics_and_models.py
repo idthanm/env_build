@@ -268,7 +268,7 @@ class EnvironmentModel(object):  # all tensors
                 person_point = tf.cast(persons[:, 0], dtype=tf.float32), tf.cast(persons[:, 1], dtype=tf.float32)
                 for ego_point in [ego_front_points, ego_rear_points]:
                     veh2person_dist = tf.sqrt(tf.square(ego_point[0] - person_point[0]) + tf.square(ego_point[1] - person_point[1]))
-                    veh2person4training += tf.where(veh2person_dist-3.5 < 0, tf.square(veh2person_dist-3.5), tf.zeros_like(veh_infos[:, 0])) # todo
+                    veh2person4training += tf.where(veh2person_dist-4.5 < 0, tf.square(veh2person_dist-4.5), tf.zeros_like(veh_infos[:, 0])) # todo
                     veh2person4real += tf.where(veh2person_dist-2.5 < 0, tf.square(veh2person_dist-2.5), tf.zeros_like(veh_infos[:, 0]))
 
             veh2road4real = tf.zeros_like(veh_infos[:, 0])
