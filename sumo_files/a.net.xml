@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 05/17/21 21:28:33 by Eclipse SUMO netedit Version 1.7.0
+<!-- generated on 05/24/21 15:38:42 by Eclipse SUMO netedit Version 1.7.0
 <configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
 
     <input>
@@ -111,7 +111,7 @@
         <lane id=":0_14_0" index="0" allow="bicycle" speed="12.00" length="12.94" width="2.00" shape="12.25,-25.00 10.42,-12.19"/>
     </edge>
     <edge id=":0_15" function="internal">
-        <lane id=":0_15_0" index="0" disallow="pedestrian bicycle" speed="10.54" length="21.16" width="3.75" shape="9.38,-25.00 10.35,-18.16 13.28,-13.28 18.16,-10.35 21.00,-9.95"/>
+        <lane id=":0_15_0" index="0" disallow="pedestrian bicycle" speed="10.54" length="6.19" width="3.75" shape="9.38,-25.00 10.25,-18.88"/>
     </edge>
     <edge id=":0_16" function="internal">
         <lane id=":0_16_0" index="0" disallow="pedestrian bicycle" speed="12.00" length="50.00" width="3.75" shape="5.63,-25.00 5.63,25.00"/>
@@ -126,7 +126,7 @@
         <lane id=":0_33_0" index="0" allow="bicycle" speed="12.00" length="47.13" width="2.00" shape="10.42,-12.19 9.92,-8.70 2.94,2.94 -8.70,9.92 -25.00,12.25"/>
     </edge>
     <edge id=":0_34" function="internal">
-        <lane id=":0_34_0" index="0" disallow="pedestrian bicycle" speed="10.54" length="4.04" width="3.75" shape="21.00,-9.95 25.00,-9.38"/>
+        <lane id=":0_34_0" index="0" disallow="pedestrian bicycle" speed="10.54" length="19.01" width="3.75" shape="10.25,-18.88 10.35,-18.16 13.28,-13.28 18.16,-10.35 25.00,-9.38"/>
     </edge>
     <edge id=":0_35" function="internal">
         <lane id=":0_35_0" index="0" disallow="pedestrian bicycle" speed="12.00" length="36.78" width="3.75" shape="0.95,-18.50 0.20,-13.24 -4.84,-4.84 -13.24,0.20 -25.00,1.88"/>
@@ -280,11 +280,11 @@
     </edge>
 
     <tlLogic id="0" type="static" programID="0" offset="0">
-        <phase duration="28" state="GGGGGGrrrrrrGGGGGGrrrrrrrGrG"/>
-        <phase duration="15" state="GGGGGGrrrrrrGGGGGGrrrrrrrrrr"/>
+        <phase duration="28" state="GGGGGGgrrgrrGGGgGGGrrGrrrGrG"/>
+        <phase duration="15" state="GGGGGGGrrGrrGGGgGGGrrGrrrrrr"/>
         <phase duration="15" state="yyyyyyrrrrrryyyyyYrrrrrrrrrr"/>
-        <phase duration="28" state="rrrrrrGGGGGGrrrrrrGGGGGGGrGr"/>
-        <phase duration="15" state="rrrrrrGGGGGGrrrrrrGGGGGGrrrr"/>
+        <phase duration="28" state="GrrGrrGGGGGGGrrGrrGGGGGGGrGr"/>
+        <phase duration="15" state="GrrGrrGGGGGGGrrGrrGGGGGGrrrr"/>
         <phase duration="15" state="rrrrrryyyyyyrrrrrryyyyyyrrrr"/>
     </tlLogic>
 
@@ -345,7 +345,7 @@
     <junction id=":0_31_0" type="internal" x="18.50" y="0.95" incLanes=":0_11_0 3o_1 3o_4" intLanes=":0_1_0 :0_2_0 :0_4_0 :0_5_0 :0_13_0 :0_14_0 :0_16_0 :0_17_0 :0_18_0 :0_19_0 :0_21_0 :0_22_0 :0_c1_0 :0_c2_0"/>
     <junction id=":0_32_0" type="internal" x="21.00" y="-12.82" incLanes=":0_12_0" intLanes=":0_2_0 :0_5_0 :0_19_0 :0_22_0 :0_c1_0 :0_c2_0"/>
     <junction id=":0_33_0" type="internal" x="10.42" y="-12.19" incLanes=":0_14_0 2o_1 2o_4 :0_2_0" intLanes=":0_25_0 :0_0_0 :0_1_0 :0_2_0 :0_3_0 :0_4_0 :0_7_0 :0_8_0 :0_10_0 :0_11_0 :0_16_0 :0_19_0 :0_20_0 :0_22_0 :0_23_0 :0_c2_0 :0_c3_0"/>
-    <junction id=":0_34_0" type="internal" x="21.00" y="-9.95" incLanes=":0_15_0" intLanes=":0_2_0 :0_5_0 :0_13_0 :0_14_0 :0_19_0 :0_22_0 :0_c1_0 :0_c2_0"/>
+    <junction id=":0_34_0" type="internal" x="10.25" y="-18.88" incLanes=":0_15_0 1o_1" intLanes=":0_2_0 :0_5_0 :0_13_0 :0_14_0 :0_19_0 :0_22_0 :0_c1_0 :0_c2_0"/>
     <junction id=":0_35_0" type="internal" x="0.95" y="-18.50" incLanes=":0_17_0 2o_1 2o_4" intLanes=":0_0_0 :0_1_0 :0_3_0 :0_4_0 :0_7_0 :0_8_0 :0_10_0 :0_11_0 :0_19_0 :0_20_0 :0_22_0 :0_23_0 :0_c2_0 :0_c3_0"/>
     <junction id=":0_36_0" type="internal" x="-12.82" y="-21.00" incLanes=":0_18_0" intLanes=":0_1_0 :0_4_0 :0_8_0 :0_11_0 :0_c2_0 :0_c3_0"/>
     <junction id=":0_37_0" type="internal" x="-12.19" y="-10.42" incLanes=":0_20_0 1o_1 1o_4" intLanes=":0_1_0 :0_2_0 :0_4_0 :0_5_0 :0_6_0 :0_7_0 :0_8_0 :0_9_0 :0_10_0 :0_13_0 :0_14_0 :0_16_0 :0_17_0 :0_22_0 :0_c0_0 :0_c3_0"/>

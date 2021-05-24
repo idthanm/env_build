@@ -249,7 +249,7 @@ class CrossroadEnd2end(gym.Env):
             return True
 
     def _break_red_light(self):
-        return True if self.v_light != 0 and self.ego_dynamics['y'] > -CROSSROAD_SIZE/2 and self.training_task != 'right' else False
+        return True if self.v_light != 0 and self.v_light != 1 and self.ego_dynamics['y'] > -CROSSROAD_SIZE/2 and self.training_task != 'right' else False
 
     def _is_achieve_goal(self):
         x = self.ego_dynamics['x']
@@ -374,9 +374,7 @@ class CrossroadEnd2end(gym.Env):
 
             for v in vs:
                 if v['type'] in ['bicycle_1', 'bicycle_2', 'bicycle_3']:
-                    # print(v)
                     route_list = v['route']
-                    # print(route_list)
                     start = route_list[0]
                     end = route_list[1]
 
@@ -401,8 +399,6 @@ class CrossroadEnd2end(gym.Env):
                         ld_b.append(v)
 
                 elif v['type'] == 'DEFAULT_PEDTYPE':
-                    # 执行一次or每步执行一次
-                    # print(v)
                     road_list = v['road']
                     # print(road_list)
                     # if road_list == ':1i_0':
@@ -471,7 +467,10 @@ class CrossroadEnd2end(gym.Env):
                         ld.append(v)
 
             # fetch bicycle in range
-            du_b = list(filter(lambda v: ego_y - 2 < v['y'] < 0 and v['x'] < ego_x + 8, du_b))  # interest of right
+            if task == 'straight':
+                du_b = list(filter(lambda v: ego_y - 2 < v['y'] < CROSSROAD_SIZE / 2 and v['x'] < ego_x + 8, du_b))
+            elif task == 'right':
+                du_b = list(filter(lambda v: ego_y - 2 < v['y'] < 0 and v['x'] < ego_x + 8, du_b))
             # dr_b = list(filter(lambda v: v['x'] < CROSSROAD_SIZE / 2 + 10 and v['y'] > ego_y - 2, dr_b))  # interest of right
             # rl_b = rl_b  # not interest in case of traffic light
             # ru_b = list(filter(lambda v: v['x'] < CROSSROAD_SIZE / 2 + 10 and v['y'] < CROSSROAD_SIZE / 2 + 10, ru_b))  # interest of straight
@@ -1051,8 +1050,8 @@ class CrossroadEnd2end(gym.Env):
 
 
 def test_end2end():
-    env = CrossroadEnd2end(training_task='left', num_future_data=0)
-    env_model = EnvironmentModel(training_task='left', num_future_data=0)
+    env = CrossroadEnd2end(training_task='straight', num_future_data=0)
+    env_model = EnvironmentModel(training_task='straight', num_future_data=0)
     obs = env.reset()
     i = 0
     while i < 100000:
@@ -1063,8 +1062,8 @@ def test_end2end():
                 action = np.array([0, 1], dtype=np.float32)
             elif obs[3] <= -18:
                 action = np.array([0, 0], dtype=np.float32)
-            else:
-                action = np.array([0.5, 0.33], dtype=np.float32)
+            # else:
+            #     action = np.array([-0.4, 0.33], dtype=np.float32)
             obs, reward, done, info = env.step(action)
             env_model.reset(obs[np.newaxis, :], env.ref_path.ref_index)
             env_model.mode = 'testing'

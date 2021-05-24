@@ -412,7 +412,10 @@ class EnvironmentModel(object):  # all tensors
                                                next_tracking_infos)
 
         next_bike_infos = self.bike_predict(bike_infos)
-        next_person_infos = self.person_predict(person_infos)
+        if not person_infos.shape[1]:                                       # no pedestrian is considered
+            next_person_infos = person_infos
+        else:
+            next_person_infos = self.person_predict(person_infos)
         next_veh_infos = self.veh_predict(veh_infos)
         next_obses = tf.concat([next_ego_infos, next_tracking_infos, next_bike_infos, next_person_infos, next_veh_infos], 1)
         # next_obses = self.convert_vehs_to_rela(next_obses)

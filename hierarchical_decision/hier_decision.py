@@ -12,6 +12,7 @@ import shutil
 import time
 import json
 import os
+import heapq
 from math import cos, sin, pi
 
 import matplotlib.pyplot as plt
@@ -117,7 +118,12 @@ class HierarchicalDecision(object):
             all_obs = tf.stack(obs_list, axis=0)
             path_values = self.policy.obj_value_batch(all_obs).numpy()
             old_value = path_values[self.old_index]
-            new_index, new_value = int(np.argmin(path_values)), min(path_values)  # value is to approximate (- sum of reward)
+            # value is to approximate (- sum of reward)
+            new_index, new_value = int(np.argmin(path_values)), min(path_values)
+            # rule for equal traj value
+            # sorted_path_value, sorted_path_index = heapq.nsmallest(2, path_values), \
+            #                                        heapq.nlargest(2, range(len(path_values), path_values.take))
+
             path_index = self.old_index if old_value - new_value < 0.1 else new_index
             self.old_index = path_index
 
@@ -149,11 +155,11 @@ class HierarchicalDecision(object):
         ax.axis("equal")
 
         # ----------arrow--------------
-        plt.arrow(lane_width / 2, -square_length / 2 - 10, 0, 5, color='b')
-        plt.arrow(lane_width / 2, -square_length / 2 - 10 + 5, -0.5, 0, color='b', head_width=1)
-        plt.arrow(lane_width * 1.5, -square_length / 2 - 10, 0, 4, color='b', head_width=1)
-        plt.arrow(lane_width * 2.5, -square_length / 2 - 10, 0, 5, color='b')
-        plt.arrow(lane_width * 2.5, -square_length / 2 - 10 + 5, 0.5, 0, color='b', head_width=1)
+        plt.arrow(lane_width / 2, -square_length / 2 - 10, 0, 5, color='orange')
+        plt.arrow(lane_width / 2, -square_length / 2 - 10 + 5, -0.5, 0, color='orange', head_width=1)
+        plt.arrow(lane_width * 1.5, -square_length / 2 - 10, 0, 4, color='orange', head_width=1)
+        plt.arrow(lane_width * 2.5, -square_length / 2 - 10, 0, 5, color='orange')
+        plt.arrow(lane_width * 2.5, -square_length / 2 - 10 + 5, 0.5, 0, color='orange', head_width=1)
 
         # ----------horizon--------------
 
@@ -239,22 +245,22 @@ class HierarchicalDecision(object):
         plt.plot([0, (LANE_NUMBER - 1) * lane_width], [-square_length / 2, -square_length / 2],
                  color=v_color, linewidth=light_line_width)
         plt.plot([(LANE_NUMBER - 1) * lane_width, LANE_NUMBER * lane_width], [-square_length / 2, -square_length / 2],
-                 color='green', linewidth=light_line_width)
+                 color=v_color, linewidth=light_line_width)
 
         plt.plot([-LANE_NUMBER * lane_width, -(LANE_NUMBER - 1) * lane_width], [square_length / 2, square_length / 2],
-                 color='green', linewidth=light_line_width)
+                 color=v_color, linewidth=light_line_width)
         plt.plot([-(LANE_NUMBER - 1) * lane_width, 0], [square_length / 2, square_length / 2],
                  color=v_color, linewidth=light_line_width)
 
         plt.plot([-square_length / 2, -square_length / 2], [0, -(LANE_NUMBER - 1) * lane_width],
                  color=h_color, linewidth=light_line_width)
         plt.plot([-square_length / 2, -square_length / 2], [-(LANE_NUMBER - 1) * lane_width, -LANE_NUMBER * lane_width],
-                 color='green', linewidth=light_line_width)
+                 color=h_color, linewidth=light_line_width)
 
         plt.plot([square_length / 2, square_length / 2], [(LANE_NUMBER - 1) * lane_width, 0],
                  color=h_color, linewidth=light_line_width)
         plt.plot([square_length / 2, square_length / 2], [LANE_NUMBER * lane_width, (LANE_NUMBER - 1) * lane_width],
-                 color='green', linewidth=light_line_width)
+                 color=h_color, linewidth=light_line_width)
 
         # ----------Oblique--------------
 
@@ -314,10 +320,17 @@ class HierarchicalDecision(object):
             ax.add_patch(plt.Rectangle((x + bottom_left_x, y + bottom_left_y), w, l, edgecolor=c,
                                        facecolor='white', angle=-(90 - a), zorder=50))
 
+        def draw_bike(x, y, a, l, w, c):
+            bottom_left_x1, bottom_left_y1, _ = rotate_coordination(-l / 2, w / 4, 0, -a)
+            ax.add_patch(plt.Rectangle((x + bottom_left_x1, y + bottom_left_y1), w/2, l, edgecolor=c,
+                                       facecolor=c, angle=-(90 - a), zorder=50))
+            bottom_left_x2, bottom_left_y2, _ = rotate_coordination(-l / 4, w / 2, 0, -a)
+            ax.add_patch(plt.Rectangle((x + bottom_left_x2, y + bottom_left_y2), w, l/4, edgecolor=c,
+                                       facecolor=c, angle=-(90 - a), zorder=50))
+
         def plot_phi_line(type, x, y, phi, color):
-            # TODO:新增一个type项输入
             if type in ['bicycle_1', 'bicycle_2', 'bicycle_3']:
-                line_length = 1
+                line_length = 1.5
             elif type == 'DEFAULT_PEDTYPE':
                 line_length = 1
             else:
@@ -334,15 +347,18 @@ class HierarchicalDecision(object):
             veh_l = veh['l']
             veh_w = veh['w']
             veh_type = veh['type']
-            if veh_type in ['bicycle_1', 'bicycle_2', 'bicycle_3']:
-                veh_color = 'navy'
-            elif veh_type == 'DEFAULT_PEDTYPE':
-                veh_color = 'purple'
-            else:
-                veh_color = 'black'
             if is_in_plot_area(veh_x, veh_y):
-                plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
-                draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, veh_color)
+                if veh_type in ['bicycle_1', 'bicycle_2', 'bicycle_3']:
+                    veh_color = 'steelblue'
+                    draw_bike(veh_x, veh_y, veh_phi, veh_l, veh_w, veh_color)
+                elif veh_type == 'DEFAULT_PEDTYPE':
+                    veh_color = 'purple'
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, veh_color)
+                else:
+                    veh_color = 'black'
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, veh_color)
+                plot_phi_line(veh_type, veh_x, veh_y, veh_phi, veh_color)
+
 
         # plot_interested vehs
         for mode, num in self.env.veh_mode_dict.items():
@@ -354,9 +370,7 @@ class HierarchicalDecision(object):
                 veh_l = veh['l']
                 veh_w = veh['w']
                 veh_type = veh['type']
-                #TODO: 定义veh_type
-                # print("车辆信息", veh)
-                # veh_type = 'car_1'
+
                 task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
 
                 if is_in_plot_area(veh_x, veh_y):
@@ -375,16 +389,14 @@ class HierarchicalDecision(object):
                 veh_l = veh['l']
                 veh_w = veh['w']
                 veh_type = veh['type']
-                # TODO: 定义veh_type
-                # print("车辆信息", veh)
-                # veh_type = 'bicycle_1'
+
                 task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
 
                 if is_in_plot_area(veh_x, veh_y):
                     plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
                     task = MODE2TASK[mode]
                     color = task2color[task]
-                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
+                    draw_bike(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
 
         # plot_interested person
         for mode, num in self.env.person_mode_dict.items():
@@ -396,9 +408,7 @@ class HierarchicalDecision(object):
                 veh_l = veh['l']
                 veh_w = veh['w']
                 veh_type = veh['type']
-                # TODO: 定义veh_type
-                # print("车辆信息", veh)
-                # veh_type = 'bicycle_1'
+
                 task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
 
                 if is_in_plot_area(veh_x, veh_y):
@@ -428,8 +438,7 @@ class HierarchicalDecision(object):
         # plot history
         xs = [pos[0] for pos in self.hist_posi]
         ys = [pos[1] for pos in self.hist_posi]
-        plt.scatter(np.array(xs), np.array(ys), color='fuchsia', alpha=0.1)
-
+        plt.scatter(np.array(xs), np.array(ys), color='fuchsia', alpha=0.2)
 
         # plot future data
         tracking_info = self.obs[self.env.ego_info_dim:self.env.ego_info_dim + self.env.per_tracking_info_dim * (self.env.num_future_data+1)]
@@ -503,15 +512,15 @@ class HierarchicalDecision(object):
         #         plt.text(text_x, text_y_start - next(ge), '{}: {:.4f}'.format(key, val))
 
         # indicator for trajectory selection
-        text_x, text_y_start = 25, -50
+        text_x, text_y_start = 25, -30
         ge = iter(range(0, 1000, 6))
         if path_values is not None:
             for i, value in enumerate(path_values):
                 if i == path_index:
-                    plt.text(text_x, text_y_start - next(ge), 'Path reward={:.4f}'.format(value), fontsize=14,
+                    plt.text(text_x, text_y_start - next(ge), 'Path cost={:.4f}'.format(value), fontsize=14,
                              color=color[i], fontstyle='italic')
                 else:
-                    plt.text(text_x, text_y_start - next(ge), 'Path reward={:.4f}'.format(value), fontsize=12,
+                    plt.text(text_x, text_y_start - next(ge), 'Path cost={:.4f}'.format(value), fontsize=12,
                              color=color[i], fontstyle='italic')
         plt.show()
         plt.pause(0.001)
@@ -531,7 +540,7 @@ def main():
     time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     logdir = './results/{time}'.format(time=time_now)
     os.makedirs(logdir)
-    hier_decision = HierarchicalDecision('left', 'experiment-2021-05-17-12-16-56', 285000, logdir)
+    hier_decision = HierarchicalDecision('left', 'experiment-2021-05-18-11-46-48', 300000, logdir)
     # 'left', 'experiment-2021-03-15-16-39-00', 180000
     # 'straight', 'experiment-2021-03-15-19-16-13', 175000
     # 'right', 'experiment-2021-03-15-21-02-51', 195000
