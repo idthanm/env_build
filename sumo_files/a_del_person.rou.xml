@@ -24,9 +24,6 @@
 
 
     <route edges="a1toa2 a2toa3 a3toa4 a4toa1 a1toa2 a2toa3 a3toa4 a4toa1 a1toa2 a2toa3 a3toa4 a4toa1" color="yellow" id="route_0"/>
-    <person id="00" depart="0.00">
-        <walk route="route_0"/>
-    </person>
 
     <person id="0" depart="0.00">
         <walk edges="2o 4i"/>

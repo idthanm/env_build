@@ -8,6 +8,6 @@
     <time>
         <step-length value="0.1" />
     </time>
-    <lanechange.duration value="1" />
+        <lanechange.duration value="3"/>
 
 </configuration>
