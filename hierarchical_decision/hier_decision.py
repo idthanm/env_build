@@ -121,10 +121,18 @@ class HierarchicalDecision(object):
             # value is to approximate (- sum of reward)
             new_index, new_value = int(np.argmin(path_values)), min(path_values)
             # rule for equal traj value
-            # sorted_path_value, sorted_path_index = heapq.nsmallest(2, path_values), \
-            #                                        heapq.nlargest(2, range(len(path_values), path_values.take))
-
-            path_index = self.old_index if old_value - new_value < 0.1 else new_index
+            path_index_error = []
+            if heapq.nsmallest(2, path_values)[0] == heapq.nsmallest(2, path_values)[1]:
+                for i in range(len(path_values)):
+                    if path_values[i] == min(path_values):
+                        index_error = abs(self.old_index - i)
+                        path_index_error.append(index_error)
+                # new_index_new = min(path_index_error) + self.old_index if min(path_index_error) + self.old_index < 4 else self.old_index - min(path_index_error)
+                new_index_new = self.old_index - min(path_index_error) if self.old_index - min(path_index_error) > -1 else self.old_index + min(path_index_error)
+                new_value_new = path_values[new_index_new]
+                path_index = self.old_index if old_value - new_value_new < 0.1 else new_index_new
+            else:
+                path_index = self.old_index if old_value - new_value < 0.1 else new_index
             self.old_index = path_index
 
             self.env.set_traj(self.path_list[path_index])
@@ -245,22 +253,22 @@ class HierarchicalDecision(object):
         plt.plot([0, (LANE_NUMBER - 1) * lane_width], [-square_length / 2, -square_length / 2],
                  color=v_color, linewidth=light_line_width)
         plt.plot([(LANE_NUMBER - 1) * lane_width, LANE_NUMBER * lane_width], [-square_length / 2, -square_length / 2],
-                 color=v_color, linewidth=light_line_width)
+                 color='green', linewidth=light_line_width)
 
         plt.plot([-LANE_NUMBER * lane_width, -(LANE_NUMBER - 1) * lane_width], [square_length / 2, square_length / 2],
-                 color=v_color, linewidth=light_line_width)
+                 color='green', linewidth=light_line_width)
         plt.plot([-(LANE_NUMBER - 1) * lane_width, 0], [square_length / 2, square_length / 2],
                  color=v_color, linewidth=light_line_width)
 
         plt.plot([-square_length / 2, -square_length / 2], [0, -(LANE_NUMBER - 1) * lane_width],
                  color=h_color, linewidth=light_line_width)
         plt.plot([-square_length / 2, -square_length / 2], [-(LANE_NUMBER - 1) * lane_width, -LANE_NUMBER * lane_width],
-                 color=h_color, linewidth=light_line_width)
+                 color='green', linewidth=light_line_width)
 
         plt.plot([square_length / 2, square_length / 2], [(LANE_NUMBER - 1) * lane_width, 0],
                  color=h_color, linewidth=light_line_width)
         plt.plot([square_length / 2, square_length / 2], [LANE_NUMBER * lane_width, (LANE_NUMBER - 1) * lane_width],
-                 color=h_color, linewidth=light_line_width)
+                 color='green', linewidth=light_line_width)
 
         # ----------Oblique--------------
 
@@ -360,62 +368,62 @@ class HierarchicalDecision(object):
                 plot_phi_line(veh_type, veh_x, veh_y, veh_phi, veh_color)
 
 
-        # plot_interested vehs
-        for mode, num in self.env.veh_mode_dict.items():
-            for i in range(num):
-                veh = self.env.interested_vehs[mode][i]
-                veh_x = veh['x']
-                veh_y = veh['y']
-                veh_phi = veh['phi']
-                veh_l = veh['l']
-                veh_w = veh['w']
-                veh_type = veh['type']
-
-                task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
-
-                if is_in_plot_area(veh_x, veh_y):
-                    plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
-                    task = MODE2TASK[mode]
-                    color = task2color[task]
-                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
-
-        # plot_interested bicycle
-        for mode, num in self.env.bicycle_mode_dict.items():
-            for i in range(num):
-                veh = self.env.interested_vehs[mode][i]
-                veh_x = veh['x']
-                veh_y = veh['y']
-                veh_phi = veh['phi']
-                veh_l = veh['l']
-                veh_w = veh['w']
-                veh_type = veh['type']
-
-                task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
-
-                if is_in_plot_area(veh_x, veh_y):
-                    plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
-                    task = MODE2TASK[mode]
-                    color = task2color[task]
-                    draw_bike(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
-
-        # plot_interested person
-        for mode, num in self.env.person_mode_dict.items():
-            for i in range(num):
-                veh = self.env.interested_vehs[mode][i]
-                veh_x = veh['x']
-                veh_y = veh['y']
-                veh_phi = veh['phi']
-                veh_l = veh['l']
-                veh_w = veh['w']
-                veh_type = veh['type']
-
-                task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
-
-                if is_in_plot_area(veh_x, veh_y):
-                    plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
-                    task = MODE2TASK[mode]
-                    color = task2color[task]
-                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
+        # # plot_interested vehs
+        # for mode, num in self.env.veh_mode_dict.items():
+        #     for i in range(num):
+        #         veh = self.env.interested_vehs[mode][i]
+        #         veh_x = veh['x']
+        #         veh_y = veh['y']
+        #         veh_phi = veh['phi']
+        #         veh_l = veh['l']
+        #         veh_w = veh['w']
+        #         veh_type = veh['type']
+        #
+        #         task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+        #
+        #         if is_in_plot_area(veh_x, veh_y):
+        #             plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+        #             task = MODE2TASK[mode]
+        #             color = task2color[task]
+        #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
+        #
+        # # plot_interested bicycle
+        # for mode, num in self.env.bicycle_mode_dict.items():
+        #     for i in range(num):
+        #         veh = self.env.interested_vehs[mode][i]
+        #         veh_x = veh['x']
+        #         veh_y = veh['y']
+        #         veh_phi = veh['phi']
+        #         veh_l = veh['l']
+        #         veh_w = veh['w']
+        #         veh_type = veh['type']
+        #
+        #         task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+        #
+        #         if is_in_plot_area(veh_x, veh_y):
+        #             plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+        #             task = MODE2TASK[mode]
+        #             color = task2color[task]
+        #             draw_bike(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
+        #
+        # # plot_interested person
+        # for mode, num in self.env.person_mode_dict.items():
+        #     for i in range(num):
+        #         veh = self.env.interested_vehs[mode][i]
+        #         veh_x = veh['x']
+        #         veh_y = veh['y']
+        #         veh_phi = veh['phi']
+        #         veh_l = veh['l']
+        #         veh_w = veh['w']
+        #         veh_type = veh['type']
+        #
+        #         task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+        #
+        #         if is_in_plot_area(veh_x, veh_y):
+        #             plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+        #             task = MODE2TASK[mode]
+        #             color = task2color[task]
+        #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
 
         ego_v_x = self.env.ego_dynamics['v_x']
         ego_v_y = self.env.ego_dynamics['v_y']
@@ -540,7 +548,7 @@ def main():
     time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     logdir = './results/{time}'.format(time=time_now)
     os.makedirs(logdir)
-    hier_decision = HierarchicalDecision('straight', 'experiment-2021-05-24-16-36-13', 300000, logdir)
+    hier_decision = HierarchicalDecision('straight', 'experiment-2021-05-27-23-27-27', 325000, logdir)
     # 'left', 'experiment-2021-03-15-16-39-00', 180000
     # 'straight', 'experiment-2021-03-15-19-16-13', 175000
     # 'right', 'experiment-2021-03-15-21-02-51', 195000
