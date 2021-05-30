@@ -19,8 +19,8 @@ EXPECTED_V = 8.
 dirname = os.path.dirname(__file__)
 SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
 VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=2, du=2, ud=2, ul=2),
-                         straight=OrderedDict(dl=1, du=2, ud=2, ru=2, ur=2),
-                         right=OrderedDict(dr=1, ur=2, lr=2))
+                         straight=OrderedDict(dl=2, du=2, ru=2, ur=2),
+                         right=OrderedDict(dr=2, du=2, ur=2, lr=2))
 
 
 def dict2flat(inp):

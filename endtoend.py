@@ -10,6 +10,7 @@
 import warnings
 from collections import OrderedDict
 from math import cos, sin, pi
+from random import choice
 
 import gym
 import matplotlib.pyplot as plt
@@ -41,38 +42,31 @@ def convert_observation_to_space(observation):
     return space
 
 
-class CrossroadEnd2end(gym.Env):
+class CrossroadEnd2endPiIntegrate(gym.Env):
     def __init__(self,
-                 training_task,  # 'left', 'straight', 'right'
                  num_future_data=0,
                  mode='training',
                  multi_display=False,
                  **kwargs):
         self.dynamics = VehicleDynamics()
         self.interested_vehs = None
-        self.training_task = training_task
-        self.ref_path = ReferencePath(self.training_task, **kwargs)
         self.detected_vehicles = None
         self.all_vehicles = None
         self.ego_dynamics = None
         self.num_future_data = num_future_data
-        self.env_model = EnvironmentModel(training_task, num_future_data)
         self.init_state = {}
         self.action_number = 2
         self.exp_v = EXPECTED_V #TODO: temp
         self.ego_l, self.ego_w = L, W
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(self.action_number,), dtype=np.float32)
-
         self.seed()
         self.v_light = None
         self.step_length = 100  # ms
 
         self.step_time = self.step_length / 1000.0
-        self.init_state = self._reset_init_state()
         self.obs = None
         self.action = None
-        self.veh_mode_dict = VEHICLE_MODE_DICT[self.training_task]
-        self.veh_num = VEH_NUM[self.training_task]
+
         self.virtual_red_light_vehicle = False
 
         self.done_type = 'not_done_yet'
@@ -84,8 +78,7 @@ class CrossroadEnd2end(gym.Env):
         if not multi_display:
             self.traffic = Traffic(self.step_length,
                                    mode=self.mode,
-                                   init_n_ego_dict=self.init_state,
-                                   training_task=self.training_task)
+                                   init_n_ego_dict=self.init_state)
             self.reset()
             action = self.action_space.sample()
             observation, _reward, done, _info = self.step(action)
@@ -97,9 +90,14 @@ class CrossroadEnd2end(gym.Env):
         return [seed]
 
     def reset(self, **kwargs):  # kwargs include three keys
+        self.training_task = choice(['left', 'straight', 'right'])
         self.ref_path = ReferencePath(self.training_task, **kwargs)
+        self.env_model = EnvironmentModel(self.training_task, self.num_future_data)
+        self.veh_mode_dict = VEHICLE_MODE_DICT[self.training_task]
+        self.veh_num = VEH_NUM[self.training_task]
+
         self.init_state = self._reset_init_state()
-        self.traffic.init_traffic(self.init_state)
+        self.traffic.init_traffic(self.init_state, self.training_task)
         self.traffic.sim_step()
         ego_dynamics = self._get_ego_dynamics([self.init_state['ego']['v_x'],
                                                self.init_state['ego']['v_y'],
@@ -140,7 +138,8 @@ class CrossroadEnd2end(gym.Env):
         self.obs = self._get_obs()
         self.done_type, done = self._judge_done()
         self.reward_info.update({'final_rew': reward})
-        all_info.update({'reward_info': self.reward_info, 'ref_index': self.ref_path.ref_index})
+        all_info.update({'reward_info': self.reward_info, 'ref_index': self.ref_path.ref_index, 
+                         'veh_num': self.veh_num, 'task': self.training_task})
         return self.obs, reward, done, all_info
 
     def _set_observation_space(self, observation):
@@ -500,8 +499,10 @@ class CrossroadEnd2end(gym.Env):
 
     def compute_reward(self, obs, action):
         obses, actions = obs[np.newaxis, :], action[np.newaxis, :]
-        reward, _, _, _, _, reward_dict = \
-            self.env_model.compute_rewards(obses, actions)
+        obses_ego = obses[:, :self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data + 1)]
+        obses_other = np.reshape(obses[:, self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data + 1):],
+                                 [-1, self.per_veh_info_dim])
+        reward, _, _, _, _, reward_dict = self.env_model.compute_rewards(obses_ego, actions, obses_other)
         for k, v in reward_dict.items():
             reward_dict[k] = v.numpy()[0]
         return reward.numpy()[0], reward_dict
@@ -796,12 +797,12 @@ class CrossroadEnd2end(gym.Env):
 
 
 def test_end2end():
-    env = CrossroadEnd2end(training_task='straight', num_future_data=0)
+    env = CrossroadEnd2endPiIntegrate(num_future_data=0)
     obs = env.reset()
     i = 0
     done = 0
     while i < 100000:
-        for j in range(80):
+        for j in range(40):
             # print(i)
             i += 1
             # action=2*np.random.random(2)-1
@@ -810,6 +811,7 @@ def test_end2end():
             else:
                 action = np.array([0.5, 0.33], dtype=np.float32)
             obs, reward, done, info = env.step(action)
+            print(len(obs))
             env.render()
         done = 0
         obs = env.reset()

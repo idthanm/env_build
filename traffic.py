@@ -34,7 +34,7 @@ SIM_PERIOD = 1.0 / 10
 
 class Traffic(object):
 
-    def __init__(self, step_length, mode, init_n_ego_dict, training_task='left'):  # mode 'display' or 'training'
+    def __init__(self, step_length, mode, init_n_ego_dict):  # mode 'display' or 'training'
         self.random_traffic = None
         self.sim_time = 0
         self.n_ego_vehicles = defaultdict(list)
@@ -49,14 +49,7 @@ class Traffic(object):
         #      UR1=dict(x=-1.875, y=30, v=3, a=-90, l=4.8, w=2.2),
         #      DR1=dict(x=5.625, y=-30, v=3, a=90, l=4.8, w=2.2),
         #      RU1=dict(x=5.625, y=-30, v=3, a=90, l=4.8, w=2.2))
-
         self.mode = mode
-        self.training_light_phase = 0
-        self.training_task = training_task
-        self.ego_route = TASK2ROUTEID[self.training_task]
-        if training_task == 'right':
-            if random.random() > 0.5:
-                self.training_light_phase = 2
 
         try:
             traci.start(
@@ -148,7 +141,9 @@ class Traffic(object):
 
         return random_traffic
 
-    def init_traffic(self, init_n_ego_dict):
+    def init_traffic(self, init_n_ego_dict, training_task):
+        self.training_task = training_task
+        self.ego_route = TASK2ROUTEID[self.training_task]
         self.sim_time = 0
         self.n_ego_vehicles = defaultdict(list)
         self.collision_flag = False
