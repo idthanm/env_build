@@ -191,7 +191,8 @@ class EnvironmentModel(object):  # all tensors
     def compute_rewards(self, obses_ego, actions, obses_other, veh_num=None):
         # obses = self.convert_vehs_to_abso(obses)
         with tf.name_scope('compute_reward') as scope:
-            ego_infos, tracking_infos = obses_ego[:, :self.ego_info_dim], obses_ego[:, self.ego_info_dim:]
+            ego_infos, tracking_infos = obses_ego[:, :self.ego_info_dim], \
+                                        obses_ego[:, self.ego_info_dim:self.ego_info_dim+self.per_tracking_info_dim * (self.num_future_data+1)]
             veh_infos = tf.stop_gradient(obses_other)
 
             steers, a_xs = actions[:, 0], actions[:, 1]
@@ -323,8 +324,12 @@ class EnvironmentModel(object):  # all tensors
 
     def compute_next_obses(self, obses_ego, actions, obses_other):
         # obses = self.convert_vehs_to_abso(obses)
-        ego_infos, tracking_infos = obses_ego[:, :self.ego_info_dim], obses_ego[:, self.ego_info_dim:]
-        veh_infos = tf.stop_gradient(obses_other)   # todo
+        ego_infos, tracking_infos = obses_ego[:, :self.ego_info_dim], \
+                                    obses_ego[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
+                                                self.num_future_data + 1)]
+        task_infos = obses_ego[:, self.ego_info_dim + self.per_tracking_info_dim * (
+                                                self.num_future_data + 1):]
+        veh_infos = tf.stop_gradient(obses_other)
 
         next_ego_infos = self.ego_predict(ego_infos, actions)
         # different for training and selecting
@@ -348,7 +353,7 @@ class EnvironmentModel(object):  # all tensors
                                                                                    self.num_future_data)
                 next_tracking_infos = tf.where(ref_indexes == ref_idx, tracking_info_4_this_ref_idx,
                                                next_tracking_infos)
-        next_obses_ego = tf.concat([next_ego_infos, next_tracking_infos], 1)
+        next_obses_ego = tf.concat([next_ego_infos, next_tracking_infos, task_infos], 1)
         next_veh_infos = self.veh_predict(veh_infos)
         # next_obses = self.convert_vehs_to_rela(next_obses)
         return next_obses_ego, next_veh_infos

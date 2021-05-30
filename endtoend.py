@@ -20,7 +20,8 @@ from gym.utils import seeding
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath, EnvironmentModel
 from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination, deal_with_phi, \
-    L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, VEH_NUM, EXPECTED_V
+    L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, VEH_NUM, EXPECTED_V, \
+    TASK_DICT
 from traffic import Traffic
 
 warnings.filterwarnings("ignore")
@@ -71,9 +72,11 @@ class CrossroadEnd2endPiIntegrate(gym.Env):
 
         self.done_type = 'not_done_yet'
         self.reward_info = None
-        self.ego_info_dim = None
-        self.per_tracking_info_dim = None
-        self.per_veh_info_dim = None
+        self.ego_info_dim = 6
+        self.per_tracking_info_dim = 3
+        self.per_veh_info_dim = 4
+        self.per_task_info_dim = 1
+        self.path_point_num = 1
         self.mode = mode
         if not multi_display:
             self.traffic = Traffic(self.step_length,
@@ -91,6 +94,7 @@ class CrossroadEnd2endPiIntegrate(gym.Env):
 
     def reset(self, **kwargs):  # kwargs include three keys
         self.training_task = choice(['left', 'straight', 'right'])
+        self.task_idx = TASK_DICT[self.training_task]
         self.ref_path = ReferencePath(self.training_task, **kwargs)
         self.env_model = EnvironmentModel(self.training_task, self.num_future_data)
         self.veh_mode_dict = VEHICLE_MODE_DICT[self.training_task]
@@ -295,8 +299,9 @@ class CrossroadEnd2endPiIntegrate(gym.Env):
                                                              np.array([ego_v_x], dtype=np.float32),
                                                              self.num_future_data).numpy()[0]
         self.per_tracking_info_dim = 3
-
-        vector = np.concatenate((ego_vector, tracking_error, vehs_vector), axis=0)
+        task_vector = np.array([self.task_idx])
+        vector = np.concatenate((ego_vector, tracking_error, task_vector, vehs_vector), axis=0)
+        vector = vector.astype(np.float32)
         # vector = self.convert_vehs_to_rela(vector)
 
         return vector
@@ -499,9 +504,10 @@ class CrossroadEnd2endPiIntegrate(gym.Env):
 
     def compute_reward(self, obs, action):
         obses, actions = obs[np.newaxis, :], action[np.newaxis, :]
-        obses_ego = obses[:, :self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data + 1)]
-        obses_other = np.reshape(obses[:, self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data + 1):],
-                                 [-1, self.per_veh_info_dim])
+        obses_ego = obses[:, :self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data + 1) +
+                              self.per_task_info_dim * self.path_point_num]
+        obses_other = np.reshape(obses[:, self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data + 1)
+                                 + self.per_task_info_dim * self.path_point_num:], [-1, self.per_veh_info_dim])
         reward, _, _, _, _, reward_dict = self.env_model.compute_rewards(obses_ego, actions, obses_other)
         for k, v in reward_dict.items():
             reward_dict[k] = v.numpy()[0]
@@ -798,6 +804,7 @@ class CrossroadEnd2endPiIntegrate(gym.Env):
 
 def test_end2end():
     env = CrossroadEnd2endPiIntegrate(num_future_data=0)
+    env_model = EnvironmentModel(training_task='straight', num_future_data=0)
     obs = env.reset()
     i = 0
     done = 0
@@ -811,8 +818,22 @@ def test_end2end():
             else:
                 action = np.array([0.5, 0.33], dtype=np.float32)
             obs, reward, done, info = env.step(action)
+            obses, actions = obs[np.newaxis, :], action[np.newaxis, :]
+            obses_ego = obses[:, :env.ego_info_dim + env.per_tracking_info_dim * (env.num_future_data + 1) +
+                                  env.per_task_info_dim * env.path_point_num]
+            obses_other = np.reshape(obses[:, env.ego_info_dim + env.per_tracking_info_dim * (env.num_future_data + 1)
+                         + env.per_task_info_dim * env.path_point_num:], [-1, env.per_veh_info_dim])
+            env_model.reset(obses_ego, obses_other, [env.veh_num], env.training_task, env.ref_path.ref_index)
+            env_model.mode = 'testing'
+            for _ in range(10):
+                obses_ego, obses_other, rewards, punish_term_for_training, \
+                    real_punish_term, veh2veh4real, veh2road4real = env_model.rollout_out(actions)
+                print(obses_ego[:, 9].numpy())
             print(len(obs))
+            print(env.training_task, obs[9])
             env.render()
+            if done:
+                break
         done = 0
         obs = env.reset()
         env.render()
