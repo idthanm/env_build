@@ -114,9 +114,9 @@ class EnvironmentModel(object):  # all tensors
         self.veh_num = veh_num
         self.task = task
 
-
-    def add_traj(self, obses, path_index):
-        self.obses = obses
+    def add_traj(self, obses_ego, obses_other, veh_num, path_index):
+        self.obses_ego = obses_ego
+        self.obses_other = tf.reshape(obses_other, [-1, self.per_veh_info_dim * veh_num[0]])
         self.ref_path.set_path(path_index)
 
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
