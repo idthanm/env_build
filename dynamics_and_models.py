@@ -105,9 +105,9 @@ class EnvironmentModel(object):  # all tensors
         self.bike_num = BIKE_NUM[self.task]
         self.person_num = PERSON_NUM[self.task]
         self.ego_info_dim = 6
-        self.per_veh_info_dim = 4
-        self.per_bike_info_dim = 4
-        self.per_person_info_dim = 4
+        self.per_veh_info_dim = 5
+        self.per_bike_info_dim = 5
+        self.per_person_info_dim = 5
         self.per_tracking_info_dim = 3
         self.obses_ego = None
         self.obses_bike = None
@@ -459,7 +459,7 @@ class EnvironmentModel(object):  # all tensors
         for persons_index in range(len(person_mode_list)):
             persons = person_infos[:, persons_index * self.per_person_info_dim:(persons_index + 1) * self.per_person_info_dim]
 
-            person_xs, person_ys, person_vs, person_phis = persons[:, 0], persons[:, 1], persons[:, 2], persons[:, 3]
+            person_xs, person_ys, person_vs, person_phis, person_index = persons[:, 0], persons[:, 1], persons[:, 2], persons[:, 3], persons[:, 4]
             person_phis_rad = person_phis * np.pi / 180.
 
             person_xs_delta = person_vs / self.base_frequency * tf.cos(person_phis_rad)
@@ -470,7 +470,8 @@ class EnvironmentModel(object):  # all tensors
             next_person_phis_rad = tf.where(next_person_phis_rad > np.pi, next_person_phis_rad - 2 * np.pi, next_person_phis_rad)
             next_person_phis_rad = tf.where(next_person_phis_rad <= -np.pi, next_person_phis_rad + 2 * np.pi, next_person_phis_rad)
             next_person_phis = next_person_phis_rad * 180 / np.pi
-            pred.append(tf.stack([next_person_xs, next_person_ys, next_person_vs, next_person_phis], 1))
+            next_person_index = person_index
+            pred.append(tf.stack([next_person_xs, next_person_ys, next_person_vs, next_person_phis, next_person_index], 1))
 
         pred = tf.concat(pred, axis=1)
         return pred
@@ -487,7 +488,7 @@ class EnvironmentModel(object):  # all tensors
         return pred
 
     def predict_for_bike_mode(self, bikes, mode):
-        bike_xs, bike_ys, bike_vs, bike_phis = bikes[:, 0], bikes[:, 1], bikes[:, 2], bikes[:, 3]
+        bike_xs, bike_ys, bike_vs, bike_phis, bike_index = bikes[:, 0], bikes[:, 1], bikes[:, 2], bikes[:, 3], bikes[:, 4]
         bike_phis_rad = bike_phis * np.pi / 180.
 
         middle_cond = logical_and(logical_and(bike_xs > -CROSSROAD_SIZE/2, bike_xs < CROSSROAD_SIZE/2),
@@ -508,10 +509,11 @@ class EnvironmentModel(object):  # all tensors
         next_bike_phis_rad = tf.where(next_bike_phis_rad > np.pi, next_bike_phis_rad - 2 * np.pi, next_bike_phis_rad)
         next_bike_phis_rad = tf.where(next_bike_phis_rad <= -np.pi, next_bike_phis_rad + 2 * np.pi, next_bike_phis_rad)
         next_bike_phis = next_bike_phis_rad * 180 / np.pi
-        return tf.stack([next_bike_xs, next_bike_ys, next_bike_vs, next_bike_phis], 1)
+        next_bike_index = bike_index
+        return tf.stack([next_bike_xs, next_bike_ys, next_bike_vs, next_bike_phis, next_bike_index], 1)
 
     def predict_for_veh_mode(self, vehs, mode):
-        veh_xs, veh_ys, veh_vs, veh_phis = vehs[:, 0], vehs[:, 1], vehs[:, 2], vehs[:, 3]
+        veh_xs, veh_ys, veh_vs, veh_phis, veh_index = vehs[:, 0], vehs[:, 1], vehs[:, 2], vehs[:, 3], vehs[:, 4]
         veh_phis_rad = veh_phis * np.pi / 180.
 
         middle_cond = logical_and(logical_and(veh_xs > -CROSSROAD_SIZE/2, veh_xs < CROSSROAD_SIZE/2),
@@ -532,7 +534,8 @@ class EnvironmentModel(object):  # all tensors
         next_veh_phis_rad = tf.where(next_veh_phis_rad > np.pi, next_veh_phis_rad - 2 * np.pi, next_veh_phis_rad)
         next_veh_phis_rad = tf.where(next_veh_phis_rad <= -np.pi, next_veh_phis_rad + 2 * np.pi, next_veh_phis_rad)
         next_veh_phis = next_veh_phis_rad * 180 / np.pi
-        return tf.stack([next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis], 1)
+        next_veh_index = veh_index
+        return tf.stack([next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis, next_veh_index], 1)
 
     def render(self, mode='human'):
         if mode == 'human':
