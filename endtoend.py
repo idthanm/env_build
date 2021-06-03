@@ -12,6 +12,7 @@ from collections import OrderedDict
 from math import cos, sin, pi
 
 import gym
+import random
 import matplotlib.pyplot as plt
 import numpy as np
 from gym.utils import seeding
@@ -42,7 +43,7 @@ def convert_observation_to_space(observation):
     return space
 
 
-class CrossroadEnd2end(gym.Env):
+class CrossroadEnd2endMixPiFix(gym.Env):
     def __init__(self,
                  training_task,  # 'left', 'straight', 'right'
                  num_future_data=0,
@@ -147,7 +148,8 @@ class CrossroadEnd2end(gym.Env):
         self.obs = self._get_obs()
         self.done_type, done = self._judge_done()
         self.reward_info.update({'final_rew': reward})
-        all_info.update({'reward_info': self.reward_info, 'ref_index': self.ref_path.ref_index})
+        all_info.update({'reward_info': self.reward_info, 'ref_index': self.ref_path.ref_index,
+                         'veh_num': self.veh_num, 'bike_num': self.bike_num, 'person_num':self.person_num})
         return self.obs, reward, done, all_info
 
     def _set_observation_space(self, observation):
@@ -625,8 +627,18 @@ class CrossroadEnd2end(gym.Env):
 
     def compute_reward(self, obs, action):
         obses, actions = obs[np.newaxis, :], action[np.newaxis, :]
-        reward, _, _, _, _, _, _, reward_dict = \
-            self.env_model.compute_rewards(obses, actions)
+
+        # extract infos for each kind of participants
+        start = 0; end = start + self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data + 1)
+        obses_ego = obses[:, start:end]
+        start = end; end = start + self.per_bike_info_dim * self.bike_num
+        obses_bike = obses[:, start:end]
+        start = end; end = start + self.per_person_info_dim * self.person_num
+        obses_person = obses[:, start:end]
+        start = end; end = start + self.per_veh_info_dim * self.veh_num
+        obses_veh = obses[:, start:end]
+
+        reward, _, _, _, _, _, _, reward_dict = self.env_model.compute_rewards(obses_ego, obses_bike, obses_person, obses_veh, actions)
         for k, v in reward_dict.items():
             reward_dict[k] = v.numpy()[0]
         return reward.numpy()[0], reward_dict
@@ -1050,8 +1062,8 @@ class CrossroadEnd2end(gym.Env):
 
 
 def test_end2end():
-    env = CrossroadEnd2end(training_task='straight', num_future_data=0)
-    env_model = EnvironmentModel(training_task='straight', num_future_data=0)
+    env = CrossroadEnd2endMixPiFix(training_task='left', num_future_data=0)
+    env_model = EnvironmentModel(training_task='left', num_future_data=0)
     obs = env.reset()
     i = 0
     while i < 100000:
@@ -1062,12 +1074,31 @@ def test_end2end():
                 action = np.array([0, 1], dtype=np.float32)
             elif obs[3] <= -18:
                 action = np.array([0, 0], dtype=np.float32)
-            # else:
-            #     action = np.array([-0.4, 0.33], dtype=np.float32)
+            else:
+                action = np.array([0.2, 0.33], dtype=np.float32)
             obs, reward, done, info = env.step(action)
-            env_model.reset(obs[np.newaxis, :], env.ref_path.ref_index)
-            env_model.mode = 'testing'
-            pred_obs = env_model.compute_next_obses(obs[np.newaxis, :], action[np.newaxis,:])
+            obses, actions = obs[np.newaxis, :], action[np.newaxis, :]
+            # extract infos for each kind of participants
+            start = 0; end = start + env.ego_info_dim + env.per_tracking_info_dim * (env.num_future_data + 1)
+            obses_ego = obses[:, start:end]
+            start = end; end = start + env.per_bike_info_dim * env.bike_num
+            obses_bike = obses[:, start:end]
+            start = end; end = start + env.per_person_info_dim * env.person_num
+            obses_person = obses[:, start:end]
+            start = end; end = start + env.per_veh_info_dim * env.veh_num
+            obses_veh = obses[:, start:end]
+
+            obses_bike = np.reshape(obses_bike, [-1, env.per_bike_info_dim])
+            obses_person = np.reshape(obses_person, [-1, env.per_person_info_dim])
+            obses_veh = np.reshape(obses_veh, [-1, env.per_veh_info_dim])
+
+            env_model.reset(np.tile(obses_ego, (2, 1)), np.tile(obses_bike, (2, 1)), np.tile(obses_person, (2, 1)),
+                            np.tile(obses_veh, (2, 1)), [env.ref_path.ref_index, random.randint(0, 2)])
+            env_model.mode = 'training'
+            for _ in range(10):
+                obses_ego, obses_bike, obses_person, obses_veh, rewards, punish_term_for_training, \
+                    real_punish_term, veh2veh4real, veh2road4real, veh2bike4real, veh2person4real = env_model.rollout_out(np.tile(actions, (2, 1)))
+            print(obses_ego.shape, obses_bike.shape, obses_person.shape, obses_veh.shape)
             env.render()
             if done:
                 break

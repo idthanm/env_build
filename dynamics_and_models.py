@@ -109,26 +109,40 @@ class EnvironmentModel(object):  # all tensors
         self.per_bike_info_dim = 4
         self.per_person_info_dim = 4
         self.per_tracking_info_dim = 3
+        self.obses_ego = None
+        self.obses_bike = None
+        self.obses_person =None
+        self.obses_veh =None
 
-    def reset(self, obses, ref_indexes=None):  # input are all tensors
-        self.obses = obses
+    def reset(self, obses_ego, obses_bike, obses_person, obses_veh, ref_indexes=None):  # input are all tensors
+        self.obses_ego = obses_ego
+        self.obses_bike = tf.reshape(obses_bike, [-1, self.per_bike_info_dim * self.bike_num])
+        self.obses_person = tf.reshape(obses_person, [-1, self.per_person_info_dim * self.person_num])
+        self.obses_veh = tf.reshape(obses_veh, [-1, self.per_veh_info_dim * self.veh_num])
         self.ref_indexes = ref_indexes
         self.actions = None
         self.reward_info = None
 
-    def add_traj(self, obses, path_index):
-        self.obses = obses
+    def add_traj(self, obses_ego, obses_bike, obses_person, obses_veh, path_index):
+        self.obses_ego = obses_ego
+        self.obses_bike = tf.reshape(obses_bike, [-1, self.per_bike_info_dim * self.bike_num])
+        self.obses_person = tf.reshape(obses_person, [-1, self.per_person_info_dim * self.person_num])
+        self.obses_veh = tf.reshape(obses_veh, [-1, self.per_veh_info_dim * self.veh_num])
         self.ref_path.set_path(path_index)
 
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
             self.actions = self._action_transformation_for_end2end(actions)
-            rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, \
-                veh2bike4real, veh2person4real, _ = self.compute_rewards(self.obses, self.actions)
-            self.obses = self.compute_next_obses(self.obses, self.actions)
-            # self.reward_info.update({'final_rew': rewards.numpy()[0]})
+            rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, veh2bike4real, \
+                veh2person4real, _ = self.compute_rewards(self.obses_ego, self.obses_bike, self.obses_person, self.obses_veh, self.actions)
+            self.obses_ego, self.obses_bike, self.obses_person, self.obses_veh = \
+                self.compute_next_obses(self.obses_ego, self.obses_bike, self.obses_person, self.obses_veh, self.actions)
 
-        return self.obses, rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, \
+            obses_bike = tf.reshape(self.obses_bike, [-1, self.per_bike_info_dim])
+            obses_person = tf.reshape(self.obses_person, [-1, self.per_person_info_dim])
+            obses_veh = tf.reshape(self.obses_veh, [-1, self.per_veh_info_dim])
+
+        return self.obses_ego, obses_bike, obses_person, obses_veh, rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, \
                veh2bike4real, veh2person4real
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
@@ -189,27 +203,14 @@ class EnvironmentModel(object):  # all tensors
                                              tf.zeros_like(veh_infos[:, 0]))
         return veh2veh4real
 
-    def compute_rewards(self, obses, actions):
+    def compute_rewards(self, obses_ego, obses_bike, obses_person, obses_veh, actions):
         # obses = self.convert_vehs_to_abso(obses)
         with tf.name_scope('compute_reward') as scope:
-            start, end = 0, self.ego_info_dim
-            ego_infos = obses[:, start:end]
+            ego_infos, tracking_infos = obses_ego[:, :self.ego_info_dim], obses_ego[:, self.ego_info_dim:]
 
-            start = end; end += self.per_tracking_info_dim * (self.num_future_data + 1)
-            tracking_infos = obses[:, start:end]
-
-            start = end; end += self.per_bike_info_dim * self.bike_num
-            bike_infos = obses[:, start:end]
-
-            start = end; end += self.per_person_info_dim * self.person_num
-            person_infos = obses[:, start:end]
-
-            start = end; end += self.per_veh_info_dim * self.veh_num
-            veh_infos = obses[:, start:]
-
-            bike_infos = tf.stop_gradient(bike_infos)
-            person_infos = tf.stop_gradient(person_infos)
-            veh_infos = tf.stop_gradient(veh_infos)
+            bike_infos = tf.stop_gradient(obses_bike)
+            person_infos = tf.stop_gradient(obses_person)
+            veh_infos = tf.stop_gradient(obses_veh)
 
             steers, a_xs = actions[:, 0], actions[:, 1]
             # rewards related to action
@@ -337,7 +338,7 @@ class EnvironmentModel(object):  # all tensors
                         logical_and(ego_point[0] > CROSSROAD_SIZE / 2, ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) < 1),
                         tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), tf.zeros_like(veh_infos[:, 0]))
 
-            rewards = 0.1 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
+            rewards = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
                       5 * punish_steer + 0.05 * punish_a_x
             punish_term_for_training = veh2veh4training + veh2road4training + veh2bike4training + veh2person4training
             real_punish_term = veh2veh4real + veh2road4real + veh2bike4real + veh2person4real
@@ -367,26 +368,12 @@ class EnvironmentModel(object):  # all tensors
             return rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, veh2bike4real, \
                    veh2person4real, reward_dict
 
-    def compute_next_obses(self, obses, actions):
+    def compute_next_obses(self, obses_ego, obses_bike, obses_person, obses_veh, actions):
         # obses = self.convert_vehs_to_abso(obses)
-        start, end = 0, self.ego_info_dim
-        ego_infos = obses[:, start:end]
-
-        start = end; end += self.per_tracking_info_dim * (self.num_future_data + 1)
-        tracking_infos = obses[:, start:end]
-
-        start = end; end += self.per_bike_info_dim * self.bike_num
-        bike_infos = obses[:, start:end]
-
-        start = end; end += self.per_person_info_dim * self.person_num
-        person_infos = obses[:, start:end]
-
-        start = end; end += self.per_veh_info_dim * self.veh_num
-        veh_infos = obses[:, start:]
-
-        bike_infos = tf.stop_gradient(bike_infos)
-        person_infos = tf.stop_gradient(person_infos)
-        veh_infos = tf.stop_gradient(veh_infos)
+        ego_infos, tracking_infos = obses_ego[:, :self.ego_info_dim], obses_ego[:, self.ego_info_dim:]
+        bike_infos = tf.stop_gradient(obses_bike)
+        person_infos = tf.stop_gradient(obses_person)
+        veh_infos = tf.stop_gradient(obses_veh)
 
         next_ego_infos = self.ego_predict(ego_infos, actions)
         # different for training and selecting
@@ -410,16 +397,16 @@ class EnvironmentModel(object):  # all tensors
                                                                                    self.num_future_data)
                 next_tracking_infos = tf.where(ref_indexes == ref_idx, tracking_info_4_this_ref_idx,
                                                next_tracking_infos)
-
         next_bike_infos = self.bike_predict(bike_infos)
         if not person_infos.shape[1]:                                       # no pedestrian is considered
             next_person_infos = person_infos
         else:
             next_person_infos = self.person_predict(person_infos)
         next_veh_infos = self.veh_predict(veh_infos)
-        next_obses = tf.concat([next_ego_infos, next_tracking_infos, next_bike_infos, next_person_infos, next_veh_infos], 1)
+
+        next_obses_ego = tf.concat([next_ego_infos, next_tracking_infos], 1)
         # next_obses = self.convert_vehs_to_rela(next_obses)
-        return next_obses
+        return next_obses_ego, next_bike_infos, next_person_infos, next_veh_infos
 
     # def convert_vehs_to_rela(self, obs_abso):
     #     ego_infos, tracking_infos, veh_infos = obs_abso[:, :self.ego_info_dim], \
