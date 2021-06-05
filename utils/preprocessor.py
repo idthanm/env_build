@@ -57,13 +57,13 @@ class RunningMeanStd(object):
 
 
 class Preprocessor(object):
-    def __init__(self, ob_shape, obs_ptype='normalize', rew_ptype='normalize', obs_scale=None,
-                 rew_scale=None, rew_shift=None, clipob=10., cliprew=10., gamma=0.99, epsilon=1e-8, **kwargs):
+    def __init__(self, ob_shape, obs_ptype='normalize', rew_ptype='normalize', rew_scale=None, rew_shift=None, args=None,
+                 clipob=10., cliprew=10., gamma=0.99, epsilon=1e-8, **kwargs):
         self.obs_ptype = obs_ptype
         self.ob_rms = RunningMeanStd(shape=ob_shape) if self.obs_ptype == 'normalize' else None
         self.rew_ptype = rew_ptype
         self.ret_rms = RunningMeanStd(shape=()) if self.rew_ptype == 'normalize' else None
-        self.obs_scale = np.array(obs_scale) if self.obs_ptype == 'scale' else None
+        self.obs_scale = None
         self.rew_scale = rew_scale if self.rew_ptype == 'scale' else None
         self.rew_shift = rew_shift if self.rew_ptype == 'scale' else None
 
@@ -73,6 +73,10 @@ class Preprocessor(object):
         self.gamma = gamma
         self.epsilon = epsilon
         self.num_agent = None
+        self.args = args
+        self.obs_ego_scale = np.array([0.2, 1., 2., 1 / 30., 1 / 30, 1 / 180.] +
+                                      [1., 1 / 15., 0.2] + [1., 1., 1 / 15.] * self.args.env_kwargs_num_future_data)
+        self.obs_other_scale = np.array([1 / 30., 1 / 30., 0.2, 1 / 180., 1.0])
         if 'num_agent' in kwargs.keys():
             self.ret = np.zeros(kwargs['num_agent'])
             self.num_agent = kwargs['num_agent']
@@ -112,6 +116,26 @@ class Preprocessor(object):
             return obs * self.obs_scale
         else:
             return obs
+
+    def process_obs_PI(self, obses_ego, obses_bike, obses_person, obses_veh):
+        if self.obs_ptype == 'scale':
+            processed_obses_ego = obses_ego * self.obs_ego_scale
+            processed_obses_bike = obses_bike * self.obs_other_scale
+            processed_obses_person = obses_person * self.obs_other_scale
+            processed_obses_veh = obses_veh * self.obs_other_scale
+            return processed_obses_ego, processed_obses_bike, processed_obses_person, processed_obses_veh
+
+    def tf_process_obses_PI(self, obses_ego, obses_bike, obses_person, obses_veh):
+        with tf.name_scope('obs_process') as scope:
+            if self.obs_ptype == 'scale':
+                processed_obses_ego = obses_ego * tf.convert_to_tensor(self.obs_ego_scale, dtype=tf.float32)
+                processed_obses_bike = obses_bike * tf.convert_to_tensor(self.obs_other_scale, dtype=tf.float32)
+                processed_obses_person = obses_person * tf.convert_to_tensor(self.obs_other_scale, dtype=tf.float32)
+                processed_obses_veh = obses_veh * tf.convert_to_tensor(self.obs_other_scale, dtype=tf.float32)
+                return processed_obses_ego, processed_obses_bike, processed_obses_person, processed_obses_veh
+            else:
+                print('no scale')
+                raise ValueError
 
     def np_process_obses(self, obses):
         if self.obs_ptype == 'normalize':

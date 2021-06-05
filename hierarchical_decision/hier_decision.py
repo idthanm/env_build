@@ -20,7 +20,7 @@ import numpy as np
 import tensorflow as tf
 
 from dynamics_and_models import EnvironmentModel, ReferencePath
-from endtoend import CrossroadEnd2end
+from endtoend import CrossroadEnd2endMixPiFix
 from endtoend_env_utils import rotate_coordination, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, MODE2TASK
 from hierarchical_decision.multi_path_generator import MultiPathGenerator
 from utils.load_policy import LoadPolicy
@@ -32,7 +32,8 @@ class HierarchicalDecision(object):
     def __init__(self, task, train_exp_dir, ite, logdir=None):
         self.task = task
         self.policy = LoadPolicy('../utils/models/{}/{}'.format(task, train_exp_dir), ite)
-        self.env = CrossroadEnd2end(training_task=self.task, mode='testing')
+        self.args = self.policy.args
+        self.env = CrossroadEnd2endMixPiFix(training_task=self.task, mode='testing')
         self.model = EnvironmentModel(self.task, mode='selecting')
         self.recorder = Recorder()
         self.episode_counter = -1
@@ -52,14 +53,19 @@ class HierarchicalDecision(object):
         self.old_index = 0
         self.path_list = self.stg.generate_path(self.task)
         # ------------------build graph for tf.function in advance-----------------------
-        for i in range(3):
-            obs = self.env.reset()
-            obs = tf.convert_to_tensor(obs[np.newaxis, :], dtype=tf.float32)
-            self.is_safe(obs, i)
-        obs = self.env.reset()
-        obs_with_specific_shape = np.tile(obs, (3, 1))
-        self.policy.run_batch(obs_with_specific_shape)
-        self.policy.obj_value_batch(obs_with_specific_shape)
+        for i in range(LANE_NUMBER):
+            obs = self.env.reset()[np.newaxis, :]
+            obs_ego, obs_bike, obs_person, obs_veh = self.split_obses(obs)
+            self.is_safe(obs_ego, obs_bike, obs_person, obs_veh, i)
+        obs = self.env.reset()[np.newaxis, :]
+        obs_ego, obs_bike, obs_person, obs_veh = self.split_obses(obs)
+        obs_ego_with_specific_shape = np.tile(obs_ego, (LANE_NUMBER, 1))
+        obs_bike_with_specific_shape = np.tile(obs_bike, (LANE_NUMBER, 1))
+        obs_person_with_specific_shape = np.tile(obs_person, (LANE_NUMBER, 1))
+        obs_veh_with_specific_shape = np.tile(obs_veh, (LANE_NUMBER, 1))
+
+        self.policy.run_batch(obs_ego_with_specific_shape, obs_bike_with_specific_shape, obs_person_with_specific_shape, obs_veh_with_specific_shape)
+        self.policy.obj_value_batch(obs_ego_with_specific_shape, obs_bike_with_specific_shape, obs_person_with_specific_shape, obs_veh_with_specific_shape)
         # ------------------build graph for tf.function in advance-----------------------
         self.reset()
 
@@ -87,25 +93,26 @@ class HierarchicalDecision(object):
     #     veh2veh4real = self.model.ss(obs, action, lam=0.1)
     #     return False if veh2veh4real[0] > 0 else True
 
-    @tf.function
-    def is_safe(self, obs, path_index):
-        self.model.add_traj(obs, path_index)
+    # @tf.function
+    def is_safe(self, obs_ego, obs_bike, obs_person, obs_veh, path_index):
+        self.model.add_traj(obs_ego, obs_bike, obs_person, obs_veh, path_index)
         punish = 0.
         for step in range(5):
-            action = self.policy.run_batch(obs)
-            obs, _, _, _, veh2veh4real, _, _, _ = self.model.rollout_out(action)
-            punish += veh2veh4real[0]
+            action = self.policy.run_batch(obs_ego, obs_bike, obs_person, obs_veh)
+            obs_ego, obs_bike, obs_person, obs_veh, _, _, _, veh2veh4real, veh2road4real, veh2bike4real, veh2person4real \
+                = self.model.rollout_out(action)
+            punish += veh2veh4real[0] + veh2bike4real[0] + veh2person4real[0]
         return False if punish > 0 else True
 
     def safe_shield(self, real_obs, path_index):
         action_safe_set = [[[0., -1.]]]
         real_obs = tf.convert_to_tensor(real_obs[np.newaxis, :], dtype=tf.float32)
-        obs = real_obs
-        if not self.is_safe(obs, path_index):
+        obs_ego, obs_bike, obs_person, obs_veh = self.split_obses(real_obs.numpy())
+        if not self.is_safe(obs_ego, obs_bike, obs_person, obs_veh, path_index):
             print('SAFETY SHIELD STARTED!')
             return np.array(action_safe_set[0], dtype=np.float32).squeeze(0), True
         else:
-            return self.policy.run_batch(real_obs).numpy()[0], False
+            return self.policy.run_batch(obs_ego, obs_bike, obs_person, obs_veh).numpy()[0], False
 
     def step(self):
         self.step_counter += 1
@@ -115,8 +122,9 @@ class HierarchicalDecision(object):
             for path in self.path_list:
                 self.env.set_traj(path)
                 obs_list.append(self.env._get_obs())
-            all_obs = tf.stack(obs_list, axis=0)
-            path_values = self.policy.obj_value_batch(all_obs).numpy()
+            all_obs = tf.stack(obs_list, axis=0).numpy()
+            obs_ego, obs_bike, obs_person, obs_veh = self.split_obses(all_obs)
+            path_values = self.policy.obj_value_batch(obs_ego, obs_bike, obs_person, obs_veh).numpy()
             old_value = path_values[self.old_index]
             # value is to approximate (- sum of reward)
             new_index, new_value = int(np.argmin(path_values)), min(path_values)
@@ -141,7 +149,7 @@ class HierarchicalDecision(object):
             # obtain safe action
             with self.ss_timer:
                 safe_action, is_ss = self.safe_shield(self.obs_real, path_index)
-            # print('ALL TIME:', self.step_timer.mean, 'ss', self.ss_timer.mean)
+            print('ALL TIME:', self.step_timer.mean, 'ss', self.ss_timer.mean)
         self.render(self.path_list, path_values, path_index)
         self.recorder.record(self.obs_real, safe_action, self.step_timer.mean,
                              path_index, path_values, self.ss_timer.mean, is_ss)
@@ -368,62 +376,62 @@ class HierarchicalDecision(object):
                 plot_phi_line(veh_type, veh_x, veh_y, veh_phi, veh_color)
 
 
-        # # plot_interested vehs
-        # for mode, num in self.env.veh_mode_dict.items():
-        #     for i in range(num):
-        #         veh = self.env.interested_vehs[mode][i]
-        #         veh_x = veh['x']
-        #         veh_y = veh['y']
-        #         veh_phi = veh['phi']
-        #         veh_l = veh['l']
-        #         veh_w = veh['w']
-        #         veh_type = veh['type']
-        #
-        #         task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
-        #
-        #         if is_in_plot_area(veh_x, veh_y):
-        #             plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
-        #             task = MODE2TASK[mode]
-        #             color = task2color[task]
-        #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
-        #
-        # # plot_interested bicycle
-        # for mode, num in self.env.bicycle_mode_dict.items():
-        #     for i in range(num):
-        #         veh = self.env.interested_vehs[mode][i]
-        #         veh_x = veh['x']
-        #         veh_y = veh['y']
-        #         veh_phi = veh['phi']
-        #         veh_l = veh['l']
-        #         veh_w = veh['w']
-        #         veh_type = veh['type']
-        #
-        #         task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
-        #
-        #         if is_in_plot_area(veh_x, veh_y):
-        #             plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
-        #             task = MODE2TASK[mode]
-        #             color = task2color[task]
-        #             draw_bike(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
-        #
-        # # plot_interested person
-        # for mode, num in self.env.person_mode_dict.items():
-        #     for i in range(num):
-        #         veh = self.env.interested_vehs[mode][i]
-        #         veh_x = veh['x']
-        #         veh_y = veh['y']
-        #         veh_phi = veh['phi']
-        #         veh_l = veh['l']
-        #         veh_w = veh['w']
-        #         veh_type = veh['type']
-        #
-        #         task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
-        #
-        #         if is_in_plot_area(veh_x, veh_y):
-        #             plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
-        #             task = MODE2TASK[mode]
-        #             color = task2color[task]
-        #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
+        # plot_interested vehs
+        for mode, num in self.env.veh_mode_dict.items():
+            for i in range(num):
+                veh = self.env.interested_vehs[mode][i]
+                veh_x = veh['x']
+                veh_y = veh['y']
+                veh_phi = veh['phi']
+                veh_l = veh['l']
+                veh_w = veh['w']
+                veh_type = veh['type']
+
+                task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+
+                if is_in_plot_area(veh_x, veh_y):
+                    plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+                    task = MODE2TASK[mode]
+                    color = task2color[task]
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
+
+        # plot_interested bicycle
+        for mode, num in self.env.bicycle_mode_dict.items():
+            for i in range(num):
+                veh = self.env.interested_vehs[mode][i]
+                veh_x = veh['x']
+                veh_y = veh['y']
+                veh_phi = veh['phi']
+                veh_l = veh['l']
+                veh_w = veh['w']
+                veh_type = veh['type']
+
+                task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+
+                if is_in_plot_area(veh_x, veh_y):
+                    plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+                    task = MODE2TASK[mode]
+                    color = task2color[task]
+                    draw_bike(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
+
+        # plot_interested person
+        for mode, num in self.env.person_mode_dict.items():
+            for i in range(num):
+                veh = self.env.interested_vehs[mode][i]
+                veh_x = veh['x']
+                veh_y = veh['y']
+                veh_phi = veh['phi']
+                veh_l = veh['l']
+                veh_w = veh['w']
+                veh_type = veh['type']
+
+                task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+
+                if is_in_plot_area(veh_x, veh_y):
+                    plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+                    task = MODE2TASK[mode]
+                    color = task2color[task]
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
 
         ego_v_x = self.env.ego_dynamics['v_x']
         ego_v_y = self.env.ego_dynamics['v_y']
@@ -479,45 +487,45 @@ class HierarchicalDecision(object):
             pass
 
         # text
-        # text_x, text_y_start = -120, 60
-        # ge = iter(range(0, 1000, 4))
-        # plt.text(text_x, text_y_start - next(ge), 'ego_x: {:.2f}m'.format(ego_x))
-        # plt.text(text_x, text_y_start - next(ge), 'ego_y: {:.2f}m'.format(ego_y))
-        # plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
-        # plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
-        # plt.text(text_x, text_y_start - next(ge), 'delta_: {:.2f}m'.format(delta_))
-        # plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
-        # plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
-        # plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
-        # plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
-        # plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
-        # plt.text(text_x, text_y_start - next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
-        # plt.text(text_x, text_y_start - next(ge), 'exp_v: {:.2f}m/s'.format(self.env.exp_v))
-        # plt.text(text_x, text_y_start - next(ge), 'v_y: {:.2f}m/s'.format(ego_v_y))
-        # plt.text(text_x, text_y_start - next(ge), 'yaw_rate: {:.2f}rad/s'.format(ego_r))
-        # plt.text(text_x, text_y_start - next(ge), 'yaw_rate bound: [{:.2f}, {:.2f}]'.format(-r_bound, r_bound))
-        #
-        # plt.text(text_x, text_y_start - next(ge), r'$\alpha_f$: {:.2f} rad'.format(ego_alpha_f))
-        # plt.text(text_x, text_y_start - next(ge), r'$\alpha_f$ bound: [{:.2f}, {:.2f}] '.format(-alpha_f_bound,
-        #                                                                                         alpha_f_bound))
-        # plt.text(text_x, text_y_start - next(ge), r'$\alpha_r$: {:.2f} rad'.format(ego_alpha_r))
-        # plt.text(text_x, text_y_start - next(ge), r'$\alpha_r$ bound: [{:.2f}, {:.2f}] '.format(-alpha_r_bound,
-        #                                                                                         alpha_r_bound))
-        # if self.env.action is not None:
-        #     steer, a_x = self.env.action[0], self.env.action[1]
-        #     plt.text(text_x, text_y_start - next(ge), r'steer: {:.2f}rad (${:.2f}\degree$)'.format(steer, steer * 180 / np.pi))
-        #     plt.text(text_x, text_y_start - next(ge), 'a_x: {:.2f}m/s^2'.format(a_x))
-        #
-        # text_x, text_y_start = 70, 60
-        # ge = iter(range(0, 1000, 4))
-        #
-        # # done info
-        # plt.text(text_x, text_y_start - next(ge), 'done info: {}'.format(self.env.done_type))
-        #
-        # # reward info
-        # if self.env.reward_info is not None:
-        #     for key, val in self.env.reward_info.items():
-        #         plt.text(text_x, text_y_start - next(ge), '{}: {:.4f}'.format(key, val))
+        text_x, text_y_start = -120, 60
+        ge = iter(range(0, 1000, 4))
+        plt.text(text_x, text_y_start - next(ge), 'ego_x: {:.2f}m'.format(ego_x))
+        plt.text(text_x, text_y_start - next(ge), 'ego_y: {:.2f}m'.format(ego_y))
+        plt.text(text_x, text_y_start - next(ge), 'path_x: {:.2f}m'.format(path_x))
+        plt.text(text_x, text_y_start - next(ge), 'path_y: {:.2f}m'.format(path_y))
+        plt.text(text_x, text_y_start - next(ge), 'delta_: {:.2f}m'.format(delta_))
+        plt.text(text_x, text_y_start - next(ge), 'delta_x: {:.2f}m'.format(delta_x))
+        plt.text(text_x, text_y_start - next(ge), 'delta_y: {:.2f}m'.format(delta_y))
+        plt.text(text_x, text_y_start - next(ge), r'ego_phi: ${:.2f}\degree$'.format(ego_phi))
+        plt.text(text_x, text_y_start - next(ge), r'path_phi: ${:.2f}\degree$'.format(path_phi))
+        plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
+        plt.text(text_x, text_y_start - next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
+        plt.text(text_x, text_y_start - next(ge), 'exp_v: {:.2f}m/s'.format(self.env.exp_v))
+        plt.text(text_x, text_y_start - next(ge), 'v_y: {:.2f}m/s'.format(ego_v_y))
+        plt.text(text_x, text_y_start - next(ge), 'yaw_rate: {:.2f}rad/s'.format(ego_r))
+        plt.text(text_x, text_y_start - next(ge), 'yaw_rate bound: [{:.2f}, {:.2f}]'.format(-r_bound, r_bound))
+
+        plt.text(text_x, text_y_start - next(ge), r'$\alpha_f$: {:.2f} rad'.format(ego_alpha_f))
+        plt.text(text_x, text_y_start - next(ge), r'$\alpha_f$ bound: [{:.2f}, {:.2f}] '.format(-alpha_f_bound,
+                                                                                                alpha_f_bound))
+        plt.text(text_x, text_y_start - next(ge), r'$\alpha_r$: {:.2f} rad'.format(ego_alpha_r))
+        plt.text(text_x, text_y_start - next(ge), r'$\alpha_r$ bound: [{:.2f}, {:.2f}] '.format(-alpha_r_bound,
+                                                                                                alpha_r_bound))
+        if self.env.action is not None:
+            steer, a_x = self.env.action[0], self.env.action[1]
+            plt.text(text_x, text_y_start - next(ge), r'steer: {:.2f}rad (${:.2f}\degree$)'.format(steer, steer * 180 / np.pi))
+            plt.text(text_x, text_y_start - next(ge), 'a_x: {:.2f}m/s^2'.format(a_x))
+
+        text_x, text_y_start = 70, 60
+        ge = iter(range(0, 1000, 4))
+
+        # done info
+        plt.text(text_x, text_y_start - next(ge), 'done info: {}'.format(self.env.done_type))
+
+        # reward info
+        if self.env.reward_info is not None:
+            for key, val in self.env.reward_info.items():
+                plt.text(text_x, text_y_start - next(ge), '{}: {:.4f}'.format(key, val))
 
         # indicator for trajectory selection
         text_x, text_y_start = 25, -30
@@ -535,6 +543,25 @@ class HierarchicalDecision(object):
         if self.logdir is not None:
             plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{}.pdf'.format(self.step_counter))
 
+    def split_obses(self, obses):   # shape of obs is two-dimension
+        start = 0;
+        end = self.args.state_ego_dim + self.args.state_track_dim
+        obs_ego = obses[:, start:end]
+        start = end;
+        end = start + self.args.state_bike_dim
+        obs_bike = obses[:, start:end]
+        start = end;
+        end = start + self.args.state_person_dim
+        obs_person = obses[:, start:end]
+        start = end;
+        end = start + self.args.state_veh_dim
+        obs_veh = obses[:, start:end]
+
+        obs_bike = np.reshape(obs_bike, [-1, self.args.per_bike_dim])
+        obs_person = np.reshape(obs_person, [-1, self.args.per_person_dim])
+        obs_veh = np.reshape(obs_veh, [-1, self.args.per_veh_dim])
+
+        return obs_ego, obs_bike, obs_person, obs_veh
 
 def plot_and_save_ith_episode_data(logdir, i):
     recorder = Recorder()
@@ -548,7 +575,7 @@ def main():
     time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     logdir = './results/{time}'.format(time=time_now)
     os.makedirs(logdir)
-    hier_decision = HierarchicalDecision('straight', 'experiment-2021-05-27-23-27-27', 325000, logdir)
+    hier_decision = HierarchicalDecision('left', 'experiment-2021-06-05-13-15-31', 395000, logdir)
     # 'left', 'experiment-2021-03-15-16-39-00', 180000
     # 'straight', 'experiment-2021-03-15-19-16-13', 175000
     # 'right', 'experiment-2021-03-15-21-02-51', 195000
