@@ -24,7 +24,7 @@ SUMOCFG_DIR = dirname + "/sumo_files/cross.sumocfg"
 VEHICLE_MODE_DICT = dict(left=OrderedDict(dl=2, du=2, ud=2, ul=2),
                          straight=OrderedDict(dl=1, du=2, ru=2, ur=2),
                          right=OrderedDict(dr=1, ur=2, lr=2))
-BIKE_MODE_DICT = dict(left=OrderedDict(ud_b=2),
+BIKE_MODE_DICT = dict(left=OrderedDict(ud_b=4),
                          straight=OrderedDict(du_b=4),
                          right=OrderedDict(du_b=2, lr_b=0))
 PERSON_MODE_DICT = dict(left=OrderedDict(c3=4),

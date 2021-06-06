@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 05/27/21 16:42:21 by Eclipse SUMO netedit Version 1.6.0
+<!-- generated on 05/28/21 16:27:38 by Eclipse SUMO netedit Version 1.6.0
 <configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
 
     <input>
@@ -30,6 +30,10 @@
         <walkingareas value="false"/>
     </pedestrian>
 
+    <netedit>
+        <additional-files value="D:\codecode\AAAmine\env_build-master_gy_0508\sumo_files\shape.add.xml"/>
+    </netedit>
+
     <report>
         <aggregate-warnings value="5"/>
     </report>
@@ -54,8 +58,8 @@
         <lane id=":0_3_0" index="0" disallow="pedestrian bicycle" speed="10.54" length="6.19" width="3.75" shape="-9.38,25.00 -10.25,18.88"/>
     </edge>
     <edge id=":0_4" function="internal">
-        <lane id=":0_4_0" index="0" disallow="pedestrian bicycle" speed="12.00" length="50.07" width="3.75" shape="-5.63,25.00 -5.63,-25.00"/>
-        <lane id=":0_4_1" index="1" disallow="pedestrian bicycle" speed="12.00" length="50.07" width="3.75" shape="-5.63,25.00 -1.88,-25.00"/>
+        <lane id=":0_4_0" index="0" disallow="pedestrian bicycle" speed="12.00" length="50.14" width="3.75" shape="-5.63,25.00 -5.63,-25.00"/>
+        <lane id=":0_4_1" index="1" disallow="pedestrian bicycle" speed="12.00" length="50.14" width="3.75" shape="-5.67,25.00 -4.11,19.90 -3.68,13.84 -2.17,-25.00"/>
     </edge>
     <edge id=":0_6" function="internal">
         <lane id=":0_6_0" index="0" disallow="pedestrian bicycle" speed="12.00" length="6.56" width="3.75" shape="-1.88,25.00 -0.95,18.50"/>
@@ -116,8 +120,8 @@
         <lane id=":0_17_0" index="0" disallow="pedestrian bicycle" speed="10.54" length="6.19" width="3.75" shape="9.38,-25.00 10.25,-18.88"/>
     </edge>
     <edge id=":0_18" function="internal">
-        <lane id=":0_18_0" index="0" disallow="pedestrian bicycle" speed="12.00" length="50.07" width="3.75" shape="5.63,-25.00 5.63,25.00"/>
-        <lane id=":0_18_1" index="1" disallow="pedestrian bicycle" speed="12.00" length="50.07" width="3.75" shape="5.63,-25.00 1.88,25.00"/>
+        <lane id=":0_18_0" index="0" disallow="pedestrian bicycle" speed="12.00" length="50.18" width="3.75" shape="5.63,-25.00 5.63,25.00"/>
+        <lane id=":0_18_1" index="1" disallow="pedestrian bicycle" speed="12.00" length="50.18" width="3.75" shape="5.52,-25.00 3.76,-19.84 3.04,-14.26 1.85,25.00"/>
     </edge>
     <edge id=":0_20" function="internal">
         <lane id=":0_20_0" index="0" disallow="pedestrian bicycle" speed="12.00" length="6.56" width="3.75" shape="1.88,-25.00 0.95,-18.50"/>
@@ -365,7 +369,7 @@
     <connection from="1o" to="4i" fromLane="1" toLane="1" via=":0_16_0" tl="0" linkIndex="16" dir="l" state="o"/>
     <connection from="1o" to="2i" fromLane="2" toLane="2" via=":0_17_0" tl="0" linkIndex="17" dir="r" state="o"/>
     <connection from="1o" to="3i" fromLane="3" toLane="3" via=":0_18_0" tl="0" linkIndex="18" dir="s" state="o"/>
-    <connection from="1o" to="3i" fromLane="3" toLane="4" via=":0_18_1" tl="0" linkIndex="19" dir="s" state="o"/>
+    <connection from="1o" to="3i" fromLane="3" toLane="4" shape="5.52,-25.00 3.76,-19.84 3.04,-14.26 1.85,25.00" via=":0_18_1" tl="0" linkIndex="19" dir="s" state="o"/>
     <connection from="1o" to="4i" fromLane="4" toLane="4" via=":0_20_0" tl="0" linkIndex="20" dir="l" state="o"/>
     <connection from="2o" to="3i" fromLane="1" toLane="1" via=":0_7_0" tl="0" linkIndex="7" dir="r" state="o"/>
     <connection from="2o" to="4i" fromLane="1" toLane="1" via=":0_8_0" tl="0" linkIndex="8" dir="s" state="o"/>
@@ -379,7 +383,7 @@
     <connection from="3o" to="2i" fromLane="1" toLane="1" via=":0_2_0" tl="0" linkIndex="2" dir="l" state="o"/>
     <connection from="3o" to="4i" fromLane="2" toLane="2" via=":0_3_0" tl="0" linkIndex="3" dir="r" state="o"/>
     <connection from="3o" to="1i" fromLane="3" toLane="3" via=":0_4_0" tl="0" linkIndex="4" dir="s" state="o"/>
-    <connection from="3o" to="1i" fromLane="3" toLane="4" via=":0_4_1" tl="0" linkIndex="5" dir="s" state="o"/>
+    <connection from="3o" to="1i" fromLane="3" toLane="4" shape="-5.67,25.00 -4.11,19.90 -3.68,13.84 -2.17,-25.00" via=":0_4_1" tl="0" linkIndex="5" dir="s" state="o"/>
     <connection from="3o" to="2i" fromLane="4" toLane="4" via=":0_6_0" tl="0" linkIndex="6" dir="l" state="o"/>
     <connection from="4o" to="1i" fromLane="1" toLane="1" via=":0_21_0" tl="0" linkIndex="21" dir="r" state="o"/>
     <connection from="4o" to="2i" fromLane="1" toLane="1" via=":0_22_0" tl="0" linkIndex="22" dir="s" state="o"/>
