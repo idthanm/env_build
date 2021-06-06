@@ -546,7 +546,7 @@ class CrossroadEnd2endMixPiFix(gym.Env):
                 ur = list(filter(lambda v: v['x'] < ego_x + 7 and ego_y < v['y'] < CROSSROAD_SIZE/2+10, ur))  # interest of straight
             elif task == 'right':
                 ur = list(filter(lambda v: v['x'] < CROSSROAD_SIZE/2+10 and v['y'] < CROSSROAD_SIZE/2, ur))  # interest of right
-            ud = list(filter(lambda v: max(ego_y-2, -CROSSROAD_SIZE/2) < v['y'] < CROSSROAD_SIZE/2 and ego_x > v['x']-4, ud))  # interest of left
+            ud = list(filter(lambda v: max(ego_y-2, -CROSSROAD_SIZE/2) < v['y'] < min(ego_y+20, CROSSROAD_SIZE/2) and ego_x > v['x']-4, ud))  # interest of left
             ul = list(filter(lambda v: -CROSSROAD_SIZE/2-10 < v['x'] < ego_x + 4 and v['y'] < CROSSROAD_SIZE/2, ul))  # interest of left
             lu = lu  # not interest in case of traffic light
             lr = list(filter(lambda v: -CROSSROAD_SIZE/2-10 < v['x'] < CROSSROAD_SIZE/2+10, lr))  # interest of right
