@@ -160,11 +160,11 @@ class Recorder(object):
                     plt.ylim([-0.8, 0.8])
                 elif key == 'path_values':
                     path_values = data_dict[key]
-                    df1 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 0], path_index='Path 1'))
-                    df2 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 1], path_index='Path 2'))
-                    df3 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 2], path_index='Path 3'))
+                    df1 = pd.DataFrame(dict(time=real_time, data=path_values[:, 0], path_index='Path 1'))
+                    df2 = pd.DataFrame(dict(time=real_time, data=path_values[:, 1], path_index='Path 2'))
+                    df3 = pd.DataFrame(dict(time=real_time, data=path_values[:, 2], path_index='Path 3'))
                     total_dataframe = df1.append([df2, df3], ignore_index=True)
-                    ax = f.add_axes([0.18, 0.15, 0.82, 0.85])
+                    ax = f.add_axes([0.16, 0.15, 0.82, 0.85])
                     sns.lineplot('time', 'data', linewidth=2, hue='path_index',
                                  data=total_dataframe, palette="bright", color='indigo')
                     handles, labels = ax.get_legend_handles_labels()

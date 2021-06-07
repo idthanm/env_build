@@ -79,11 +79,11 @@ class HierarchicalDecision(object):
             os.makedirs(self.logdir + '/episode{}/figs'.format(self.episode_counter))
             self.step_counter = -1
             self.recorder.save(self.logdir)
-            # if self.episode_counter >= 1:
-            #     select_and_rename_snapshots_of_an_episode(self.logdir, self.episode_counter-1, 12)
-            #     self.recorder.plot_and_save_ith_episode_curves(self.episode_counter-1,
-            #                                                    self.logdir + '/episode{}/figs'.format(self.episode_counter-1),
-            #                                                    isshow=False)
+            if self.episode_counter >= 1:
+                select_and_rename_snapshots_of_an_episode(self.logdir, self.episode_counter-1, 12)
+                self.recorder.plot_and_save_ith_episode_curves(self.episode_counter-1,
+                                                               self.logdir + '/episode{}/figs'.format(self.episode_counter-1),
+                                                               isshow=False)
         return self.obs
 
     # @tf.function
@@ -93,7 +93,7 @@ class HierarchicalDecision(object):
     #     veh2veh4real = self.model.ss(obs, action, lam=0.1)
     #     return False if veh2veh4real[0] > 0 else True
 
-    # @tf.function
+    @tf.function
     def is_safe(self, obs_ego, obs_bike, obs_person, obs_veh, path_index):
         self.model.add_traj(obs_ego, obs_bike, obs_person, obs_veh, path_index)
         punish = 0.
@@ -130,19 +130,21 @@ class HierarchicalDecision(object):
             new_index, new_value = int(np.argmin(path_values)), min(path_values)
             # rule for equal traj value
             path_index_error = []
-            if heapq.nsmallest(2, path_values)[0] == heapq.nsmallest(2, path_values)[1]:
-                for i in range(len(path_values)):
-                    if path_values[i] == min(path_values):
-                        index_error = abs(self.old_index - i)
-                        path_index_error.append(index_error)
-                # new_index_new = min(path_index_error) + self.old_index if min(path_index_error) + self.old_index < 4 else self.old_index - min(path_index_error)
-                new_index_new = self.old_index - min(path_index_error) if self.old_index - min(path_index_error) > -1 else self.old_index + min(path_index_error)
-                new_value_new = path_values[new_index_new]
-                path_index = self.old_index if old_value - new_value_new < 0.1 else new_index_new
+            if self.step_counter % 3 == 0:
+                if heapq.nsmallest(2, path_values)[0] == heapq.nsmallest(2, path_values)[1]:
+                    for i in range(len(path_values)):
+                        if path_values[i] == min(path_values):
+                            index_error = abs(self.old_index - i)
+                            path_index_error.append(index_error)
+                    # new_index_new = min(path_index_error) + self.old_index if min(path_index_error) + self.old_index < 4 else self.old_index - min(path_index_error)
+                    new_index_new = self.old_index - min(path_index_error) if self.old_index - min(path_index_error) > -1 else self.old_index + min(path_index_error)
+                    new_value_new = path_values[new_index_new]
+                    path_index = self.old_index if old_value - new_value_new < 0.1 else new_index_new
+                else:
+                    path_index = self.old_index if old_value - new_value < 0.1 else new_index
+                self.old_index = path_index
             else:
-                path_index = self.old_index if old_value - new_value < 0.1 else new_index
-            self.old_index = path_index
-
+                path_index = self.old_index
             self.env.set_traj(self.path_list[path_index])
             self.obs_real = obs_list[path_index]
 
@@ -575,7 +577,7 @@ def main():
     time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     logdir = './results/{time}'.format(time=time_now)
     os.makedirs(logdir)
-    hier_decision = HierarchicalDecision('left', 'experiment-2021-06-05-13-15-31', 395000, logdir)
+    hier_decision = HierarchicalDecision('left', 'experiment-2021-06-05-13-15-31', 380000, logdir)
     # 'left', 'experiment-2021-03-15-16-39-00', 180000
     # 'straight', 'experiment-2021-03-15-19-16-13', 175000
     # 'right', 'experiment-2021-03-15-21-02-51', 195000
