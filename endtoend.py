@@ -818,7 +818,7 @@ def test_end2end():
             env_model.mode = 'training'
             for _ in range(5):
                 obses_ego, obses_other, rewards, punish_term_for_training, \
-                    real_punish_term, veh2veh4real, veh2road4real = env_model.rollout_out(np.tile(actions, (2, 1)))
+                    real_punish_term, veh2veh4real, veh2road4real, veh2line4real = env_model.rollout_out(np.tile(actions, (2, 1)))
             print(len(obs))
             print(env.training_task, obs[39])
             env.render()

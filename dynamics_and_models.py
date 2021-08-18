@@ -127,12 +127,13 @@ class EnvironmentModel(object):  # all tensors
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
             self.actions = self._action_transformation_for_end2end(actions)
-            rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, veh2line4training, _ \
+            rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, veh2line4real, _ \
                 = self.compute_rewards(self.obses_ego, self.actions, self.obses_other)
             self.obses_ego, self.obses_other = self.compute_next_obses(self.obses_ego, self.actions, self.obses_other)
             obses_other = tf.reshape(self.obses_other, [-1, self.per_veh_info_dim])
 
-        return self.obses_ego, obses_other, rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real
+        return self.obses_ego, obses_other, rewards, punish_term_for_training, real_punish_term, veh2veh4real, \
+               veh2road4real, veh2line4real
 
     def _action_transformation_for_end2end(self, actions):  # [-1, 1]
         actions = tf.clip_by_value(actions, -1.05, 1.05)
@@ -201,6 +202,8 @@ class EnvironmentModel(object):  # all tensors
                                   self.per_path_info_dim * self.num_future_data]
             light_infos = obses_ego[:, self.ego_info_dim + self.track_info_dim + self.per_path_info_dim * self.num_future_data:
                                    self.ego_info_dim + self.track_info_dim + self.per_path_info_dim * self.num_future_data + self.light_dim]
+            task_infos = obses_ego[:,
+                         self.ego_info_dim + self.track_info_dim + self.per_path_info_dim * self.num_future_data + self.light_dim:][:, 0]
             veh_infos = tf.stop_gradient(obses_other)
 
             steers, a_xs = actions[:, 0], actions[:, 1]
@@ -305,26 +308,29 @@ class EnvironmentModel(object):  # all tensors
             #             logical_and(ego_point[0] > CROSSROAD_SIZE / 2, ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) < 1),
             #             tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), tf.zeros_like(veh_infos[:, 0]))
 
-            veh2line4training = tf.zeros_like(veh_infos[:, 0])
-            if self.task == 'left':
-                stop_point = tf.constant([0.5 * LANE_WIDTH], dtype=tf.float32), tf.constant([-CROSSROAD_SIZE / 2], dtype=tf.float32)
-            elif self.task == 'straight':
-                stop_point = tf.constant([1.5 * LANE_WIDTH], dtype=tf.float32), tf.constant([-CROSSROAD_SIZE / 2], dtype=tf.float32)
+            veh2line4real = tf.zeros_like(veh_infos[:, 0])
+            for task, task_idx in TASK_DICT.items():  # choose task
+                if task == 'left':
+                    stop_point = tf.constant([0.5 * LANE_WIDTH], dtype=tf.float32), tf.constant([-CROSSROAD_SIZE / 2], dtype=tf.float32)
+                elif task == 'straight':
+                    stop_point = tf.constant([1.5 * LANE_WIDTH], dtype=tf.float32), tf.constant([-CROSSROAD_SIZE / 2], dtype=tf.float32)
+                else:
+                    stop_point = tf.constant([2.5 * LANE_WIDTH], dtype=tf.float32), tf.constant([-CROSSROAD_SIZE / 2], dtype=tf.float32)
 
-            if not self.light_flag:
-                self.light_cond = logical_and(light_infos[:, 0] != 0., obses_ego[:, 4] < -CROSSROAD_SIZE / 2 - 2)
+                if not self.light_flag:
+                    self.light_cond = logical_and(light_infos[:, 0] != 0., obses_ego[:, 4] < -CROSSROAD_SIZE / 2 - 2)
 
-            if self.task != 'right':  # right turn always has green light
-                for ego_point in [ego_front_points, ego_rear_points]:
-                    veh2line_dist = tf.sqrt(tf.square(ego_point[0] - stop_point[0]) + tf.square(ego_point[1] - stop_point[1]))
-                    veh2line4train_temp = tf.where(veh2line_dist - 1.0 < 0, tf.square(veh2line_dist - 1.0), tf.zeros_like(veh_infos[:, 0]))
-                    veh2line4train_pick = tf.where(self.light_cond, veh2line4train_temp, tf.zeros_like(veh_infos[:, 0]))
-                    veh2line4training += veh2line4train_pick
+                if task != 'right':  # right turn always has green light
+                    for ego_point in [ego_front_points, ego_rear_points]:
+                        veh2line_dist = tf.sqrt(tf.square(ego_point[0] - stop_point[0]) + tf.square(ego_point[1] - stop_point[1]))
+                        veh2line4real_temp = tf.where(veh2line_dist - 1.0 < 0, tf.square(veh2line_dist - 1.0), tf.zeros_like(veh_infos[:, 0]))
+                        veh2line4real_pick = tf.where(self.light_cond, veh2line4real_temp, tf.zeros_like(veh_infos[:, 0]))
+                        veh2line4real += tf.where(task_infos == task_idx, veh2line4real_pick, tf.zeros_like(veh_infos[:, 0]))
 
             rewards = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
                       5 * punish_steer + 0.05 * punish_a_x
-            punish_term_for_training = veh2veh4training + veh2road4training + veh2line4training
-            real_punish_term = veh2veh4real + veh2road4real + veh2line4training
+            punish_term_for_training = veh2veh4training + veh2road4training + veh2line4real
+            real_punish_term = veh2veh4real + veh2road4real + veh2line4real
 
             reward_dict = dict(punish_steer=punish_steer,
                                punish_a_x=punish_a_x,
@@ -342,10 +348,10 @@ class EnvironmentModel(object):  # all tensors
                                veh2road4training=veh2road4training,
                                veh2veh4real=veh2veh4real,
                                veh2road4real=veh2road4real,
-                               veh2line4training=veh2line4training
+                               veh2line4real=veh2line4real
                                )
 
-            return rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real,veh2line4training, reward_dict
+            return rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real,veh2line4real, reward_dict
 
     def compute_next_obses(self, obses_ego, actions, obses_other):
         # obses = self.convert_vehs_to_abso(obses)
