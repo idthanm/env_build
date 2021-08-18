@@ -49,6 +49,7 @@ class Traffic(object):
         #      UR1=dict(x=-1.875, y=30, v=3, a=-90, l=4.8, w=2.2),
         #      DR1=dict(x=5.625, y=-30, v=3, a=90, l=4.8, w=2.2),
         #      RU1=dict(x=5.625, y=-30, v=3, a=90, l=4.8, w=2.2))
+
         self.mode = mode
 
         try:
@@ -141,6 +142,19 @@ class Traffic(object):
 
         return random_traffic
 
+    def init_light(self):
+        if random.random() > 0.5:
+            self.training_light_phase = 3
+        else:
+            self.training_light_phase = 0
+        # if self.training_task == 'right':   # todo
+        #     if random.random() > 0.5:
+        #         self.training_light_phase = 2
+        traci.trafficlight.setPhase('0', self.training_light_phase)
+        # traci.trafficlight.setPhaseDuration('0', 10000)
+        traci.simulationStep()
+        self._get_traffic_light()
+
     def init_traffic(self, init_n_ego_dict, training_task):
         self.training_task = training_task
         self.ego_route = TASK2ROUTEID[self.training_task]
@@ -149,13 +163,7 @@ class Traffic(object):
         self.collision_flag = False
         self.n_ego_collision_flag = {}
         self.collision_ego_id = None
-        self.v_light = None
-        self.training_light_phase = 0
-        if self.training_task == 'right':
-            if random.random() > 0.5:
-                self.training_light_phase = 2
         self.n_ego_dict = init_n_ego_dict
-        traci.trafficlight.setPhase('0', self.training_light_phase)
         self.add_self_car(init_n_ego_dict)
         traci.simulationStep()
         random_traffic = self.generate_random_traffic()
@@ -295,7 +303,7 @@ def test_traffic():
     from dynamics_and_models import ReferencePath
 
     def _reset_init_state():
-        ref_path = ReferencePath('straight')
+        ref_path = ReferencePath('straight','0')
         random_index = int(np.random.random()*(900+500)) + 700
         x, y, phi = ref_path.indexs2points(random_index)
         v = 8 * np.random.random()

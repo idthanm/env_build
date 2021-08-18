@@ -17,7 +17,7 @@ from tensorflow import logical_and
 
 # gym.envs.user_defined.toyota_env.
 from endtoend_env_utils import rotate_coordination, L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, \
-    VEHICLE_MODE_LIST, EXPECTED_V
+    VEHICLE_MODE_LIST, EXPECTED_V, LIGHT, TASK_DICT
 
 tf.config.threading.set_inter_op_parallelism_threads(1)
 tf.config.threading.set_intra_op_parallelism_threads(1)
@@ -99,11 +99,15 @@ class EnvironmentModel(object):  # all tensors
         self.ref_path = ReferencePath(self.task)
         self.ref_indexes = None
         self.num_future_data = num_future_data
-        self.exp_v = EXPECTED_V
         self.reward_info = None
         self.ego_info_dim = 6
+        self.track_info_dim = 3
         self.per_veh_info_dim = 4
-        self.per_tracking_info_dim = 3
+        self.per_path_info_dim = 4
+        self.task_info_dim = 1
+        self.light_dim = 1
+        self.light_flag = False
+        self.light_cond = None
 
     def reset(self, obses_ego, obses_other, veh_num, task, ref_indexes=None):  # input are all tensors
         self.obses_ego = obses_ego
@@ -113,16 +117,17 @@ class EnvironmentModel(object):  # all tensors
         self.reward_info = None
         self.veh_num = veh_num
         self.task = task
+        self.light_flag = False
 
-    def add_traj(self, obses_ego, obses_other, veh_num, path_index):
+    def add_traj(self, obses_ego, obses_other, light, veh_num, path_index):
         self.obses_ego = obses_ego
         self.obses_other = tf.reshape(obses_other, [-1, self.per_veh_info_dim * veh_num[0]])
-        self.ref_path.set_path(path_index)
+        self.ref_path.set_path(light, path_index)
 
     def rollout_out(self, actions):  # obses and actions are tensors, think of actions are in range [-1, 1]
         with tf.name_scope('model_step') as scope:
             self.actions = self._action_transformation_for_end2end(actions)
-            rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, _ \
+            rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, veh2line4training, _ \
                 = self.compute_rewards(self.obses_ego, self.actions, self.obses_other)
             self.obses_ego, self.obses_other = self.compute_next_obses(self.obses_ego, self.actions, self.obses_other)
             obses_other = tf.reshape(self.obses_other, [-1, self.per_veh_info_dim])
@@ -190,8 +195,12 @@ class EnvironmentModel(object):  # all tensors
     def compute_rewards(self, obses_ego, actions, obses_other, veh_num=None):
         # obses = self.convert_vehs_to_abso(obses)
         with tf.name_scope('compute_reward') as scope:
-            ego_infos, tracking_infos = obses_ego[:, :self.ego_info_dim], \
-                                        obses_ego[:, self.ego_info_dim:self.ego_info_dim+self.per_tracking_info_dim * (self.num_future_data+1)]
+            ego_infos = obses_ego[:, :self.ego_info_dim]
+            track_infos = obses_ego[:, self.ego_info_dim:self.ego_info_dim + self.track_info_dim]
+            path_infos = obses_ego[:, self.ego_info_dim + self.track_info_dim: self.ego_info_dim + self.track_info_dim +
+                                  self.per_path_info_dim * self.num_future_data]
+            light_infos = obses_ego[:, self.ego_info_dim + self.track_info_dim + self.per_path_info_dim * self.num_future_data:
+                                   self.ego_info_dim + self.track_info_dim + self.per_path_info_dim * self.num_future_data + self.light_dim]
             veh_infos = tf.stop_gradient(obses_other)
 
             steers, a_xs = actions[:, 0], actions[:, 1]
@@ -203,9 +212,9 @@ class EnvironmentModel(object):  # all tensors
             punish_yaw_rate = -tf.square(ego_infos[:, 2])
 
             # rewards related to tracking error
-            devi_y = -tf.square(tracking_infos[:, 0])
-            devi_phi = -tf.cast(tf.square(tracking_infos[:, 1] * np.pi / 180.), dtype=tf.float32)
-            devi_v = -tf.square(tracking_infos[:, 2])
+            devi_y = -tf.square(track_infos[:, 0])
+            devi_phi = -tf.cast(tf.square(track_infos[:, 1] * np.pi / 180.), dtype=tf.float32)
+            devi_v = -tf.square(track_infos[:, 2])
 
             # rewards related to veh2veh collision
             ego_lws = (L - W) / 2.
@@ -296,10 +305,26 @@ class EnvironmentModel(object):  # all tensors
             #             logical_and(ego_point[0] > CROSSROAD_SIZE / 2, ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) < 1),
             #             tf.square(ego_point[1] - (-LANE_WIDTH * LANE_NUMBER) - 1), tf.zeros_like(veh_infos[:, 0]))
 
+            veh2line4training = tf.zeros_like(veh_infos[:, 0])
+            if self.task == 'left':
+                stop_point = tf.constant([0.5 * LANE_WIDTH], dtype=tf.float32), tf.constant([-CROSSROAD_SIZE / 2], dtype=tf.float32)
+            elif self.task == 'straight':
+                stop_point = tf.constant([1.5 * LANE_WIDTH], dtype=tf.float32), tf.constant([-CROSSROAD_SIZE / 2], dtype=tf.float32)
+
+            if not self.light_flag:
+                self.light_cond = logical_and(light_infos[:, 0] != 0., obses_ego[:, 4] < -CROSSROAD_SIZE / 2 - 2)
+
+            if self.task != 'right':  # right turn always has green light
+                for ego_point in [ego_front_points, ego_rear_points]:
+                    veh2line_dist = tf.sqrt(tf.square(ego_point[0] - stop_point[0]) + tf.square(ego_point[1] - stop_point[1]))
+                    veh2line4train_temp = tf.where(veh2line_dist - 1.0 < 0, tf.square(veh2line_dist - 1.0), tf.zeros_like(veh_infos[:, 0]))
+                    veh2line4train_pick = tf.where(self.light_cond, veh2line4train_temp, tf.zeros_like(veh_infos[:, 0]))
+                    veh2line4training += veh2line4train_pick
+
             rewards = 0.05 * devi_v + 0.8 * devi_y + 30 * devi_phi + 0.02 * punish_yaw_rate + \
                       5 * punish_steer + 0.05 * punish_a_x
-            punish_term_for_training = veh2veh4training + veh2road4training
-            real_punish_term = veh2veh4real + veh2road4real
+            punish_term_for_training = veh2veh4training + veh2road4training + veh2line4training
+            real_punish_term = veh2veh4real + veh2road4real + veh2line4training
 
             reward_dict = dict(punish_steer=punish_steer,
                                punish_a_x=punish_a_x,
@@ -317,20 +342,24 @@ class EnvironmentModel(object):  # all tensors
                                veh2road4training=veh2road4training,
                                veh2veh4real=veh2veh4real,
                                veh2road4real=veh2road4real,
+                               veh2line4training=veh2line4training
                                )
 
-            return rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real, reward_dict
+            return rewards, punish_term_for_training, real_punish_term, veh2veh4real, veh2road4real,veh2line4training, reward_dict
 
     def compute_next_obses(self, obses_ego, actions, obses_other):
         # obses = self.convert_vehs_to_abso(obses)
-        ego_infos, tracking_infos = obses_ego[:, :self.ego_info_dim], \
-                                    obses_ego[:, self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
-                                                self.num_future_data + 1)]
-        task_infos = obses_ego[:, self.ego_info_dim + self.per_tracking_info_dim * (
-                                                self.num_future_data + 1):]
-        self.num_each_task = len(ego_infos) // 3
-        veh_infos = tf.stop_gradient(obses_other)
+        self.light_flag = True
+        ego_infos = obses_ego[:, :self.ego_info_dim]
+        track_infos = obses_ego[:, self.ego_info_dim:self.ego_info_dim + self.track_info_dim]
+        path_infos = obses_ego[:, self.ego_info_dim + self.track_info_dim: self.ego_info_dim + self.track_info_dim +
+                                                                       self.per_path_info_dim * self.num_future_data]
+        light_infos = obses_ego[:,
+                      self.ego_info_dim + self.track_info_dim + self.per_path_info_dim * self.num_future_data:
+                      self.ego_info_dim + self.track_info_dim + self.per_path_info_dim * self.num_future_data + self.light_dim]
+        task_infos = obses_ego[:, self.ego_info_dim + self.track_info_dim + self.per_path_info_dim * self.num_future_data + self.light_dim:]
 
+        veh_infos = tf.stop_gradient(obses_other)
         next_ego_infos = self.ego_predict(ego_infos, actions)
         # different for training and selecting
         if self.mode != 'training':
@@ -340,42 +369,27 @@ class EnvironmentModel(object):  # all tensors
                                                                       next_ego_infos[:, 0],
                                                                       self.num_future_data)
         else:
-            if self.task == 'unify':
-                next_tracking_infos = []
-                task = ['left', 'straight', 'right']
-                for i in range(len(task)):
-                    self.ref_path = ReferencePath(task[i])
-                    ref_indexes = self.ref_indexes[i * self.num_each_task:(i+1)*self.num_each_task]
-                    next_tracking_infos_4_task = tf.zeros(shape=(self.num_each_task,
-                                                          (self.num_future_data+1)*self.per_tracking_info_dim))
-                    ref_indexes = tf.expand_dims(ref_indexes, axis=1)
-                    for ref_idx, path in enumerate(self.ref_path.path_list):
-                        self.ref_path.path = path
-                        tracking_info_4_this_ref_idx = self.ref_path.tracking_error_vector(next_ego_infos[i * self.num_each_task:(i+1)*self.num_each_task, 3],
-                                                                                           next_ego_infos[i * self.num_each_task:(i+1)*self.num_each_task, 4],
-                                                                                           next_ego_infos[i * self.num_each_task:(i+1)*self.num_each_task, 5],
-                                                                                           next_ego_infos[i * self.num_each_task:(i+1)*self.num_each_task, 0],
-                                                                                           self.num_future_data)
+            next_tracking_infos = tf.zeros(shape=(len(next_ego_infos), self.track_info_dim +
+                                                  self.num_future_data * self.per_path_info_dim))
+            ref_indexes = tf.expand_dims(self.ref_indexes, axis=1)
+            for task, task_idx in TASK_DICT.items():                # choose task
+                self.ref_path = ReferencePath(task)
+                for light_idx, light_name in LIGHT.items():         # choose light
+                    flag_temp = logical_and(task_infos == task_idx, light_infos == light_idx)
+                    if tf.reduce_any(flag_temp):
+                        for ref_idx, path in enumerate(self.ref_path.path_list[light_name]):     # choose path
+                            filter = logical_and(flag_temp, ref_indexes == ref_idx)
+                            if tf.reduce_any(filter):
+                                self.ref_path.path = path
+                                track_info_temp = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
+                                                                                      next_ego_infos[:, 4],
+                                                                                      next_ego_infos[:, 5],
+                                                                                      next_ego_infos[:, 0],
+                                                                                      self.num_future_data)
+                                next_tracking_infos = tf.where(filter, track_info_temp, next_tracking_infos)
 
-                        next_tracking_infos_4_task = tf.where(ref_indexes == ref_idx, tracking_info_4_this_ref_idx,
-                                                       next_tracking_infos_4_task)
-                    next_tracking_infos.append(next_tracking_infos_4_task)
-                next_tracking_infos = tf.concat([next_tracking_infos[i] for i in range(len(next_tracking_infos))], axis=0)
-            else:
-                next_tracking_infos = tf.zeros(shape=(len(next_ego_infos),
-                                                      (self.num_future_data + 1) * self.per_tracking_info_dim))
-                ref_indexes = tf.expand_dims(self.ref_indexes, axis=1)
-                for ref_idx, path in enumerate(self.ref_path.path_list):
-                    self.ref_path.path = path
-                    tracking_info_4_this_ref_idx = self.ref_path.tracking_error_vector(next_ego_infos[:, 3],
-                                                                                       next_ego_infos[:, 4],
-                                                                                       next_ego_infos[:, 5],
-                                                                                       next_ego_infos[:, 0],
-                                                                                       self.num_future_data)
-                    next_tracking_infos = tf.where(ref_indexes == ref_idx, tracking_info_4_this_ref_idx,
-                                                   next_tracking_infos)
-        next_obses_ego = tf.concat([next_ego_infos, next_tracking_infos, task_infos], 1)
-        next_veh_infos = self.veh_predict(veh_infos)
+        next_obses_ego = tf.concat([next_ego_infos, next_tracking_infos, light_infos, task_infos], 1)
+        next_veh_infos = self.veh_predict(veh_infos, task_infos)
         # next_obses = self.convert_vehs_to_rela(next_obses)
         return next_obses_ego, next_veh_infos
 
@@ -413,33 +427,17 @@ class EnvironmentModel(object):  # all tensors
         ego_next_infos = tf.stack([v_xs, v_ys, rs, xs, ys, phis], axis=1)
         return ego_next_infos
 
-    def veh_predict(self, veh_infos):
-        if self.task == 'unify':
-            predictions_to_be_concat = []
-            task = ['left', 'straight', 'right']
-            for i in range(len(task)):
-                predictions_task = []
-                veh_mode_list = VEHICLE_MODE_LIST[task[i]]
-                veh_infos_task = veh_infos[i * self.num_each_task:(i+1)*self.num_each_task, :]
-                for vehs_index in range(len(veh_mode_list)):
-                    predictions_task.append(self.predict_for_a_mode(
-                        veh_infos_task[:, vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim],
-                        veh_mode_list[vehs_index]))
-                pred_task = tf.concat(predictions_task, 1)
-                predictions_to_be_concat.append(pred_task)
-            pred = tf.stop_gradient(tf.concat(predictions_to_be_concat, axis=0))
-        else:
-            veh_mode_list = VEHICLE_MODE_LIST[self.task]
-            predictions_to_be_concat = []
+    def veh_predict(self, veh_infos, task_infos):
+        predictions_to_be_concat = []
+        for index in range(int(tf.shape(veh_infos)[1] / self.per_veh_info_dim)):  # choose the ith column
+            vehs_4_mode = veh_infos[:, index * self.per_veh_info_dim:(index + 1) * self.per_veh_info_dim]
+            pred_4_mode = self.predict_for_a_mode(vehs_4_mode, index, task_infos)
+            predictions_to_be_concat.append(pred_4_mode)
+        pred = tf.stop_gradient(tf.concat(predictions_to_be_concat, axis=1))
 
-            for vehs_index in range(len(veh_mode_list)):
-                predictions_to_be_concat.append(self.predict_for_a_mode(
-                    veh_infos[:, vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim],
-                    veh_mode_list[vehs_index]))
-            pred = tf.stop_gradient(tf.concat(predictions_to_be_concat, 1))
         return pred
 
-    def predict_for_a_mode(self, vehs, mode):
+    def predict_for_a_mode(self, vehs, veh_index, task_infos):
         veh_xs, veh_ys, veh_vs, veh_phis = vehs[:, 0], vehs[:, 1], vehs[:, 2], vehs[:, 3]
         veh_phis_rad = veh_phis * np.pi / 180.
 
@@ -450,12 +448,18 @@ class EnvironmentModel(object):  # all tensors
         veh_xs_delta = veh_vs / self.base_frequency * tf.cos(veh_phis_rad)
         veh_ys_delta = veh_vs / self.base_frequency * tf.sin(veh_phis_rad)
 
-        if mode in ['dl', 'rd', 'ur', 'lu']:
-            veh_phis_rad_delta = tf.where(middle_cond, (veh_vs / (CROSSROAD_SIZE/2+0.5*LANE_WIDTH)) / self.base_frequency, zeros)
-        elif mode in ['dr', 'ru', 'ul', 'ld']:
-            veh_phis_rad_delta = tf.where(middle_cond, -(veh_vs / (CROSSROAD_SIZE/2-2.5*LANE_WIDTH)) / self.base_frequency, zeros)  # TODO：ONLY FOR 3LANE
-        else:
-            veh_phis_rad_delta = zeros
+        veh_phis_rad_delta = zeros
+        task_infos = tf.squeeze(task_infos)
+        for task, task_idx in TASK_DICT.items():  # choose task
+            mode = VEHICLE_MODE_LIST[task][veh_index]
+            if mode in ['dl', 'rd', 'ur', 'lu']:
+                veh_phis_rad_delta_task = tf.where(middle_cond, (veh_vs / (CROSSROAD_SIZE/2+0.5*LANE_WIDTH)) / self.base_frequency, zeros)
+            elif mode in ['dr', 'ru', 'ul', 'ld']:
+                veh_phis_rad_delta_task = tf.where(middle_cond, -(veh_vs / (CROSSROAD_SIZE/2-2.5*LANE_WIDTH)) / self.base_frequency, zeros)
+            else:
+                veh_phis_rad_delta_task = zeros
+            veh_phis_rad_delta = tf.where(task_infos == task_idx, veh_phis_rad_delta_task, veh_phis_rad_delta)
+
         next_veh_xs, next_veh_ys, next_veh_vs, next_veh_phis_rad = \
             veh_xs + veh_xs_delta, veh_ys + veh_ys_delta, veh_vs, veh_phis_rad + veh_phis_rad_delta
         next_veh_phis_rad = tf.where(next_veh_phis_rad > np.pi, next_veh_phis_rad - 2 * np.pi, next_veh_phis_rad)
@@ -618,24 +622,28 @@ def deal_with_phi_diff(phi_diff):
 
 
 class ReferencePath(object):
-    def __init__(self, task, ref_index=None):
-        self.exp_v = EXPECTED_V
+    def __init__(self, task, light_phase=0, ref_index=None):
         self.task = task
-        self.path_list = []
+        self.path_list = {}
         self.path_len_list = []
         self.control_points = []
+        self.traffic_light = LIGHT[light_phase]
+        self.light_phase = light_phase
         self._construct_ref_path(self.task)
-        self.ref_index = np.random.choice(len(self.path_list)) if ref_index is None else ref_index
-        self.path = self.path_list[self.ref_index]
+        self.ref_index = np.random.choice(len(self.path_list[self.traffic_light])) if ref_index is None else ref_index
+        self.path = self.path_list[self.traffic_light][self.ref_index]
 
-    def set_path(self, path_index=None):
+    def set_path(self, light, path_index=None):
         self.ref_index = path_index
-        self.path = self.path_list[self.ref_index]
+        self.path = self.path_list[LIGHT[light]][self.ref_index]
 
     def _construct_ref_path(self, task):
         sl = 40  # straight length
+        dece_dist = 20
         meter_pointnum_ratio = 30
         control_ext = CROSSROAD_SIZE/3.
+        planed_trj_g = []
+        planed_trj_r = []
         if task == 'left':
             end_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
             start_offsets = [LANE_WIDTH*0.5]
@@ -663,11 +671,22 @@ class ReferencePath(object):
 
                     xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
                     xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
-                    phis_1 = np.arctan2(ys_2 - ys_1,
-                                        xs_2 - xs_1) * 180 / pi
-                    planed_trj = xs_1, ys_1, phis_1
-                    self.path_list.append(planed_trj)
+                    phis_1 = np.arctan2(ys_2 - ys_1, xs_2 - xs_1) * 180 / pi
+
+                    vs_green = np.array([8.33] * len(start_straight_line_x) + [7.0] * (len(trj_data[0]) - 1) + [8.33] *
+                                        len(end_straight_line_x), dtype=np.float32)
+                    vs_red_0 = np.array([8.33] * (len(start_straight_line_x) - meter_pointnum_ratio * (sl - dece_dist + int(L))), dtype=np.float32)
+                    vs_red_1 = np.linspace(8.33, 0.0, meter_pointnum_ratio * dece_dist, endpoint=True, dtype=np.float32)
+                    vs_red_2 = np.linspace(0.0, 0.0, meter_pointnum_ratio * (dece_dist // 2), endpoint=True, dtype=np.float32)
+                    vs_red_3 = np.array([8.33] * (meter_pointnum_ratio * (int(L) - dece_dist // 2) + len(trj_data[0]) - 1 + len(end_straight_line_x)), dtype=np.float32)
+                    vs_red = np.append(np.append(np.append(vs_red_0, vs_red_1), vs_red_2), vs_red_3)
+
+                    planed_trj_green = xs_1, ys_1, phis_1, vs_green
+                    planed_trj_red = xs_1, ys_1, phis_1, vs_red
+                    planed_trj_g.append(planed_trj_green)
+                    planed_trj_r.append(planed_trj_red)
                     self.path_len_list.append((sl * meter_pointnum_ratio, len(trj_data[0]), len(xs_1)))
+            self.path_list = {'green': planed_trj_g, 'red': planed_trj_r}
 
         elif task == 'straight':
             end_offsets = [LANE_WIDTH*(i+0.5) for i in range(LANE_NUMBER)]
@@ -695,11 +714,22 @@ class ReferencePath(object):
                                  np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
                     xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
                     xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
-                    phis_1 = np.arctan2(ys_2 - ys_1,
-                                        xs_2 - xs_1) * 180 / pi
-                    planed_trj = xs_1, ys_1, phis_1
-                    self.path_list.append(planed_trj)
+                    phis_1 = np.arctan2(ys_2 - ys_1, xs_2 - xs_1) * 180 / pi
+
+                    vs_green = np.array([8.33] * len(start_straight_line_x) + [7.0] * (len(trj_data[0]) - 1) + [8.33] *
+                                        len(end_straight_line_x), dtype=np.float32)
+                    vs_red_0 = np.array([8.33] * (len(start_straight_line_x) - meter_pointnum_ratio * (sl - dece_dist + int(L))), dtype=np.float32)
+                    vs_red_1 = np.linspace(8.33, 0.0, meter_pointnum_ratio * dece_dist, endpoint=True, dtype=np.float32)
+                    vs_red_2 = np.linspace(0.0, 0.0, meter_pointnum_ratio * (dece_dist // 2), endpoint=True, dtype=np.float32)
+                    vs_red_3 = np.array([8.33] * (meter_pointnum_ratio * (int(L) - dece_dist // 2) + len(trj_data[0]) - 1 + len(end_straight_line_x)), dtype=np.float32)
+                    vs_red = np.append(np.append(np.append(vs_red_0, vs_red_1), vs_red_2), vs_red_3)
+
+                    planed_trj_green = xs_1, ys_1, phis_1, vs_green
+                    planed_trj_red = xs_1, ys_1, phis_1, vs_red
+                    planed_trj_g.append(planed_trj_green)
+                    planed_trj_r.append(planed_trj_red)
                     self.path_len_list.append((sl * meter_pointnum_ratio, len(trj_data[0]), len(xs_1)))
+            self.path_list = {'green': planed_trj_g, 'red': planed_trj_r}
 
         else:
             assert task == 'right'
@@ -730,11 +760,17 @@ class ReferencePath(object):
                                  np.append(np.append(start_straight_line_y, trj_data[1]), end_straight_line_y)
                     xs_1, ys_1 = planed_trj[0][:-1], planed_trj[1][:-1]
                     xs_2, ys_2 = planed_trj[0][1:], planed_trj[1][1:]
-                    phis_1 = np.arctan2(ys_2 - ys_1,
-                                        xs_2 - xs_1) * 180 / pi
-                    planed_trj = xs_1, ys_1, phis_1
-                    self.path_list.append(planed_trj)
+                    phis_1 = np.arctan2(ys_2 - ys_1, xs_2 - xs_1) * 180 / pi
+
+                    vs_green = np.array([8.33] * len(start_straight_line_x) + [7.0] * (len(trj_data[0]) - 1) + [8.33] *
+                                        len(end_straight_line_x), dtype=np.float32)
+
+                    planed_trj_green = xs_1, ys_1, phis_1, vs_green
+                    planed_trj_red = xs_1, ys_1, phis_1, vs_green     # the same velocity design for turning right
+                    planed_trj_g.append(planed_trj_green)
+                    planed_trj_r.append(planed_trj_red)
                     self.path_len_list.append((sl * meter_pointnum_ratio, len(trj_data[0]), len(xs_1)))
+            self.path_list = {'green': planed_trj_g, 'red': planed_trj_r}
 
     def find_closest_point(self, xs, ys, ratio=10):
         path_len = len(self.path[0])
@@ -765,9 +801,10 @@ class ReferencePath(object):
         indexs = tf.where(indexs < len(self.path[0]), indexs, len(self.path[0])-1)
         points = tf.gather(self.path[0], indexs), \
                  tf.gather(self.path[1], indexs), \
-                 tf.gather(self.path[2], indexs)
+                 tf.gather(self.path[2], indexs), \
+                 tf.gather(self.path[3], indexs)
 
-        return points[0], points[1], points[2]
+        return points[0], points[1], points[2], points[3]
 
     def tracking_error_vector(self, ego_xs, ego_ys, ego_phis, ego_vs, n):
         def two2one(ref_xs, ref_ys):
@@ -794,13 +831,14 @@ class ReferencePath(object):
 
         tracking_error = tf.stack([two2one(current_points[0], current_points[1]),
                                            deal_with_phi_diff(ego_phis - current_points[2]),
-                                           ego_vs - self.exp_v], 1)
+                                           ego_vs - current_points[3]], 1)
 
         final = tracking_error
         if n > 0:
             future_points = tf.concat([tf.stack([ref_point[0] - ego_xs,
                                                  ref_point[1] - ego_ys,
-                                                 deal_with_phi_diff(ego_phis - ref_point[2])], 1)
+                                                 deal_with_phi_diff(ego_phis - ref_point[2]),
+                                                 ref_point[3]], 1)
                                        for ref_point in n_future_data], 1)
             final = tf.concat([final, future_points], 1)
 
@@ -808,9 +846,9 @@ class ReferencePath(object):
 
     def plot_path(self, x, y):
         plt.axis('equal')
-        plt.plot(self.path_list[0][0], self.path_list[0][1], 'b')
-        plt.plot(self.path_list[1][0], self.path_list[1][1], 'r')
-        plt.plot(self.path_list[2][0], self.path_list[2][1], 'g')
+        plt.plot(self.path_list[self.traffic_light][0][0], self.path_list[self.traffic_light][0][1], 'b')
+        plt.plot(self.path_list[self.traffic_light][1][0], self.path_list[self.traffic_light][1][1], 'r')
+        plt.plot(self.path_list[self.traffic_light][2][0], self.path_list[self.traffic_light][2][1], 'g')
         print(self.path_len_list)
 
         index, closest_point = self.find_closest_point(np.array([x], np.float32),
@@ -821,12 +859,12 @@ class ReferencePath(object):
 
 
 def test_ref_path():
-    path = ReferencePath('right')
+    path = ReferencePath('right', '0')
     path.plot_path(1.875, 0)
 
 
 def test_future_n_data():
-    path = ReferencePath('straight')
+    path = ReferencePath('straight', '0')
     plt.axis('equal')
     current_i = 600
     plt.plot(path.path[0], path.path[1])
@@ -838,7 +876,7 @@ def test_future_n_data():
 
 
 def test_tracking_error_vector():
-    path = ReferencePath('straight')
+    path = ReferencePath('straight', "0")
     xs = np.array([1.875, 1.875, -10, -20], np.float32)
     ys = np.array([-20, 0, -10, -1], np.float32)
     phis = np.array([90, 135, 135, 180], np.float32)
@@ -851,7 +889,7 @@ def test_tracking_error_vector():
 def test_model():
     from endtoend import CrossroadEnd2end
     env = CrossroadEnd2end('left', 0)
-    model = EnvironmentModel('left', 0)
+    model = EnvironmentModel('left', '0', 0)
     obs_list = []
     obs = env.reset()
     done = 0
@@ -964,14 +1002,15 @@ def test_ref():
     # p3_fit = np.poly1d(z3)
     # plt.plot(p3, p3_fit(p3), 'b*')
 
-    ref = ReferencePath('straight')
-    path1, path2, path3, path4, path5, path6 = ref.path_list
+    ref = ReferencePath('left', '0')
+    # print(ref.path_list[ref.judge_traffic_light('0')])
+    path1, path2, path3 = ref.path_list[LIGHT[0]]
     path1, path2, path3 = [ite[1200:-1200] for ite in path1], \
                           [ite[1200:-1200] for ite in path2], \
                           [ite[1200:-1200] for ite in path3]
-    x1, y1, phi1 = path1
-    x2, y2, phi2 = path2
-    x3, y3, phi3 = path3
+    x1, y1, phi1, v1 = path1
+    x2, y2, phi2, v1 = path2
+    x3, y3, phi3, v1 = path3
 
     plt.plot(y1, x1, 'r')
     plt.plot(y2, x2, 'g')
