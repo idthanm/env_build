@@ -97,7 +97,8 @@ class CrossroadEnd2endPiIntegrate(gym.Env):
         self.v_light = self.traffic.v_light
         self.training_task = choice(['left', 'straight', 'right'])
         self.task_idx = TASK_DICT[self.training_task]
-        self.ref_path = ReferencePath(self.training_task, self.v_light, **kwargs)
+        light_vector = self.v_light if self.v_light == 0 else 1
+        self.ref_path = ReferencePath(self.training_task, light_vector, **kwargs)
         self.env_model = EnvironmentModel(self.training_task, self.num_future_data)
         self.veh_mode_dict = VEHICLE_MODE_DICT[self.training_task]
         self.veh_num = VEH_NUM[self.training_task]
@@ -292,7 +293,7 @@ class CrossroadEnd2endPiIntegrate(gym.Env):
                                                              np.array([ego_phi], dtype=np.float32),
                                                              np.array([ego_v_x], dtype=np.float32),
                                                              self.num_future_data).numpy()[0]
-        light_vector = np.array([self.v_light], dtype=np.float32)
+        light_vector = np.array([self.v_light if self.v_light == 0 else 1], dtype=np.float32)
         task_vector = np.array([self.task_idx], dtype=np.float32)
         vector = np.concatenate((ego_vector, tracking_error, light_vector, task_vector, vehs_vector), axis=0)
         vector = vector.astype(np.float32)
@@ -820,7 +821,7 @@ def test_end2end():
                 obses_ego, obses_other, rewards, punish_term_for_training, \
                     real_punish_term, veh2veh4real, veh2road4real, veh2line4real = env_model.rollout_out(np.tile(actions, (2, 1)))
             print(len(obs))
-            print(env.training_task, obs[39])
+            print(env.training_task, obs[env.ego_info_dim + env.track_info_dim + env.per_path_info_dim * env.num_future_data], env.v_light)
             env.render()
             # if done:
             #     break

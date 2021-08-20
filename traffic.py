@@ -143,7 +143,7 @@ class Traffic(object):
         return random_traffic
 
     def init_light(self):
-        if random.random() > 0.5:
+        if random.random() > 0.7:
             self.training_light_phase = 3
         else:
             self.training_light_phase = 0
