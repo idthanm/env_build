@@ -95,7 +95,7 @@ class CrossroadEnd2endPiIntegrate(gym.Env):
     def reset(self, **kwargs):  # kwargs include three keys
         self.traffic.init_light()
         self.v_light = self.traffic.v_light
-        self.training_task = choice(['left', 'straight', 'right'])
+        self.training_task = 'left'                        # self.training_task = choice(['left', 'straight', 'right'])
         self.task_idx = TASK_DICT[self.training_task]
         light_vector = self.v_light if self.v_light == 0 else 1
         self.ref_path = ReferencePath(self.training_task, light_vector, **kwargs)
@@ -822,6 +822,7 @@ def test_end2end():
                     real_punish_term, veh2veh4real, veh2road4real, veh2line4real = env_model.rollout_out(np.tile(actions, (2, 1)))
             print(len(obs))
             print(env.training_task, obs[env.ego_info_dim + env.track_info_dim + env.per_path_info_dim * env.num_future_data], env.v_light)
+            print('task:', obs[env.ego_info_dim + env.track_info_dim + env.per_path_info_dim * env.num_future_data + env.light_dim])
             env.render()
             # if done:
             #     break
