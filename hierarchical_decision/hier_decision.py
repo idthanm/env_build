@@ -79,11 +79,11 @@ class HierarchicalDecision(object):
             os.makedirs(self.logdir + '/episode{}/figs'.format(self.episode_counter))
             self.step_counter = -1
             self.recorder.save(self.logdir)
-            if self.episode_counter >= 1:
-                select_and_rename_snapshots_of_an_episode(self.logdir, self.episode_counter-1, 12)
-                self.recorder.plot_and_save_ith_episode_curves(self.episode_counter-1,
-                                                               self.logdir + '/episode{}/figs'.format(self.episode_counter-1),
-                                                               isshow=False)
+            # if self.episode_counter >= 1:
+                # select_and_rename_snapshots_of_an_episode(self.logdir, self.episode_counter-1, 12)
+                # self.recorder.plot_and_save_ith_episode_curves(self.episode_counter-1,
+                #                                                self.logdir + '/episode{}/figs'.format(self.episode_counter-1),
+                #                                                isshow=False)
         return self.obs
 
     # @tf.function
@@ -577,7 +577,7 @@ def main():
     time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     logdir = './results/{time}'.format(time=time_now)
     os.makedirs(logdir)
-    hier_decision = HierarchicalDecision('left', 'experiment-2021-06-05-13-15-31', 380000, logdir)
+    hier_decision = HierarchicalDecision('left', 'experiment-2021-06-05-13-15-31', 300000, logdir)
     # 'left', 'experiment-2021-03-15-16-39-00', 180000
     # 'straight', 'experiment-2021-03-15-19-16-13', 175000
     # 'right', 'experiment-2021-03-15-21-02-51', 195000
