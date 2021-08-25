@@ -213,7 +213,7 @@ class Traffic(object):
         self.n_ego_collision_flag = {}
         self.collision_ego_id = None
         self.v_light = None
-        self.training_light_phase = random.randint(0, 1)
+        self.training_light_phase = 0                                     # random.randint(0, 1)
         if self.training_task == 'right':
             if random.random() > 0.5:
                 self.training_light_phase = 2

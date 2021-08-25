@@ -79,7 +79,6 @@ class CrossroadEnd2endMixPiFix(gym.Env):
         self.veh_num = VEH_NUM[self.training_task]
         self.bike_num = BIKE_NUM[self.training_task]
         self.person_num = PERSON_NUM[self.training_task]
-        self.virtual_red_light_vehicle = False
 
         self.done_type = 'not_done_yet'
         self.reward_info = None
@@ -125,13 +124,7 @@ class CrossroadEnd2endMixPiFix(gym.Env):
         self.action = None
         self.reward_info = None
         self.done_type = 'not_done_yet'
-        if self.mode == 'training':
-            if np.random.random() > 0.9:
-                self.virtual_red_light_vehicle = True
-            else:
-                self.virtual_red_light_vehicle = False
-        else:
-            self.virtual_red_light_vehicle = False
+
         return self.obs
 
     def close(self):
@@ -360,7 +353,6 @@ class CrossroadEnd2endMixPiFix(gym.Env):
         name_setting = name_settings[exit_]
 
         def filter_interested_participants(vs, task):
-
             dl, du, dr, rd, rl, ru, ur, ud, ul, lu, lr, ld = [], [], [], [], [], [], [], [], [], [], [], []
             du_b, dr_b, rl_b, ru_b, ud_b, ul_b, lr_b, ld_b = [], [], [], [], [], [], [], []
             i1_0, o1_0, i2_0, o2_0, i3_0, o3_0, i4_0, o4_0, c0, c1, c2, c3, c_w0, c_w1, c_w2, c_w3 = [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
@@ -479,7 +471,7 @@ class CrossroadEnd2endMixPiFix(gym.Env):
             # dr_b = list(filter(lambda v: v['x'] < CROSSROAD_SIZE / 2 + 10 and v['y'] > ego_y - 2, dr_b))  # interest of right
             # rl_b = rl_b  # not interest in case of traffic light
             # ru_b = list(filter(lambda v: v['x'] < CROSSROAD_SIZE / 2 + 10 and v['y'] < CROSSROAD_SIZE / 2 + 10, ru_b))  # interest of straight
-            ud_b = list(filter(lambda v: max(ego_y - 2, -8) < v['y'] < CROSSROAD_SIZE / 2 and ego_x > v['x'], ud_b))  # interest of left
+            ud_b = list(filter(lambda v: max(ego_y - 2, -CROSSROAD_SIZE/2) < v['y'] < CROSSROAD_SIZE / 2 and ego_x > v['x'], ud_b))  # interest of left
             # ul_b = list(filter(lambda v: -CROSSROAD_SIZE / 2 - 10 < v['x'] < ego_x and v['y'] < CROSSROAD_SIZE / 2, ul_b))  # interest of left
             lr_b = list(filter(lambda v: 0 < v['x'] < CROSSROAD_SIZE / 2 + 10, lr_b))  # interest of right
             # ld_b = ld_b  # not interest in case of traffic light
@@ -529,25 +521,23 @@ class CrossroadEnd2endMixPiFix(gym.Env):
             for mode, num in PERSON_MODE_DICT[task].items():
                 tmp_p[mode] = slice_or_fill(eval(mode), mode2fillvalue_p[mode], num)
 
-            if self.training_task != 'right':
-                if (v_light >1 and ego_y < -CROSSROAD_SIZE/2) \
-                        or (self.virtual_red_light_vehicle and ego_y < -CROSSROAD_SIZE/2):
-                    dl.append(dict(type="car_1", x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None, partici_type=2.0))
-                    du.append(dict(type="car_1", x=LANE_WIDTH*1.5, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None, partici_type=2.0))
-
             # fetch veh in range
             dl = list(filter(lambda v: v['x'] > -CROSSROAD_SIZE/2-10 and v['y'] > ego_y-2, dl))  # interest of left straight
             du = list(filter(lambda v: ego_y-2 < v['y'] < CROSSROAD_SIZE/2+10 and v['x'] < ego_x+5, du))  # interest of left straight
+
             dr = list(filter(lambda v: v['x'] < CROSSROAD_SIZE/2+10 and v['y'] > ego_y, dr))  # interest of right
+
             rd = rd  # not interest in case of traffic light
             rl = rl  # not interest in case of traffic light
             ru = list(filter(lambda v: v['x'] < CROSSROAD_SIZE/2+10 and v['y'] < CROSSROAD_SIZE/2+10, ru))  # interest of straight
+
             if task == 'straight':
                 ur = list(filter(lambda v: v['x'] < ego_x + 7 and ego_y < v['y'] < CROSSROAD_SIZE/2+10, ur))  # interest of straight
             elif task == 'right':
                 ur = list(filter(lambda v: v['x'] < CROSSROAD_SIZE/2+10 and v['y'] < CROSSROAD_SIZE/2, ur))  # interest of right
-            ud = list(filter(lambda v: max(ego_y-2, -CROSSROAD_SIZE/2) < v['y'] < min(ego_y+20, CROSSROAD_SIZE/2) and ego_x > v['x']-4, ud))  # interest of left
-            ul = list(filter(lambda v: -CROSSROAD_SIZE/2-10 < v['x'] < ego_x + 4 and v['y'] < CROSSROAD_SIZE/2, ul))  # interest of left
+            ud = list(filter(lambda v: max(ego_y-2, -CROSSROAD_SIZE/2) < v['y'] < CROSSROAD_SIZE/2 and ego_x > v['x'], ud))  # interest of left
+            ul = list(filter(lambda v: -CROSSROAD_SIZE/2-10 < v['x'] < ego_x and v['y'] < CROSSROAD_SIZE/2, ul))  # interest of left
+
             lu = lu  # not interest in case of traffic light
             lr = list(filter(lambda v: -CROSSROAD_SIZE/2-10 < v['x'] < CROSSROAD_SIZE/2+10, lr))  # interest of right
             ld = ld  # not interest in case of traffic light
@@ -556,13 +546,17 @@ class CrossroadEnd2endMixPiFix(gym.Env):
             dl = sorted(dl, key=lambda v: (v['y'], -v['x']))
             du = sorted(du, key=lambda v: v['y'])
             dr = sorted(dr, key=lambda v: (v['y'], v['x']))
+
             ru = sorted(ru, key=lambda v: (-v['x'], v['y']), reverse=True)
+
             if task == 'straight':
                 ur = sorted(ur, key=lambda v: v['y'])
             elif task == 'right':
                 ur = sorted(ur, key=lambda v: (-v['y'], v['x']), reverse=True)
+
             ud = sorted(ud, key=lambda v: v['y'])
             ul = sorted(ul, key=lambda v: (-v['y'], -v['x']), reverse=True)
+
             lr = sorted(lr, key=lambda v: -v['x'])
 
             mode2fillvalue = dict(
@@ -846,7 +840,6 @@ class CrossroadEnd2endMixPiFix(gym.Env):
                 ax.plot([LD_x + x, LU_x + x], [LD_y + y, LU_y + y], color=color, linestyle=linestyle)
 
             def plot_phi_line(type, x, y, phi, color):
-                # TODO:新增一个type项输入
                 if type in ['bicycle_1', 'bicycle_2', 'bicycle_3']:
                     line_length = 2
                 elif type == 'DEFAULT_PEDTYPE':
@@ -885,9 +878,6 @@ class CrossroadEnd2endMixPiFix(gym.Env):
                     veh_l = veh['l']
                     veh_w = veh['w']
                     veh_type = veh['type']
-                    #TODO: 定义veh_type
-                    # print("车辆信息", veh)
-                    # veh_type = 'car_1'
                     task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
 
                     if is_in_plot_area(veh_x, veh_y):
