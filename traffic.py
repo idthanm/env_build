@@ -62,7 +62,7 @@ class Traffic(object):
             traci.start(
                 [SUMO_BINARY, "-c", SUMOCFG_DIR,
                  "--step-length", self.step_time_str,
-                 "--lateral-resolution", "3.5",
+                 # "--lateral-resolution", "3.5",
                  "--random",
                  # "--start",
                  # "--quit-on-end",
@@ -85,23 +85,76 @@ class Traffic(object):
                  # '--seed', str(int(seed))
                  ], port=port, numRetries=5)  # '--seed', str(int(seed))
 
-        traci.vehicle.subscribeContext('collector',
-                                       traci.constants.CMD_GET_VEHICLE_VARIABLE,
-                                       999999, [traci.constants.VAR_POSITION,
+        # traci.vehicle.subscribeContext('collector',
+        #                                traci.constants.CMD_GET_VEHICLE_VARIABLE,
+        #                                999999, [traci.constants.VAR_POSITION,
+        #                                         traci.constants.VAR_LENGTH,
+        #                                         traci.constants.VAR_WIDTH,
+        #                                         traci.constants.VAR_ANGLE,
+        #                                         traci.constants.VAR_SIGNALS,
+        #                                         traci.constants.VAR_SPEED,
+        #                                         # traci.constants.VAR_TYPE,
+        #                                         # traci.constants.VAR_EMERGENCY_DECEL,
+        #                                         # traci.constants.VAR_LANE_INDEX,
+        #                                         # traci.constants.VAR_LANEPOSITION,
+        #                                         traci.constants.VAR_EDGES,
+        #                                         # traci.constants.VAR_ROUTE_INDEX
+        #                                         ],
+        #                                0, 2147483647)
+
+        # traci.person.subscribeContext('00',
+        #                                traci.constants.CMD_GET_PERSON_VARIABLE,
+        #                                999999, [traci.constants.VAR_POSITION,
+        #                                         traci.constants.VAR_LENGTH,
+        #                                         traci.constants.VAR_WIDTH,
+        #                                         traci.constants.VAR_ANGLE,
+        #                                         # traci.constants.VAR_SIGNALS,
+        #                                         traci.constants.VAR_SPEED,
+        #                                         # traci.constants.VAR_TYPE,
+        #                                         # traci.constants.VAR_EMERGENCY_DECEL,
+        #                                         # traci.constants.VAR_LANE_INDEX,
+        #                                         # traci.constants.VAR_LANEPOSITION,
+        #                                         traci.constants.VAR_EDGES,
+        #                                         # traci.constants.VAR_ROUTE_INDEX
+        #                                         ],
+        #                                0, 2147483647)
+
+        traci.junction.subscribeContext(objectID='a3', domain=traci.constants.CMD_GET_VEHICLE_VARIABLE, dist=10000.0,
+                                        varIDs=[traci.constants.VAR_POSITION,
                                                 traci.constants.VAR_LENGTH,
                                                 traci.constants.VAR_WIDTH,
                                                 traci.constants.VAR_ANGLE,
                                                 traci.constants.VAR_SIGNALS,
                                                 traci.constants.VAR_SPEED,
-                                                # traci.constants.VAR_TYPE,
+                                                traci.constants.VAR_TYPE,
                                                 # traci.constants.VAR_EMERGENCY_DECEL,
                                                 # traci.constants.VAR_LANE_INDEX,
                                                 # traci.constants.VAR_LANEPOSITION,
+                                                # traci.constants.VAR_EDGES,
+                                                # traci.constants.VAR_ROAD_ID,
                                                 traci.constants.VAR_EDGES,
+                                                # traci.constants.VAR_NEXT_EDGE,
                                                 # traci.constants.VAR_ROUTE_INDEX
-                                                ],
-                                       0, 2147483647)
-        while traci.simulation.getTime() < 100:
+                                                ], begin=0.0, end=2147483647.0)
+
+        traci.junction.subscribeContext(objectID='a4', domain=traci.constants.CMD_GET_PERSON_VARIABLE,dist=10000.0, varIDs=[traci.constants.VAR_POSITION,
+                                                traci.constants.VAR_LENGTH,
+                                                traci.constants.VAR_WIDTH,
+                                                traci.constants.VAR_ANGLE,
+                                                # traci.constants.VAR_SIGNALS,
+                                                traci.constants.VAR_SPEED,
+                                                traci.constants.VAR_TYPE,
+                                                # traci.constants.VAR_EMERGENCY_DECEL,
+                                                # traci.constants.VAR_LANE_INDEX,
+                                                # traci.constants.VAR_LANEPOSITION,
+                                                # traci.constants.VAR_EDGES,
+                                                traci.constants.VAR_ROAD_ID,
+                                                # traci.constants.VAR_NEXT_EDGE,
+                                                # traci.constants.VAR_ROUTE_ID,
+                                                # traci.constants.VAR_ROUTE_INDEX
+                                                ],begin=0.0, end=2147483647.0)
+
+        while traci.simulation.getTime() < 100:          # turn right
             if traci.simulation.getTime() < 80:
                 traci.trafficlight.setPhase('0', 2)
             else:
@@ -114,7 +167,7 @@ class Traffic(object):
     def __del__(self):
         traci.close()
 
-    def add_self_car(self, n_ego_dict):
+    def add_self_car(self, n_ego_dict, with_delete=True):
         for egoID, ego_dict in n_ego_dict.items():
             ego_v_x = ego_dict['v_x']
             ego_v_y = ego_dict['v_y']
@@ -124,21 +177,27 @@ class Traffic(object):
             ego_phi = ego_dict['phi']
             ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi, ego_l)
             edgeID, lane = xy2_edgeID_lane(ego_x, ego_y)
-            try:
-                traci.vehicle.remove(egoID)
-            except traci.exceptions.TraCIException:
-                print('Don\'t worry, it\'s been handled well')
-            traci.simulationStep()
-            traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
-                                    # depart=0, pos=20, lane=lane, speed=ego_dict['v_x'],
-                                    typeID='self_car')
+            if with_delete:
+                try:
+                    traci.vehicle.remove(egoID)
+                except traci.exceptions.TraCIException:
+                    print('Don\'t worry, it\'s been handled well')
+                traci.simulationStep()
+                traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
+                                        # depart=0, pos=20, lane=lane, speed=ego_dict['v_x'],
+                                        typeID='self_car')
             traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=1)
             traci.vehicle.setLength(egoID, ego_dict['l'])
             traci.vehicle.setWidth(egoID, ego_dict['w'])
             traci.vehicle.setSpeed(egoID, math.sqrt(ego_v_x ** 2 + ego_v_y ** 2))
 
     def generate_random_traffic(self):
-        random_traffic = traci.vehicle.getContextSubscriptionResults('collector')
+        # random_traffic = traci.vehicle.getContextSubscriptionResults('collector')
+        # random_traffic = traci.person.getContextSubscriptionResults('00')
+        random_traffic_01 = traci.junction.getContextSubscriptionResults('a3')
+        random_traffic_02 = traci.junction.getContextSubscriptionResults('a4')
+        random_traffic = dict(random_traffic_01, **random_traffic_02)
+        # print("randomtraffic",random_traffic)
         random_traffic = copy.deepcopy(random_traffic)
 
         for ego_id in self.n_ego_dict.keys():
@@ -154,15 +213,16 @@ class Traffic(object):
         self.n_ego_collision_flag = {}
         self.collision_ego_id = None
         self.v_light = None
-        self.training_light_phase = 0
+        self.training_light_phase = random.randint(0, 1)
         if self.training_task == 'right':
             if random.random() > 0.5:
                 self.training_light_phase = 2
         self.n_ego_dict = init_n_ego_dict
         traci.trafficlight.setPhase('0', self.training_light_phase)
-        random_traffic = self.generate_random_traffic()
-
         self.add_self_car(init_n_ego_dict)
+        traci.simulationStep()
+        random_traffic = self.generate_random_traffic()
+        self.add_self_car(init_n_ego_dict, with_delete=False)
 
         # move ego to the given position and remove conflict cars
         for egoID, ego_dict in self.n_ego_dict.items():
@@ -174,6 +234,7 @@ class Traffic(object):
                 a_in_sumo = random_traffic[veh][traci.constants.VAR_ANGLE]
                 veh_l = random_traffic[veh][traci.constants.VAR_LENGTH]
                 veh_v = random_traffic[veh][traci.constants.VAR_SPEED]
+                veh_type = random_traffic[veh][traci.constants.VAR_TYPE]
                 # veh_sig = random_traffic[veh][traci.constants.VAR_SIGNALS]
                 # 10: left and brake 9: right and brake 1: right 8: brake 0: no signal 2: left
 
@@ -186,7 +247,11 @@ class Traffic(object):
                                                                                                            a_in_ego_coord)
                 if (-5 < x_in_ego_coord < 1 * (ego_v_x) + ego_l/2. + veh_l/2. + 2 and abs(y_in_ego_coord) < 3) or \
                         (-5 < ego_x_in_veh_coord < 1 * (veh_v) + ego_l/2. + veh_l/2. + 2 and abs(ego_y_in_veh_coord) <3):
-                    traci.vehicle.moveToXY(veh, '4i', 1, -80, 1.85, 180, 2)
+                    if veh_type == 'DEFAULT_PEDTYPE':
+                        traci.person.removeStages(veh)
+                    else:
+                        traci.vehicle.remove(veh)
+
                     # traci.vehicle.remove(vehID=veh)
                 # if 0<x_in_sumo<3.5 and -22<y_in_sumo<-15:# and veh_sig!=1 and veh_sig!=9:
                 #     traci.vehicle.moveToXY(veh, '4o', 1, -80, 1.85, 180,2)
@@ -194,14 +259,30 @@ class Traffic(object):
 
     def _get_vehicles(self):
         self.n_ego_vehicles = defaultdict(list)
-        veh_infos = traci.vehicle.getContextSubscriptionResults('collector')
+        # veh_infos = traci.vehicle.getContextSubscriptionResults('collector')
+        # veh_infos = traci.person.getContextSubscriptionResults('00')
+        # print("22222")
+        veh_infos_01 = traci.junction.getContextSubscriptionResults('a3')
+        veh_infos_02 = traci.junction.getContextSubscriptionResults('a4')
+        veh_infos = dict(veh_infos_01, **veh_infos_02)
+        # veh_infos = traci.junction.getContextSubscriptionResults('a4')
+        # print("订阅器输出信息：", len(veh_infos), veh_infos)
         for egoID in self.n_ego_dict.keys():
             veh_info_dict = copy.deepcopy(veh_infos)
             for i, veh in enumerate(veh_info_dict):
                 if veh != egoID:
                     length = veh_info_dict[veh][traci.constants.VAR_LENGTH]
                     width = veh_info_dict[veh][traci.constants.VAR_WIDTH]
-                    route = veh_info_dict[veh][traci.constants.VAR_EDGES]
+                    type = veh_info_dict[veh][traci.constants.VAR_TYPE]
+                    if type == 'DEFAULT_PEDTYPE':
+                        # TODO: 0为暂时赋值
+                        route = '0 0'
+                    else:
+                        route = veh_info_dict[veh][traci.constants.VAR_EDGES]
+                    if type == 'DEFAULT_PEDTYPE':
+                        road = veh_info_dict[veh][traci.constants.VAR_ROAD_ID]
+                    else:
+                        road = '0'
                     if route[0] == '4i':
                         continue
                     x_in_sumo, y_in_sumo = veh_info_dict[veh][traci.constants.VAR_POSITION]
@@ -209,8 +290,8 @@ class Traffic(object):
                     # transfer x,y,a in car coord
                     x, y, a = _convert_sumo_coord_to_car_coord(x_in_sumo, y_in_sumo, a_in_sumo, length)
                     v = veh_info_dict[veh][traci.constants.VAR_SPEED]
-                    self.n_ego_vehicles[egoID].append(dict(x=x, y=y, v=v, phi=a, l=length,
-                                                           w=width, route=route))
+                    self.n_ego_vehicles[egoID].append(dict(type=type, x=x, y=y, v=v, phi=a, l=length,
+                                                           w=width, route=route, road=road))
 
     def _get_traffic_light(self):
         self.v_light = traci.trafficlight.getPhase('0')
@@ -219,6 +300,13 @@ class Traffic(object):
         self.sim_time += SIM_PERIOD
         if self.mode == 'training':
             traci.trafficlight.setPhase('0', self.training_light_phase)
+        # else:
+        #     if self.sim_time < 5.:
+        #         traci.trafficlight.setPhase('0', 2)
+        #     elif self.sim_time < 5.+3.:
+        #         traci.trafficlight.setPhase('0', 1)
+        #     else:
+        #         traci.trafficlight.setPhase('0', 0)
         traci.simulationStep()
         self._get_vehicles()
         self._get_traffic_light()
@@ -241,7 +329,7 @@ class Traffic(object):
             ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi,
                                                                                            self.n_ego_dict[egoID]['l'])
             egdeID, lane = xy2_edgeID_lane(ego_x, ego_y)
-            keeproute = 1
+            keeproute = 2
             # if self.training_task == 'left':  # TODO
             #     keeproute = 2 if ego_x > 0 and ego_y > -7 else 1
             try:

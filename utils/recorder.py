@@ -8,29 +8,33 @@
 # =====================================
 import numpy as np
 import seaborn as sns
-import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.pyplot as ticker
 from matplotlib.pyplot import MultipleLocator
 import math
+import pandas as pd
 sns.set(style="darkgrid")
+
+WINDOWSIZE = 15
 
 
 class Recorder(object):
     def __init__(self):
         self.val2record = ['v_x', 'v_y', 'r', 'x', 'y', 'phi',
                            'steer', 'a_x', 'delta_y', 'delta_v', 'delta_phi',
-                           'cal_time', 'ref_index', 'beta', 'path_values', 'ss_time']
+                           'cal_time', 'ref_index', 'beta', 'path_values', 'ss_time', 'is_ss']
         self.val2plot = ['v_x', 'r',
                          'steer', 'a_x',
-                         'cal_time', 'ref_index', 'beta']
-        self.key2label = dict(v_x='Velocity [m/s]',
+                         'cal_time', 'ref_index', 'beta', 'path_values', 'is_ss']
+        self.key2label = dict(v_x='Speed [m/s]',
                               r='Yaw rate [rad/s]',
                               steer='Steer angle [$\circ$]',
                               a_x='Acceleration [$\mathrm {m/s^2}$]',
                               cal_time='Computing time [ms]',
                               ref_index='Selected path',
-                              beta='Side slip angle[$\circ$]')
+                              beta='Side slip angle[$\circ$]',
+                              path_values='Path value',
+                              is_ss='Safety shield',)
 
         self.comp2record = ['v_x', 'v_y', 'r', 'x', 'y', 'phi', 'adp_steer', 'adp_a_x', 'mpc_steer', 'mpc_a_x',
                             'delta_y', 'delta_v', 'delta_phi', 'adp_time', 'mpc_time', 'adp_ref', 'mpc_ref', 'beta']
@@ -51,7 +55,7 @@ class Recorder(object):
         self.val_list_for_an_episode = []
         self.comp_list_for_an_episode = []
 
-    def record(self, obs, act, cal_time, ref_index, path_values, ss_time):
+    def record(self, obs, act, cal_time, ref_index, path_values, ss_time, is_ss):
         ego_info, tracking_info, _ = obs[:self.ego_info_dim], \
                                      obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (
                                                self.num_future_data + 1)], \
@@ -65,7 +69,7 @@ class Recorder(object):
         beta = 0 if v_x == 0 else np.arctan(v_y/v_x) * 180 / math.pi
         steer = steer * 180 / math.pi
         self.val_list_for_an_episode.append(np.array([v_x, v_y, r, x, y, phi, steer, a_x, delta_y,
-                                        delta_phi, delta_v, cal_time, ref_index, beta, path_values, ss_time]))
+                                        delta_phi, delta_v, cal_time, ref_index, beta, path_values, ss_time, is_ss]))
 
     # For comparison of MPC and ADP
     def record_compare(self, obs, adp_act, mpc_act, adp_time, mpc_time, adp_ref, mpc_ref, mode='ADP'):
@@ -76,7 +80,7 @@ class Recorder(object):
                                                self.num_future_data + 1):]
         v_x, v_y, r, x, y, phi = ego_info
         delta_y, delta_phi, delta_v = tracking_info[:3]
-        adp_steer, adp_a_x = adp_act[0]*0.4, adp_act[1]*3-1.
+        adp_steer, adp_a_x = adp_act[0]*0.4, adp_act[1]*2.25 - 0.75
         mpc_steer, mpc_a_x = mpc_act[0], mpc_act[1]
 
         # transformation
@@ -94,7 +98,7 @@ class Recorder(object):
         self.data_across_all_episodes = np.load(logdir + '/data_across_all_episodes.npy', allow_pickle=True)
         self.comp_data_for_all_episodes = np.load(logdir + '/comp_data_for_all_episodes.npy', allow_pickle=True)
 
-    def plot_ith_episode_curves(self, i):
+    def plot_and_save_ith_episode_curves(self, i, save_dir, isshow=True):
         episode2plot = self.data_across_all_episodes[i]
         real_time = np.array([0.1*i for i in range(len(episode2plot))])
         all_data = [np.array([vals_in_a_timestep[index] for vals_in_a_timestep in episode2plot])
@@ -104,44 +108,100 @@ class Recorder(object):
         i = 0
         for key in data_dict.keys():
             if key in self.val2plot:
-                f = plt.figure(key)
-                ax = f.add_axes([0.20, 0.12, 0.78, 0.86])
+                f = plt.figure(key, figsize=(6, 5))
                 if key == 'ref_index':
-                    sns.lineplot(real_time, data_dict[key] + 1, linewidth=2, palette="bright", color=color[i])
+                    ax = f.add_axes([0.12, 0.15, 0.88, 0.85])
+                    sns.lineplot(real_time, data_dict[key] + 1, linewidth=2, palette="bright", color='indigo')
                     plt.ylim([0.5, 3.5])
                     x_major_locator = MultipleLocator(10)
                     # ax.xaxis.set_major_locator(x_major_locator)
-                    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+                    ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
                 elif key == 'v_x':
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
+                    df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
+                    ax = f.add_axes([0.15, 0.15, 0.85, 0.85])
+                    sns.lineplot('time', 'data_smo', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
                     plt.ylim([-0.5, 10.])
                 elif key == 'cal_time':
-                    sns.lineplot(real_time, data_dict[key] * 1000, linewidth=2, palette="bright", color=color[i])
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key] * 1000))
+                    df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
+                    ax = f.add_axes([0.15, 0.15, 0.85, 0.85])
+                    sns.lineplot('time', 'data_smo', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
                     plt.ylim([0, 10])
                 elif key == 'a_x':
-                    sns.lineplot(real_time, np.clip(data_dict[key], -3.0, 1.5), linewidth=2, palette="bright", color=color[i])
-                    # sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
+                    df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
+                    ax = f.add_axes([0.16, 0.15, 0.84, 0.85])
+                    sns.lineplot('time', 'data_smo', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
                     plt.ylim([-4.5, 2.0])
                 elif key == 'steer':
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
+                    df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
+                    ax = f.add_axes([0.18, 0.15, 0.82, 0.85])
+                    sns.lineplot('time', 'data_smo', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
                     plt.ylim([-25, 25])
                 elif key == 'beta':
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
+                    df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
+                    ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
+                    sns.lineplot('time', 'data_smo', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
                     plt.ylim([-15, 15])
                 elif key == 'r':
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
+                    df['data_smo'] = df['data'].rolling(WINDOWSIZE, min_periods=1).mean()
+                    ax = f.add_axes([0.15, 0.12, 0.85, 0.86])
+                    sns.lineplot('time', 'data_smo', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
                     plt.ylim([-0.8, 0.8])
+                elif key == 'path_values':
+                    path_values = data_dict[key]
+                    df1 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 0], path_index='Path 1'))
+                    df2 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 1], path_index='Path 2'))
+                    df3 = pd.DataFrame(dict(time=real_time, data=-path_values[:, 2], path_index='Path 3'))
+                    total_dataframe = df1.append([df2, df3], ignore_index=True)
+                    ax = f.add_axes([0.18, 0.15, 0.82, 0.85])
+                    sns.lineplot('time', 'data', linewidth=2, hue='path_index',
+                                 data=total_dataframe, palette="bright", color='indigo')
+                    handles, labels = ax.get_legend_handles_labels()
+                    ax.legend(handles=handles, labels=labels, loc='lower left', frameon=False, fontsize=20)
+                    ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
+                elif key == 'is_ss':
+                    df = pd.DataFrame(dict(time=real_time, data=data_dict[key]))
+                    ax = f.add_axes([0.12, 0.15, 0.88, 0.85])
+                    sns.lineplot('time', 'data', linewidth=2,
+                                 data=df, palette="bright", color='indigo')
+                    ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
                 else:
-                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color=color[i])
+                    ax = f.add_axes([0.11, 0.12, 0.88, 0.86])
+                    sns.lineplot(real_time, data_dict[key], linewidth=2, palette="bright", color='indigo')
 
-                ax.set_ylabel(self.key2label[key], fontsize=15)
-                ax.set_xlabel("Time [s]", fontsize=15)
-                plt.yticks(fontsize=15)
-                plt.xticks(fontsize=15)
+                # for a specific simu with red light (2021-03-15-23-56-21)
+                # ylim = ax.get_ylim()
+                # ax.add_patch(patches.Rectangle((0, ylim[0]), 5, ylim[1]-ylim[0], facecolor='red', alpha=0.1))
+                # ax.add_patch(patches.Rectangle((5, ylim[0]), 3, ylim[1]-ylim[0], facecolor='orange', alpha=0.1))
+                # ax.add_patch(patches.Rectangle((8, ylim[0]), 23.6-8+1, ylim[1]-ylim[0], facecolor='green', alpha=0.1))
+
+                # ax.add_patch(patches.Rectangle((0., ylim[0]), 16, ylim[1] - ylim[0], facecolor='r', alpha=0.1))
+                # ax.add_patch(patches.Rectangle((16., ylim[0]), 5, ylim[1] - ylim[0], facecolor='orange', alpha=0.1))
+                # ax.add_patch(patches.Rectangle((21., ylim[0]), 32, ylim[1] - ylim[0], facecolor='g', alpha=0.1))
+
+                ax.set_ylabel(self.key2label[key], fontsize=20)
+                ax.set_xlabel("Time [s]", fontsize=20)
+                plt.yticks(fontsize=20)
+                plt.xticks(fontsize=20)
+                plt.savefig(save_dir + '/{}.pdf'.format(key))
+                if not isshow:
+                    plt.close(f)
                 i += 1
-        plt.show()
+        if isshow:
+            plt.show()
 
-    def plot_mpc_rl(self, i):
+    def plot_mpc_rl(self, i, save_dir, isshow=True, sample=False):
         episode2plot = self.comp_data_for_all_episodes[i] if i is not None else self.comp_list_for_an_episode
         real_time = np.array([0.1 * i for i in range(len(episode2plot))])
         all_data = [np.array([vals_in_a_timestep[index] for vals_in_a_timestep in episode2plot])
@@ -155,7 +215,8 @@ class Recorder(object):
                                'time': data_dict['mpc_time'],
                                'ref_path': data_dict['mpc_ref'] + 1
                                })
-        df_rl = pd.DataFrame({'algorithms': 'ADP',
+
+        df_rl = pd.DataFrame({'algorithms': 'GEP',
                               'iteration': real_time,
                               'steer': data_dict['adp_steer'],
                               'acc': data_dict['adp_a_x'],
@@ -163,51 +224,95 @@ class Recorder(object):
                               'ref_path': data_dict['adp_ref'] + 1
                               })
 
+        # smooth
+        df_rl['steer'] = df_rl['steer'].rolling(5, min_periods=1).mean()
+        df_rl['acc'] = df_rl['acc'].rolling(14, min_periods=1).mean()
+        df_mpc['steer'] = df_mpc['steer'].rolling(5, min_periods=1).mean()
+        df_mpc['acc'] = df_mpc['acc'].rolling(15, min_periods=1).mean()
+
         total_df = df_mpc.append([df_rl], ignore_index=True)
-        f1 = plt.figure(1)
-        ax1 = f1.add_axes([0.155, 0.12, 0.82, 0.86])
+        plt.close()
+        f1 = plt.figure(figsize=(6.2,5.2))
+        ax1 = f1.add_axes([0.155, 0.12, 0.82, 0.80])
         sns.lineplot(x="iteration", y="steer", hue="algorithms", data=total_df, linewidth=2, palette="bright", )
-        ax1.set_ylabel('Front wheel angle [$\circ$]', fontsize=15)
-        ax1.set_xlabel("Time[s]", fontsize=15)
-        ax1.legend(frameon=False, fontsize=15)
+        # ax1.set_title('Front wheel angle [$\circ$]', fontsize=20)
+        ax1.set_ylabel('Front wheel angle [$\circ$]', fontsize=20)
+        ax1.set_xlabel("Time [s]", fontsize=20)
+        ax1.legend(frameon=False, fontsize=20)
+        handles, labels = ax1.get_legend_handles_labels()
+        ax1.legend(handles=handles[:], labels=labels[:], frameon=False, fontsize=20)
+        # ax1.get_legend().remove()
         plt.yticks(fontsize=15)
         plt.xticks(fontsize=15)
+        f1.savefig(save_dir + '/steer.pdf')
+        plt.close() if not isshow else plt.show()
 
-        f2 = plt.figure(2)
-        ax2 = f2.add_axes([0.155, 0.12, 0.82, 0.86])
+        f2 = plt.figure(figsize=(6.2, 5.2))
+        ax2 = f2.add_axes([0.155, 0.12, 0.82, 0.80])
         sns.lineplot(x="iteration", y="acc", hue="algorithms", data=total_df, linewidth=2, palette="bright", )
-        ax2.set_ylabel('Acceleration [$\mathrm {m/s^2}$]', fontsize=15)
-        ax2.set_xlabel('Time[s]', fontsize=15)
-        ax2.legend(frameon=False, fontsize=15)
-        # plt.xlim(0, 3)
-        # plt.ylim(-40, 80)
+        # ax2.set_title('Acceleration [$\mathrm {m/s^2}$]', fontsize=20)
+        ax2.set_ylabel('Acceleration [$\mathrm {m/s^2}$]', fontsize=20)
+        ax2.set_xlabel('Time [s]', fontsize=20)
+        ax2.legend(frameon=False, fontsize=20)
+        ax2.get_legend().remove()
         plt.yticks(fontsize=15)
         plt.xticks(fontsize=15)
+        plt.savefig(save_dir + '/acceleration.pdf')
+        plt.close() if not isshow else plt.show()
 
-        f3 = plt.figure(3)
+        f3 = plt.figure(figsize=(6.2,5.2))
         ax3 = f3.add_axes([0.155, 0.12, 0.82, 0.86])
+        sns.lineplot(x="iteration", y="ref_path", hue="algorithms", data=total_df, dashes=True, linewidth=2, palette="bright")
+        ax3.lines[1].set_linestyle("--")
+        ax3.set_ylabel('Selected path', fontsize=20)
+        ax3.set_xlabel("Time [s]", fontsize=20)
+        ax3.legend(frameon=False, fontsize=20)
+        ax3.get_legend().remove()
+        ax3.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+        plt.yticks(fontsize=15)
+        plt.xticks(fontsize=15)
+        plt.savefig(save_dir + '/ref_path.pdf')
+        plt.close() if not isshow else plt.show()
+
+        f4 = plt.figure(figsize=(6.2, 5.2))
+        ax4 = f4.add_axes([0.155, 0.12, 0.82, 0.80])
         sns.lineplot(x="iteration", y="time", hue="algorithms", data=total_df, linewidth=2, palette="bright", )
         plt.yscale('log')
-        ax3.set_ylabel('Computing time [ms]', fontsize=15)
-        ax3.set_xlabel("Time[s]", fontsize=15)
-        handles, labels = ax3.get_legend_handles_labels()
-        # ax3.legend(handles=handles[1:], labels=labels[1:], loc='upper left', frameon=False, fontsize=15)
-        ax3.legend(handles=handles[:], labels=labels[:], frameon=False, fontsize=15)
+        # ax3.set_title('Computing time [ms]', fontsize=20)
+        ax4.set_xlabel("Time [s]", fontsize=20)
+        ax4.set_ylabel('Computing time [ms]', fontsize=20)
+        handles, labels = ax4.get_legend_handles_labels()
+        ax4.legend(handles=handles[:], labels=labels[:], frameon=False, fontsize=20)
+        ax4.get_legend().remove()
         plt.yticks(fontsize=15)
         plt.xticks(fontsize=15)
+        plt.savefig(save_dir + '/time.pdf')
+        plt.close() if not isshow else plt.show()
 
-        f4 = plt.figure(4)
-        ax4 = f4.add_axes([0.155, 0.12, 0.82, 0.86])
-        sns.lineplot(x="iteration", y="ref_path", hue="algorithms", data=total_df, dashes=True, linewidth=2, palette="bright", )
-        ax4.lines[1].set_linestyle("--")
-        ax4.set_ylabel('Selected path', fontsize=15)
-        ax4.set_xlabel("Time[s]", fontsize=15)
-        ax4.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-        ax4.legend(frameon=False, fontsize=15)
-        # plt.xlim(0, 3)
-        # plt.ylim(-40, 80)
-        plt.yticks(fontsize=15)
+    @staticmethod
+    def toyota_plot():
+        data = [dict(method='Rule-based', number=8, who='Collision'),
+                dict(method='Rule-based', number=13, who='Failure'),
+                dict(method='Rule-based', number=2, who='Compliance'),
+
+                dict(method='Model-based RL', number=3, who='Collision'),
+                dict(method='Model-based RL', number=0, who='Failure'),
+                dict(method='Model-based RL', number=3, who='Compliance'),
+
+                dict(method='Model-free RL', number=31, who='Collision'),
+                dict(method='Model-free RL', number=0, who='Failure'),
+                dict(method='Model-free RL', number=17, who='Compliance')
+                ]
+
+        f = plt.figure(3)
+        ax = f.add_axes([0.155, 0.12, 0.82, 0.86])
+        df = pd.DataFrame(data)
+        sns.barplot(x="method", y="number", hue='who', data=df)
+        ax.set_ylabel('Number', fontsize=15)
+        ax.set_xlabel("", fontsize=15)
         plt.xticks(fontsize=15)
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles=handles[:], labels=labels[:], frameon=False, fontsize=15)
         plt.show()
 
 

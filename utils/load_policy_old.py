@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # =====================================
-# @Time    : 2020/11/30
+# @Time    : 2021/3/3
 # @Author  : Yang Guan (Tsinghua Univ.)
 # @FileName: load_policy.py
 # =====================================
@@ -13,13 +13,14 @@ import tensorflow as tf
 import numpy as np
 
 from endtoend import CrossroadEnd2end
-from utils.policy import Policy4Toyota
+from utils.policy_old import Policy4Toyota
 from utils.preprocessor import Preprocessor
 
 
 class LoadPolicy(object):
     def __init__(self, exp_dir, iter):
-        model_dir = exp_dir + '/models'
+        # model_dir = exp_dir + '/models'
+        model_dir = exp_dir
         parser = argparse.ArgumentParser()
         params = json.loads(open(exp_dir + '/config.json').read())
         for key, val in params.items():
@@ -34,30 +35,17 @@ class LoadPolicy(object):
                                          gamma=self.args.gamma)
         # self.preprocessor.load_params(load_dir)
         init_obs = env.reset()
-        self.run_batch(init_obs[np.newaxis, :])
-        self.obj_value_batch(init_obs[np.newaxis, :])
-
-    # @tf.function
-    # def run(self, obs):
-    #     processed_obs = self.preprocessor.np_process_obses(obs)
-    #     action, _ = self.policy.compute_action(processed_obs[np.newaxis, :])
-    #     return action[0]
-    #
-    # @tf.function
-    # def obj_value(self, obs):
-    #     processed_obs = self.preprocessor.np_process_obses(obs)
-    #     value = self.policy.compute_obj_v(processed_obs[np.newaxis, :])
-    #     return value
+        self.run(init_obs)
+        self.values(init_obs)
 
     @tf.function
-    def run_batch(self, obses):
-        processed_obses = self.preprocessor.np_process_obses(obses)
-        actions, _ = self.policy.compute_action(processed_obses)
-        return actions
+    def run(self, obs):
+        processed_obs = self.preprocessor.np_process_obses(obs)
+        action, logp = self.policy.compute_action(processed_obs[np.newaxis, :])
+        return action[0]
 
     @tf.function
-    def obj_value_batch(self, obses):
-        processed_obses = self.preprocessor.np_process_obses(obses)
-        values = self.policy.compute_obj_v(processed_obses)
-        return values
-
+    def values(self, obs):
+        processed_obs = self.preprocessor.np_process_obses(obs)
+        values = self.policy.compute_vs(processed_obs[np.newaxis, :])
+        return values[0]
