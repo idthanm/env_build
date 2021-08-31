@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2020年12月04日 星期五 09时44分39秒 by Eclipse SUMO netedit Version 1.7.0
+<!-- generated on 06/03/21 23:47:11 by Eclipse SUMO netedit Version 1.7.0
 <configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
 
     <input>
-        <sumo-net-file value="/home/yang/Documents/Work_Data/Project/Toyota_RL/Toyata_2019/201909/env_build/sumo_files/a.net.xml"/>
+        <sumo-net-file value="G:\env_build_own\sumo_files\a.net.xml"/>
     </input>
 
     <output>
-        <output-file value="/home/yang/Documents/Work_Data/Project/Toyota_RL/Toyata_2019/201909/env_build/sumo_files/a.net.xml"/>
+        <output-file value="G:\env_build_own\sumo_files\a.net.xml"/>
     </output>
 
     <processing>
@@ -44,7 +44,7 @@
         <lane id=":0_0_0" index="0" speed="10.54" length="25.20" width="3.75" shape="-9.38,25.00 -10.35,18.16 -13.28,13.28 -18.16,10.35 -25.00,9.38"/>
     </edge>
     <edge id=":0_1" function="internal">
-        <lane id=":0_1_0" index="0" speed="12.00" length="50.00" width="3.75" shape="-5.62,25.00 -5.62,-25.00"/>
+        <lane id=":0_1_0" index="0" speed="12.00" length="50.00" width="3.75" shape="-5.63,25.00 -5.63,-25.00"/>
     </edge>
     <edge id=":0_2" function="internal">
         <lane id=":0_2_0" index="0" speed="12.00" length="43.34" width="3.75" shape="-1.88,25.00 -0.20,13.24 4.84,4.84 13.24,-0.20 25.00,-1.88"/>
@@ -53,7 +53,7 @@
         <lane id=":0_3_0" index="0" speed="10.54" length="25.20" width="3.75" shape="25.00,9.38 18.16,10.35 13.28,13.28 10.35,18.16 9.38,25.00"/>
     </edge>
     <edge id=":0_4" function="internal">
-        <lane id=":0_4_0" index="0" speed="12.00" length="50.00" width="3.75" shape="25.00,5.62 -25.00,5.62"/>
+        <lane id=":0_4_0" index="0" speed="12.00" length="50.00" width="3.75" shape="25.00,5.63 -25.00,5.63"/>
     </edge>
     <edge id=":0_5" function="internal">
         <lane id=":0_5_0" index="0" speed="12.00" length="43.34" width="3.75" shape="25.00,1.88 13.24,0.20 4.84,-4.84 -0.20,-13.24 -1.88,-25.00"/>
@@ -62,7 +62,7 @@
         <lane id=":0_6_0" index="0" speed="10.54" length="25.20" width="3.75" shape="9.38,-25.00 10.35,-18.16 13.28,-13.28 18.16,-10.35 25.00,-9.38"/>
     </edge>
     <edge id=":0_7" function="internal">
-        <lane id=":0_7_0" index="0" speed="12.00" length="50.00" width="3.75" shape="5.62,-25.00 5.62,25.00"/>
+        <lane id=":0_7_0" index="0" speed="12.00" length="50.00" width="3.75" shape="5.63,-25.00 5.63,25.00"/>
     </edge>
     <edge id=":0_8" function="internal">
         <lane id=":0_8_0" index="0" speed="12.00" length="43.34" width="3.75" shape="1.88,-25.00 0.20,-13.24 -4.84,-4.84 -13.24,0.20 -25.00,1.88"/>
@@ -71,7 +71,7 @@
         <lane id=":0_9_0" index="0" speed="10.54" length="25.20" width="3.75" shape="-25.00,-9.38 -18.16,-10.35 -13.28,-13.28 -10.35,-18.16 -9.38,-25.00"/>
     </edge>
     <edge id=":0_10" function="internal">
-        <lane id=":0_10_0" index="0" speed="12.00" length="50.00" width="3.75" shape="-25.00,-5.62 25.00,-5.62"/>
+        <lane id=":0_10_0" index="0" speed="12.00" length="50.00" width="3.75" shape="-25.00,-5.63 25.00,-5.63"/>
     </edge>
     <edge id=":0_11" function="internal">
         <lane id=":0_11_0" index="0" speed="12.00" length="43.34" width="3.75" shape="-25.00,-1.88 -13.24,-0.20 -4.84,4.84 0.20,13.24 1.88,25.00"/>
@@ -91,42 +91,42 @@
 
     <edge id="1i" from="0" to="1" priority="1" length="100.00">
         <lane id="1i_0" index="0" speed="12.00" length="100.00" width="3.75" shape="-9.38,-25.00 -9.38,-100.00"/>
-        <lane id="1i_1" index="1" speed="12.00" length="100.00" width="3.75" shape="-5.62,-25.00 -5.62,-100.00"/>
+        <lane id="1i_1" index="1" speed="12.00" length="100.00" width="3.75" shape="-5.63,-25.00 -5.63,-100.00"/>
         <lane id="1i_2" index="2" speed="12.00" length="100.00" width="3.75" shape="-1.88,-25.00 -1.88,-100.00"/>
     </edge>
     <edge id="1o" from="1" to="0" priority="1" length="100.00">
         <lane id="1o_0" index="0" speed="12.00" length="100.00" width="3.75" shape="9.38,-100.00 9.38,-25.00"/>
-        <lane id="1o_1" index="1" speed="12.00" length="100.00" width="3.75" shape="5.62,-100.00 5.62,-25.00"/>
+        <lane id="1o_1" index="1" speed="12.00" length="100.00" width="3.75" shape="5.63,-100.00 5.63,-25.00"/>
         <lane id="1o_2" index="2" speed="12.00" length="100.00" width="3.75" shape="1.88,-100.00 1.88,-25.00"/>
     </edge>
     <edge id="2i" from="0" to="2" priority="1" length="100.00">
         <lane id="2i_0" index="0" speed="12.00" length="100.00" width="3.75" shape="25.00,-9.38 100.00,-9.38"/>
-        <lane id="2i_1" index="1" speed="12.00" length="100.00" width="3.75" shape="25.00,-5.62 100.00,-5.62"/>
+        <lane id="2i_1" index="1" speed="12.00" length="100.00" width="3.75" shape="25.00,-5.63 100.00,-5.63"/>
         <lane id="2i_2" index="2" speed="12.00" length="100.00" width="3.75" shape="25.00,-1.88 100.00,-1.88"/>
     </edge>
     <edge id="2o" from="2" to="0" priority="1" length="100.00">
         <lane id="2o_0" index="0" speed="12.00" length="100.00" width="3.75" shape="100.00,9.38 25.00,9.38"/>
-        <lane id="2o_1" index="1" speed="12.00" length="100.00" width="3.75" shape="100.00,5.62 25.00,5.62"/>
+        <lane id="2o_1" index="1" speed="12.00" length="100.00" width="3.75" shape="100.00,5.63 25.00,5.63"/>
         <lane id="2o_2" index="2" speed="12.00" length="100.00" width="3.75" shape="100.00,1.88 25.00,1.88"/>
     </edge>
     <edge id="3i" from="0" to="3" priority="1" length="100.00">
         <lane id="3i_0" index="0" speed="12.00" length="100.00" width="3.75" shape="9.38,25.00 9.38,100.00"/>
-        <lane id="3i_1" index="1" speed="12.00" length="100.00" width="3.75" shape="5.62,25.00 5.62,100.00"/>
+        <lane id="3i_1" index="1" speed="12.00" length="100.00" width="3.75" shape="5.63,25.00 5.63,100.00"/>
         <lane id="3i_2" index="2" speed="12.00" length="100.00" width="3.75" shape="1.88,25.00 1.88,100.00"/>
     </edge>
     <edge id="3o" from="3" to="0" priority="1" length="100.00">
         <lane id="3o_0" index="0" speed="12.00" length="100.00" width="3.75" shape="-9.38,100.00 -9.38,25.00"/>
-        <lane id="3o_1" index="1" speed="12.00" length="100.00" width="3.75" shape="-5.62,100.00 -5.62,25.00"/>
+        <lane id="3o_1" index="1" speed="12.00" length="100.00" width="3.75" shape="-5.63,100.00 -5.63,25.00"/>
         <lane id="3o_2" index="2" speed="12.00" length="100.00" width="3.75" shape="-1.88,100.00 -1.88,25.00"/>
     </edge>
     <edge id="4i" from="0" to="4" priority="1" length="100.00">
         <lane id="4i_0" index="0" speed="12.00" length="100.00" width="3.75" shape="-25.00,9.38 -100.00,9.38"/>
-        <lane id="4i_1" index="1" speed="12.00" length="100.00" width="3.75" shape="-25.00,5.62 -100.00,5.62"/>
+        <lane id="4i_1" index="1" speed="12.00" length="100.00" width="3.75" shape="-25.00,5.63 -100.00,5.63"/>
         <lane id="4i_2" index="2" speed="12.00" length="100.00" width="3.75" shape="-25.00,1.88 -100.00,1.88"/>
     </edge>
     <edge id="4o" from="4" to="0" priority="1" length="100.00">
         <lane id="4o_0" index="0" speed="12.00" length="100.00" width="3.75" shape="-100.00,-9.38 -25.00,-9.38"/>
-        <lane id="4o_1" index="1" speed="12.00" length="100.00" width="3.75" shape="-100.00,-5.62 -25.00,-5.62"/>
+        <lane id="4o_1" index="1" speed="12.00" length="100.00" width="3.75" shape="-100.00,-5.63 -25.00,-5.63"/>
         <lane id="4o_2" index="2" speed="12.00" length="100.00" width="3.75" shape="-100.00,-1.88 -25.00,-1.88"/>
     </edge>
     <edge id="a1toa2" from="a1" to="a2" priority="-1">

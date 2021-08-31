@@ -10,18 +10,18 @@
 import warnings
 from collections import OrderedDict
 from math import cos, sin, pi
+from random import choice
 
 import gym
 import matplotlib.pyplot as plt
 import numpy as np
-import tensorflow as tf
-from tensorflow import logical_and
 from gym.utils import seeding
 
 # gym.envs.user_defined.toyota_env.
 from dynamics_and_models import VehicleDynamics, ReferencePath, EnvironmentModel
 from endtoend_env_utils import shift_coordination, rotate_coordination, rotate_and_shift_coordination, deal_with_phi, \
-    L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, VEH_NUM, EXPECTED_V
+    L, W, CROSSROAD_SIZE, LANE_WIDTH, LANE_NUMBER, judge_feasible, MODE2TASK, VEHICLE_MODE_DICT, VEH_NUM, EXPECTED_V, \
+    TASK_DICT
 from traffic import Traffic
 
 warnings.filterwarnings("ignore")
@@ -43,25 +43,20 @@ def convert_observation_to_space(observation):
     return space
 
 
-class CrossroadEnd2end(gym.Env):
+class CrossroadEnd2endPiIntegrate(gym.Env):
     def __init__(self,
-                 training_task,  # 'left', 'straight', 'right'
                  num_future_data=0,
-                 display=False,
+                 mode='training',
+                 multi_display=False,
                  **kwargs):
-        metadata = {'render.modes': ['human']}
         self.dynamics = VehicleDynamics()
         self.interested_vehs = None
-        self.training_task = training_task
-        self.ref_path = ReferencePath(self.training_task, **kwargs)
         self.detected_vehicles = None
         self.all_vehicles = None
         self.ego_dynamics = None
         self.num_future_data = num_future_data
-        self.env_model = EnvironmentModel(training_task, num_future_data)
         self.init_state = {}
         self.action_number = 2
-        self.exp_v = EXPECTED_V #TODO: temp
         self.ego_l, self.ego_w = L, W
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(self.action_number,), dtype=np.float32)
 
@@ -70,23 +65,23 @@ class CrossroadEnd2end(gym.Env):
         self.step_length = 100  # ms
 
         self.step_time = self.step_length / 1000.0
-        self.init_state = self._reset_init_state()
+        self.init_state = None
         self.obs = None
         self.action = None
-        self.veh_mode_dict = VEHICLE_MODE_DICT[self.training_task]
-        self.veh_num = VEH_NUM[self.training_task]
-        self.virtual_red_light_vehicle = False
 
         self.done_type = 'not_done_yet'
         self.reward_info = None
-        self.ego_info_dim = None
-        self.per_tracking_info_dim = None
-        self.per_veh_info_dim = None
-        if not display:
+        self.ego_info_dim = 6
+        self.track_info_dim = 3
+        self.per_veh_info_dim = 4
+        self.task_info_dim = 1
+        self.per_path_info_dim = 4
+        self.light_dim = 1
+        self.mode = mode
+        if not multi_display:
             self.traffic = Traffic(self.step_length,
-                                   mode='training',
-                                   init_n_ego_dict=self.init_state,
-                                   training_task=self.training_task)
+                                   mode=self.mode,
+                                   init_n_ego_dict=self.init_state)
             self.reset()
             action = self.action_space.sample()
             observation, _reward, done, _info = self.step(action)
@@ -98,9 +93,17 @@ class CrossroadEnd2end(gym.Env):
         return [seed]
 
     def reset(self, **kwargs):  # kwargs include three keys
-        self.ref_path = ReferencePath(self.training_task, **kwargs)
+        self.traffic.init_light()
+        self.v_light = self.traffic.v_light
+        self.training_task = 'left'                        # self.training_task = choice(['left', 'straight', 'right'])
+        self.task_idx = TASK_DICT[self.training_task]
+        light_vector = self.v_light if self.v_light == 0 else 1
+        self.ref_path = ReferencePath(self.training_task, light_vector, **kwargs)
+        self.env_model = EnvironmentModel(self.training_task, self.num_future_data)
+        self.veh_mode_dict = VEHICLE_MODE_DICT[self.training_task]
+        self.veh_num = VEH_NUM[self.training_task]
         self.init_state = self._reset_init_state()
-        self.traffic.init_traffic(self.init_state)
+        self.traffic.init_traffic(self.init_state, self.training_task)
         self.traffic.sim_step()
         ego_dynamics = self._get_ego_dynamics([self.init_state['ego']['v_x'],
                                                self.init_state['ego']['v_y'],
@@ -118,10 +121,6 @@ class CrossroadEnd2end(gym.Env):
         self.action = None
         self.reward_info = None
         self.done_type = 'not_done_yet'
-        if np.random.random() > 0.9:
-            self.virtual_red_light_vehicle = True
-        else:
-            self.virtual_red_light_vehicle = False
         return self.obs
 
     def close(self):
@@ -138,7 +137,8 @@ class CrossroadEnd2end(gym.Env):
         self.obs = self._get_obs()
         self.done_type, done = self._judge_done()
         self.reward_info.update({'final_rew': reward})
-        all_info.update({'reward_info': self.reward_info, 'ref_index': self.ref_path.ref_index})
+        all_info.update({'reward_info': self.reward_info, 'ref_index': self.ref_path.ref_index, 
+                         'veh_num': self.veh_num, 'task': self.training_task})
         return self.obs, reward, done, all_info
 
     def _set_observation_space(self, observation):
@@ -219,7 +219,7 @@ class CrossroadEnd2end(gym.Env):
             return 'not_done_yet', 0
 
     def _deviate_too_much(self):
-        delta_y, delta_phi, delta_v = self.obs[self.ego_info_dim:self.ego_info_dim+3]
+        delta_y, delta_phi, delta_v = self.obs[self.ego_info_dim:self.ego_info_dim+self.track_info_dim]
         return True if abs(delta_y) > 15 else False
 
     def _break_road_constrain(self):
@@ -258,6 +258,9 @@ class CrossroadEnd2end(gym.Env):
         steer_norm, a_x_norm = action[0], action[1]
         scaled_steer = 0.4 * steer_norm
         scaled_a_x = 2.25*a_x_norm - 0.75  # [-3, 1.5]
+        # if self.v_light != 0 and self.ego_dynamics['y'] < -25 and self.training_task != 'right':
+        #     scaled_steer = 0.
+        #     scaled_a_x = -3.
         scaled_action = np.array([scaled_steer, scaled_a_x], dtype=np.float32)
         return scaled_action
 
@@ -290,9 +293,10 @@ class CrossroadEnd2end(gym.Env):
                                                              np.array([ego_phi], dtype=np.float32),
                                                              np.array([ego_v_x], dtype=np.float32),
                                                              self.num_future_data).numpy()[0]
-        self.per_tracking_info_dim = 3
-
-        vector = np.concatenate((ego_vector, tracking_error, vehs_vector), axis=0)
+        light_vector = np.array([self.v_light if self.v_light == 0 else 1], dtype=np.float32)
+        task_vector = np.array([self.task_idx], dtype=np.float32)
+        vector = np.concatenate((ego_vector, tracking_error, light_vector, task_vector, vehs_vector), axis=0)
+        vector = vector.astype(np.float32)
         # vector = self.convert_vehs_to_rela(vector)
 
         return vector
@@ -329,7 +333,6 @@ class CrossroadEnd2end(gym.Env):
         ego_y = self.ego_dynamics['y']
         ego_phi = self.ego_dynamics['phi']
         ego_feature = [ego_v_x, ego_v_y, ego_r, ego_x, ego_y, ego_phi]
-        self.ego_info_dim = 6
         return np.array(ego_feature, dtype=np.float32)
 
     def _construct_veh_vector_short(self, exit_='D'):
@@ -378,11 +381,6 @@ class CrossroadEnd2end(gym.Env):
                     lr.append(v)
                 elif start == name_setting['lo'] and end == name_setting['di']:
                     ld.append(v)
-            if self.training_task != 'right':
-                if (v_light != 0 and ego_y < -CROSSROAD_SIZE/2) \
-                        or (self.virtual_red_light_vehicle and ego_y < -CROSSROAD_SIZE/2):
-                    dl.append(dict(x=LANE_WIDTH/2, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None))
-                    du.append(dict(x=LANE_WIDTH*1.5, y=-CROSSROAD_SIZE/2+2.5, v=0., phi=90, l=5, w=2.5, route=None))
 
             # fetch veh in range
             dl = list(filter(lambda v: v['x'] > -CROSSROAD_SIZE/2-10 and v['y'] > ego_y-2, dl))  # interest of left straight
@@ -472,9 +470,8 @@ class CrossroadEnd2end(gym.Env):
         else:
             random_index = int(np.random.random()*(420+500)) + 700
 
-        x, y, phi = self.ref_path.indexs2points(random_index)
-        # v = 7 + 6 * np.random.random()
-        v = EXPECTED_V * np.random.random()
+        x, y, phi, exp_v = self.ref_path.indexs2points(random_index)
+        v = exp_v * np.random.random()
         if self.training_task == 'left':
             routeID = 'dl'
         elif self.training_task == 'straight':
@@ -495,8 +492,11 @@ class CrossroadEnd2end(gym.Env):
 
     def compute_reward(self, obs, action):
         obses, actions = obs[np.newaxis, :], action[np.newaxis, :]
-        reward, _, _, _, _, reward_dict = \
-            self.env_model.compute_rewards(obses, actions)
+        obses_ego = obses[:, :self.ego_info_dim + self.track_info_dim + self.per_path_info_dim * self.num_future_data
+                              + self.light_dim + self.task_info_dim]
+        obses_other = obses[:, self.ego_info_dim + self.track_info_dim + self.per_path_info_dim * self.num_future_data
+                              + self.light_dim + self.task_info_dim:]
+        reward, _, _, _, _, _, reward_dict = self.env_model.compute_rewards(obses_ego, actions, obses_other)
         for k, v in reward_dict.items():
             reward_dict[k] = v.numpy()[0]
         return reward.numpy()[0], reward_dict
@@ -696,11 +696,11 @@ class CrossroadEnd2end(gym.Env):
             draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'red')
 
             # plot future data
-            tracking_info = self.obs[self.ego_info_dim:self.ego_info_dim + self.per_tracking_info_dim * (self.num_future_data+1)]
-            future_path = tracking_info[self.per_tracking_info_dim:]
+            tracking_info = self.obs[self.ego_info_dim:self.ego_info_dim + self.track_info_dim]
+            future_path = self.obs[self.ego_info_dim + self.track_info_dim: self.ego_info_dim + self.track_info_dim +
+                                                                            self.per_path_info_dim * self.num_future_data]
             for i in range(self.num_future_data):
-                delta_x, delta_y, delta_phi = future_path[i*self.per_tracking_info_dim:
-                                                          (i+1)*self.per_tracking_info_dim]
+                delta_x, delta_y, delta_phi, exp_v = future_path[i*self.per_path_info_dim: (i+1)*self.per_path_info_dim]
                 path_x, path_y, path_phi = ego_x+delta_x, ego_y+delta_y, ego_phi-delta_phi
                 plt.plot(path_x, path_y, 'g.')
                 plot_phi_line(path_x, path_y, path_phi, 'g')
@@ -708,7 +708,7 @@ class CrossroadEnd2end(gym.Env):
             delta_, _, _ = tracking_info[:3]
             ax.plot(self.ref_path.path[0], self.ref_path.path[1], color='g')
             indexs, points = self.ref_path.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y],np.float32))
-            path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+            path_x, path_y, path_phi, path_v= points[0][0], points[1][0], points[2][0], points[3][0]
             plt.plot(path_x, path_y, 'g.')
             delta_x, delta_y, delta_phi = ego_x - path_x, ego_y - path_y, ego_phi - path_phi
 
@@ -745,7 +745,7 @@ class CrossroadEnd2end(gym.Env):
             plt.text(text_x, text_y_start - next(ge), r'delta_phi: ${:.2f}\degree$'.format(delta_phi))
 
             plt.text(text_x, text_y_start - next(ge), 'v_x: {:.2f}m/s'.format(ego_v_x))
-            plt.text(text_x, text_y_start - next(ge), 'exp_v: {:.2f}m/s'.format(self.exp_v))
+            plt.text(text_x, text_y_start - next(ge), 'exp_v: {:.2f}m/s'.format(path_v))
             plt.text(text_x, text_y_start - next(ge), 'v_y: {:.2f}m/s'.format(ego_v_y))
             plt.text(text_x, text_y_start - next(ge), 'yaw_rate: {:.2f}rad/s'.format(ego_r))
             plt.text(text_x, text_y_start - next(ge), 'yaw_rate bound: [{:.2f}, {:.2f}]'.format(-r_bound, r_bound))
@@ -791,13 +791,13 @@ class CrossroadEnd2end(gym.Env):
 
 
 def test_end2end():
-    env = CrossroadEnd2end(training_task='straight', num_future_data=0)
+    import random
+    env = CrossroadEnd2endPiIntegrate(num_future_data=10)
+    env_model = EnvironmentModel(training_task='straight', num_future_data=10)
     obs = env.reset()
     i = 0
-    done = 0
     while i < 100000:
-        for j in range(80):
-            # print(i)
+        for j in range(40):
             i += 1
             # action=2*np.random.random(2)-1
             if obs[4]<-18:
@@ -805,8 +805,27 @@ def test_end2end():
             else:
                 action = np.array([0.5, 0.33], dtype=np.float32)
             obs, reward, done, info = env.step(action)
+            obses, actions = obs[np.newaxis, :], action[np.newaxis, :]
+            obses_ego = obses[:, :env.ego_info_dim + env.track_info_dim + env.per_path_info_dim * env.num_future_data +
+                                  env.light_dim + env.task_info_dim]
+            obses_other = np.reshape(obses[:, env.ego_info_dim + env.track_info_dim + env.per_path_info_dim * env.num_future_data +
+                                  env.light_dim + env.task_info_dim:], [-1, env.per_veh_info_dim])
+            obses_ego = np.tile(obses_ego, (2, 1))
+            obses_ego[:, -2] = random.randint(0, 2), random.randint(0, 2)
+            obses_ego[:, -1] = random.randint(0, 2), random.randint(0, 2)
+
+            env_model.reset(obses_ego, np.tile(obses_other, (2,1)), [env.veh_num] * 2, env.training_task,
+                            [env.ref_path.ref_index, random.randint(0, 2)])
+            env_model.mode = 'training'
+            for _ in range(5):
+                obses_ego, obses_other, rewards, punish_term_for_training, \
+                    real_punish_term, veh2veh4real, veh2road4real, veh2line4real = env_model.rollout_out(np.tile(actions, (2, 1)))
+            print(len(obs))
+            print(env.training_task, obs[env.ego_info_dim + env.track_info_dim + env.per_path_info_dim * env.num_future_data], env.v_light)
+            print('task:', obs[env.ego_info_dim + env.track_info_dim + env.per_path_info_dim * env.num_future_data + env.light_dim])
             env.render()
-        done = 0
+            # if done:
+            #     break
         obs = env.reset()
         env.render()
 

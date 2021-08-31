@@ -34,7 +34,7 @@ SIM_PERIOD = 1.0 / 10
 
 class Traffic(object):
 
-    def __init__(self, step_length, mode, init_n_ego_dict, training_task='left'):  # mode 'display' or 'training'
+    def __init__(self, step_length, mode, init_n_ego_dict):  # mode 'display' or 'training'
         self.random_traffic = None
         self.sim_time = 0
         self.n_ego_vehicles = defaultdict(list)
@@ -51,12 +51,6 @@ class Traffic(object):
         #      RU1=dict(x=5.625, y=-30, v=3, a=90, l=4.8, w=2.2))
 
         self.mode = mode
-        self.training_light_phase = 0
-        self.training_task = training_task
-        self.ego_route = TASK2ROUTEID[self.training_task]
-        if training_task == 'right':
-            if random.random() > 0.5:
-                self.training_light_phase = 2
 
         try:
             traci.start(
@@ -114,7 +108,7 @@ class Traffic(object):
     def __del__(self):
         traci.close()
 
-    def add_self_car(self, n_ego_dict):
+    def add_self_car(self, n_ego_dict, with_delete=True):
         for egoID, ego_dict in n_ego_dict.items():
             ego_v_x = ego_dict['v_x']
             ego_v_y = ego_dict['v_y']
@@ -124,14 +118,15 @@ class Traffic(object):
             ego_phi = ego_dict['phi']
             ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo = _convert_car_coord_to_sumo_coord(ego_x, ego_y, ego_phi, ego_l)
             edgeID, lane = xy2_edgeID_lane(ego_x, ego_y)
-            try:
-                traci.vehicle.remove(egoID)
-            except traci.exceptions.TraCIException:
-                print('Don\'t worry, it\'s been handled well')
-            traci.simulationStep()
-            traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
-                                    # depart=0, pos=20, lane=lane, speed=ego_dict['v_x'],
-                                    typeID='self_car')
+            if with_delete:
+                try:
+                    traci.vehicle.remove(egoID)
+                except traci.exceptions.TraCIException:
+                    print('Don\'t worry, it\'s been handled well')
+                traci.simulationStep()
+                traci.vehicle.addLegacy(vehID=egoID, routeID=ego_dict['routeID'],
+                                        # depart=0, pos=20, lane=lane, speed=ego_dict['v_x'],
+                                        typeID='self_car')
             traci.vehicle.moveToXY(egoID, edgeID, lane, ego_x_in_sumo, ego_y_in_sumo, ego_a_in_sumo, keepRoute=1)
             traci.vehicle.setLength(egoID, ego_dict['l'])
             traci.vehicle.setWidth(egoID, ego_dict['w'])
@@ -147,22 +142,32 @@ class Traffic(object):
 
         return random_traffic
 
-    def init_traffic(self, init_n_ego_dict):
+    def init_light(self):
+        if random.random() > 0.7:
+            self.training_light_phase = 3
+        else:
+            self.training_light_phase = 0
+        # if self.training_task == 'right':   # todo
+        #     if random.random() > 0.5:
+        #         self.training_light_phase = 2
+        traci.trafficlight.setPhase('0', self.training_light_phase)
+        # traci.trafficlight.setPhaseDuration('0', 10000)
+        traci.simulationStep()
+        self._get_traffic_light()
+
+    def init_traffic(self, init_n_ego_dict, training_task):
+        self.training_task = training_task
+        self.ego_route = TASK2ROUTEID[self.training_task]
         self.sim_time = 0
         self.n_ego_vehicles = defaultdict(list)
         self.collision_flag = False
         self.n_ego_collision_flag = {}
         self.collision_ego_id = None
-        self.v_light = None
-        self.training_light_phase = 0
-        if self.training_task == 'right':
-            if random.random() > 0.5:
-                self.training_light_phase = 2
         self.n_ego_dict = init_n_ego_dict
-        traci.trafficlight.setPhase('0', self.training_light_phase)
-        random_traffic = self.generate_random_traffic()
-
         self.add_self_car(init_n_ego_dict)
+        traci.simulationStep()
+        random_traffic = self.generate_random_traffic()
+        self.add_self_car(init_n_ego_dict, with_delete=False)
 
         # move ego to the given position and remove conflict cars
         for egoID, ego_dict in self.n_ego_dict.items():
@@ -219,6 +224,13 @@ class Traffic(object):
         self.sim_time += SIM_PERIOD
         if self.mode == 'training':
             traci.trafficlight.setPhase('0', self.training_light_phase)
+        # else:
+        #     if self.sim_time < 5.:
+        #         traci.trafficlight.setPhase('0', 2)
+        #     elif self.sim_time < 5.+3.:
+        #         traci.trafficlight.setPhase('0', 1)
+        #     else:
+        #         traci.trafficlight.setPhase('0', 0)
         traci.simulationStep()
         self._get_vehicles()
         self._get_traffic_light()
@@ -291,7 +303,7 @@ def test_traffic():
     from dynamics_and_models import ReferencePath
 
     def _reset_init_state():
-        ref_path = ReferencePath('straight')
+        ref_path = ReferencePath('straight','0')
         random_index = int(np.random.random()*(900+500)) + 700
         x, y, phi = ref_path.indexs2points(random_index)
         v = 8 * np.random.random()
