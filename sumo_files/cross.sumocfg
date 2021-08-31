@@ -1,11 +1,13 @@
-<?xml version="1.0" encoding="UTF-8"?>
-
-<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+<configuration>
 
     <input>
         <net-file value="a.net.xml"/>
-        <route-files value="cross.rou.xml"/>
+        <route-files value="cross.rou.xml, a_del_person.rou.xml"/>
         <additional-files value="cross.add.xml"/>
     </input>
+    <time>
+        <step-length value="0.1" />
+    </time>
+        <lanechange.duration value="3"/>
 
 </configuration>

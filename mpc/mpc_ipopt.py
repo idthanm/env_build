@@ -9,13 +9,14 @@
 # =====================================
 
 import math
+import datetime
 import matplotlib.pyplot as plt
 from casadi import *
 
 from endtoend import CrossroadEnd2end
 from dynamics_and_models import ReferencePath, EnvironmentModel
 from hierarchical_decision.multi_path_generator import StaticTrajectoryGenerator_origin
-from endtoend_env_utils import CROSSROAD_SIZE, L, W, VEHICLE_MODE_LIST, LANE_WIDTH, LANE_NUMBER, rotate_coordination
+from endtoend_env_utils import CROSSROAD_SIZE, L, W, L_BIKE, W_BIKE, BIKE_MODE_LIST, PERSON_MODE_LIST, VEHICLE_MODE_LIST, BIKE_LANE_WIDTH, LANE_WIDTH, LANE_NUMBER, rotate_coordination, MODE2TASK
 from mpc.main import TimerStat
 from utils.load_policy import LoadPolicy
 from utils.recorder import Recorder
@@ -77,14 +78,21 @@ class VehicleDynamics(object):
 
 
 class Dynamics(object):
-    def __init__(self, x_init, num_future_data, ref_index, task, exp_v, tau, veh_mode_list, per_veh_info_dim=4):
+    def __init__(self, x_init, num_future_data, ref_index, task, exp_v, tau, bike_mode_list, person_mode_list,
+                 veh_mode_list, per_bike_info_dim=4, per_person_info_dim=4, per_veh_info_dim=4):
         self.task = task
         self.exp_v = exp_v
         self.tau = tau
+        self.per_bike_info_dim = per_bike_info_dim
+        self.per_person_info_dim = per_person_info_dim
         self.per_veh_info_dim = per_veh_info_dim
         self.vd = VehicleDynamics()
+        self.bike_mode_list = bike_mode_list
+        self.person_mode_list = person_mode_list
         self.veh_mode_list = veh_mode_list
-        self.vehs = x_init[6+3*(1+num_future_data):]
+        self.bikes = x_init[6+3*(1+num_future_data):6+3*(1+num_future_data)+len(self.bike_mode_list)*self.per_bike_info_dim]
+        self.persons = x_init[6+3*(1+num_future_data)+len(self.bike_mode_list)*self.per_bike_info_dim:6+3*(1+num_future_data)+len(self.bike_mode_list)*self.per_bike_info_dim+len(self.person_mode_list)*self.per_person_info_dim]
+        self.vehs = x_init[6+3*(1+num_future_data)+len(self.bike_mode_list)*self.per_bike_info_dim+len(self.person_mode_list)*self.per_person_info_dim:]
         self.x_init = x_init
         path = ReferencePath(task)
         self.ref_index = ref_index
@@ -152,16 +160,68 @@ class Dynamics(object):
                     if_else(y < -CROSSROAD_SIZE / 2, out1[1], if_else(x > CROSSROAD_SIZE / 2, out2[1], out3[1])),
                     if_else(y < -CROSSROAD_SIZE / 2, out1[2], if_else(x > CROSSROAD_SIZE / 2, out2[2], out3[2]))]
 
+    def bikes_pred(self):
+            predictions = []
+            for bikes_index in range(len(self.bike_mode_list)):
+                predictions += \
+                    self.predict_for_bike_mode(
+                        self.bikes[bikes_index * self.per_bike_info_dim:(bikes_index + 1) * self.per_bike_info_dim],
+                        self.bike_mode_list[bikes_index])
+            self.bikes = predictions
+
+    def persons_pred(self):
+        predictions = []
+        for persons_index in range(len(self.person_mode_list)):
+            predictions += \
+                self.predict_for_person_mode(
+                    self.persons[persons_index * self.per_person_info_dim:(persons_index + 1) * self.per_person_info_dim],
+                    self.person_mode_list[persons_index])
+        self.persons = predictions
+
     def vehs_pred(self):
         predictions = []
         for vehs_index in range(len(self.veh_mode_list)):
             predictions += \
-                self.predict_for_a_mode(
+                self.predict_for_veh_mode(
                     self.vehs[vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim],
                     self.veh_mode_list[vehs_index])
         self.vehs = predictions
 
-    def predict_for_a_mode(self, vehs, mode):
+    def predict_for_bike_mode(self, bikes, mode):
+        bike_x, bike_y, bike_v, bike_phi = bikes[0], bikes[1], bikes[2], bikes[3]
+        bike_phis_rad = bike_phi * np.pi / 180.
+        bike_x_delta = bike_v * self.tau * math.cos(bike_phis_rad)
+        bike_y_delta = bike_v * self.tau * math.sin(bike_phis_rad)
+
+        if mode in ['dl_b', 'rd_b', 'ur_b', 'lu_b']:
+            bike_phi_rad_delta = (bike_v / (CROSSROAD_SIZE/2+3*LANE_WIDTH + BIKE_LANE_WIDTH / 2)) * self.tau if -CROSSROAD_SIZE/2 < bike_x < CROSSROAD_SIZE/2 \
+                                                             and -CROSSROAD_SIZE/2 < bike_y < CROSSROAD_SIZE/2 else 0
+        elif mode in ['dr_b', 'ru_b', 'ul_b', 'ld_b']:
+            bike_phi_rad_delta = -(bike_v / (CROSSROAD_SIZE/2-3.0*LANE_WIDTH - BIKE_LANE_WIDTH / 2)) * self.tau if -CROSSROAD_SIZE/2 < bike_x < CROSSROAD_SIZE/2 \
+                                                                and -CROSSROAD_SIZE/2 < bike_y < CROSSROAD_SIZE/2 else 0
+        else:
+            bike_phi_rad_delta = 0
+        next_bike_x, next_bike_y, next_bike_v, next_bike_phi_rad = \
+            bike_x + bike_x_delta, bike_y + bike_y_delta, bike_v, bike_phis_rad + bike_phi_rad_delta
+        next_bike_phi = next_bike_phi_rad * 180 / np.pi
+        next_bike_phi = deal_with_phi(next_bike_phi)
+
+        return [next_bike_x, next_bike_y, next_bike_v, next_bike_phi]
+
+    def predict_for_person_mode(self, persons, mode):
+        person_x, person_y, person_v, person_phi = persons[0], persons[1], persons[2], persons[3]
+        person_phis_rad = person_phi * np.pi / 180.
+        person_x_delta = person_v * self.tau * math.cos(person_phis_rad)
+        person_y_delta = person_v * self.tau * math.sin(person_phis_rad)
+
+        next_person_x, next_person_y, next_person_v, next_person_phi_rad = \
+            person_x + person_x_delta, person_y + person_y_delta, person_v, person_phis_rad
+        next_person_phi = next_person_phi_rad * 180 / np.pi
+        next_person_phi = deal_with_phi(next_person_phi)
+
+        return [next_person_x, next_person_y, next_person_v, next_person_phi]
+
+    def predict_for_veh_mode(self, vehs, mode):
         veh_x, veh_y, veh_v, veh_phi = vehs[0], vehs[1], vehs[2], vehs[3]
         veh_phis_rad = veh_phi * np.pi / 180.
         veh_x_delta = veh_v * self.tau * math.cos(veh_phis_rad)
@@ -195,6 +255,28 @@ class Dynamics(object):
                            ego_y + ego_lws * sin(ego_phi * np.pi / 180.)
         ego_rear_points = ego_x - ego_lws * cos(ego_phi * np.pi / 180.), \
                           ego_y - ego_lws * sin(ego_phi * np.pi / 180.)
+
+        for bikes_index in range(len(self.bike_mode_list)):
+            bike = self.bikes[bikes_index * self.per_bike_info_dim:(bikes_index + 1) * self.per_bike_info_dim]
+            bike_x, bike_y, bike_phi = bike[0], bike[1], bike[3]
+            bike_lws = (L_BIKE - W_BIKE) / 2.
+            bike_front_points = bike_x + bike_lws * math.cos(bike_phi * np.pi / 180.), \
+                               bike_y + bike_lws * math.sin(bike_phi * np.pi / 180.)
+            bike_rear_points = bike_x - bike_lws * math.cos(bike_phi * np.pi / 180.), \
+                              bike_y - bike_lws * math.sin(bike_phi * np.pi / 180.)
+            for ego_point in [ego_front_points, ego_rear_points]:
+                for bike_point in [bike_front_points, bike_rear_points]:
+                    veh2bike_dist = sqrt(power(ego_point[0] - bike_point[0], 2) + power(ego_point[1] - bike_point[1], 2)) - 3.5
+                    g_list.append(veh2bike_dist)
+
+        for persons_index in range(len(self.person_mode_list)):
+            person = self.persons[persons_index * self.per_person_info_dim:(persons_index + 1) * self.per_person_info_dim]
+            person_x, person_y, person_phi = person[0], person[1], person[3]
+            person_point = person_x, person_y
+            for ego_point in [ego_front_points, ego_rear_points]:
+                veh2person_dist = sqrt(power(ego_point[0] - person_point[0], 2) + power(ego_point[1] - person_point[1], 2)) - 2.5
+                g_list.append(veh2person_dist)
+
         for vehs_index in range(len(self.veh_mode_list)):
             veh = self.vehs[vehs_index * self.per_veh_info_dim:(vehs_index + 1) * self.per_veh_info_dim]
             veh_x, veh_y, veh_phi = veh[0], veh[1], veh[3]
@@ -227,6 +309,8 @@ class ModelPredictiveControl(object):
         self.exp_v = EXP_V
         self.task = task
         self.ref_index = ref_index
+        self.bike_mode_list = BIKE_MODE_LIST[self.task]
+        self.person_mode_list = PERSON_MODE_LIST[self.task]
         self.veh_mode_list = VEHICLE_MODE_LIST[self.task]
         self.DYNAMICS_DIM = 9               # ego_info + track_error_dim
         self.ACTION_DIM = 2
@@ -236,8 +320,8 @@ class ModelPredictiveControl(object):
                          'print_time': 0}
 
     def mpc_solver(self, x_init, XO):
-        self.dynamics = Dynamics(x_init, self.num_future_data, self.ref_index, self.task,
-                                 self.exp_v, 1 / self.base_frequency, self.veh_mode_list)
+        self.dynamics = Dynamics(x_init, self.num_future_data, self.ref_index, self.task, self.exp_v,
+                                 1 / self.base_frequency, self.bike_mode_list, self.person_mode_list, self.veh_mode_list)
 
         x = SX.sym('x', self.DYNAMICS_DIM)
         u = SX.sym('u', self.ACTION_DIM)
@@ -267,11 +351,13 @@ class ModelPredictiveControl(object):
             Uname = 'U' + str(k - 1)
             Uk = MX.sym(Uname, self.ACTION_DIM)
             w += [Uk]
-            lbw += [-0.4, -4.]                    # todo: action constraints
-            ubw += [0.4, 2.]
+            lbw += [-0.4, -3.]                    # todo: action constraints
+            ubw += [0.4, 1.5]
 
             Fk = F(Xk, Uk)
             Gk = G_f(Xk)
+            self.dynamics.bikes_pred()
+            self.dynamics.persons_pred()
             self.dynamics.vehs_pred()
             Xname = 'X' + str(k)
             Xk = MX.sym(Xname, self.DYNAMICS_DIM)
@@ -280,7 +366,13 @@ class ModelPredictiveControl(object):
             G += [Fk - Xk]                                         # ego vehicle dynamic constraints
             lbg += [0.0] * self.DYNAMICS_DIM
             ubg += [0.0] * self.DYNAMICS_DIM
-            G += [Gk]                                              # surrounding vehicle constraints
+            G += [Gk]                                              # surrounding bike constraints
+            lbg += [0.0] * (len(self.bike_mode_list) * 4)
+            ubg += [inf] * (len(self.bike_mode_list) * 4)
+            #                                                      # surrounding person constraints
+            lbg += [0.0] * (len(self.person_mode_list) * 2)
+            ubg += [inf] * (len(self.person_mode_list) * 2)
+            #                                                      # surrounding vehicle constraints
             lbg += [0.0] * (len(self.veh_mode_list) * 4)
             ubg += [inf] * (len(self.veh_mode_list) * 4)
             w += [Xk]
@@ -288,11 +380,11 @@ class ModelPredictiveControl(object):
             ubw += [8.] + [inf] * (self.DYNAMICS_DIM - 1)
 
             # Cost function
-            F_cost = Function('F_cost', [x, u], [0.05 * power(x[8], 2)
+            F_cost = Function('F_cost', [x, u], [0.11 * power(x[8], 2)
                                                  + 0.8 * power(x[6], 2)
                                                  + 30 * power(x[7] * np.pi / 180., 2)
                                                  + 0.02 * power(x[2], 2)
-                                                 + 5 * power(u[0], 2)
+                                                 + 4 * power(u[0], 2)
                                                  + 0.05 * power(u[1], 2)
                                                  ])
             J += F_cost(w[k * 2], w[k * 2 - 1])
@@ -318,32 +410,41 @@ class ModelPredictiveControl(object):
 
 
 class HierarchicalMpc(object):
-    def __init__(self, task):
+    def __init__(self, task, logdir):
         self.task = task
-        if self.task == 'left':
-            self.policy = LoadPolicy('G:\\env_build\\utils\\models\\left', 100000)
-        elif self.task == 'right':
-            self.policy = LoadPolicy('G:\\env_build\\utils\\models\\right', 145000)
-        elif self.task == 'straight':
-            self.policy = LoadPolicy('G:\\env_build\\utils\\models\\straight', 95000)
+        # if self.task == 'left':
+        #     self.policy = LoadPolicy('../utils/models/left/experiment-2021-03-15-16-39-00', 180000)
+        # elif self.task == 'right':
+        #     self.policy = LoadPolicy('G:\\env_build\\utils\\models\\right', 145000)
+        # elif self.task == 'straight':
+        #     self.policy = LoadPolicy('G:\\env_build\\utils\\models\\straight', 95000)
 
+        self.logdir = logdir
+        self.episode_counter = 0
         self.horizon = 25
         self.num_future_data = 0
         self.env = CrossroadEnd2end(training_task=self.task, num_future_data=self.num_future_data)
         self.model = EnvironmentModel(self.task)
         self.obs = self.env.reset()
         self.stg = StaticTrajectoryGenerator_origin(mode='static_traj')
-        self.data2plot = []
         self.mpc_cal_timer = TimerStat()
         self.adp_cal_timer = TimerStat()
         self.recorder = Recorder()
+        self.hist_posi = []
 
     def reset(self):
         self.obs = self.env.reset()
         self.stg = StaticTrajectoryGenerator_origin(mode='static_traj')
         self.recorder.reset()
-        self.recorder.save('.')
-        self.data2plot = []
+        self.hist_posi = []
+
+        if self.logdir is not None:
+            os.makedirs(self.logdir + '/episode{}/figs'.format(self.episode_counter))
+            self.recorder.save(self.logdir)
+            self.episode_counter += 1
+            # if self.episode_counter >= 1:
+            #     self.recorder.plot_mpc_rl(self.episode_counter-1,
+            #                               self.logdir + '/episode{}/figs'.format(self.episode_counter-1), isshow=False)
         return self.obs
 
     def convert_vehs_to_abso(self, obs_rela):
@@ -363,11 +464,15 @@ class HierarchicalMpc(object):
         state_total = []
 
         with self.mpc_cal_timer:
+            i = 0
+            # weight = [0.8, 0.9, 1.0]
+            weight = [1.0, 1.0, 1.0]
             for ref_index, trajectory in enumerate(traj_list):
                 mpc = ModelPredictiveControl(self.horizon, self.task, self.num_future_data, ref_index)
                 state_all = np.array((list(self.obs[:6 + 3 * (1 + self.num_future_data)]) + [0, 0]) * self.horizon +
                                       list(self.obs[:6 + 3 * (1 + self.num_future_data)])).reshape((-1, 1))
-                state, control, state_all, g_all, cost = mpc.mpc_solver(list(self.convert_vehs_to_abso(self.obs)), state_all)
+                # state, control, state_all, g_all, cost = mpc.mpc_solver(list(self.convert_vehs_to_abso(self.obs)), state_all)
+                state, control, state_all, g_all, cost = mpc.mpc_solver(list(self.obs), state_all)
                 state_total.append(state)
                 if any(g_all < -1):
                     print('optimization fail')
@@ -379,48 +484,23 @@ class HierarchicalMpc(object):
                         (-1, 1))
                     mpc_action = control[0]
 
-                MPC_traj_return_value.append(-cost.squeeze().tolist())
+                MPC_traj_return_value.append(weight[i] * cost.squeeze().tolist())
+                i += 1
                 action_total.append(mpc_action)
 
             MPC_traj_return_value = np.array(MPC_traj_return_value, dtype=np.float32)
-            MPC_path_index = np.argmax(MPC_traj_return_value)
+            MPC_path_index = np.argmin(MPC_traj_return_value)                           # todo: minimize
             MPC_action = action_total[MPC_path_index]
 
-        with self.adp_cal_timer:
-            for ref_index, trajectory in enumerate(traj_list):
-                self.env.set_traj(trajectory)
-                obs = self.env._get_obs()[np.newaxis, :]
-                traj_value = self.policy.values(obs)
-                ADP_traj_return_value.append(traj_value.numpy().squeeze().tolist())
-
-            ADP_traj_return_value = np.array(ADP_traj_return_value, dtype=np.float32)[:, 0]
-            ADP_path_index = np.argmax(ADP_traj_return_value)
-            if np.amax(ADP_traj_return_value) == np.amin(ADP_traj_return_value):
-                ADP_path_index = MPC_path_index
-            self.env.set_traj(traj_list[ADP_path_index])
-            self.obs_real = self.env._get_obs()
-            ADP_action = self.policy.run(self.obs_real).numpy()
-
-        self.recorder.record_compare(self.obs, ADP_action, MPC_action, self.adp_cal_timer.mean * 1000, self.mpc_cal_timer.mean * 1000,
-                             ADP_path_index, MPC_path_index, 'both')
-
-        self.data2plot.append(dict(obs=self.obs,
-                                   ADP_action=ADP_action,
-                                   MPC_action=MPC_action,
-                                   ADP_path_index=ADP_path_index,
-                                   MPC_path_index=MPC_path_index,
-                                   mpc_time=self.mpc_cal_timer.mean * 1000,
-                                   ))
-
-        self.obs, rew, done, _ = self.env.step(ADP_action)
-        self.render(traj_list, ADP_traj_return_value, ADP_path_index, MPC_traj_return_value, MPC_path_index, method='ADP')
+        self.obs, rew, done, _ = self.env.step(MPC_action)
+        self.render(traj_list, MPC_traj_return_value, MPC_path_index, method='MPC')
         state = state_total[MPC_path_index]
-        plt.plot([state[i][3] for i in range(1, self.horizon - 1)], [state[i][4] for i in range(1, self.horizon - 1)], 'r*')
+        # plt.plot([state[i][3] for i in range(1, self.horizon - 1)], [state[i][4] for i in range(1, self.horizon - 1)], 'r*')
         plt.pause(0.001)
 
         return done
 
-    def render(self, traj_list, ADP_traj_return_value, ADP_path_index, MPC_traj_return_value, MPC_path_index, method='ADP'):
+    def render(self, traj_list, MPC_traj_return_value, MPC_path_index, method='MPC'):
         square_length = CROSSROAD_SIZE
         extension = 40
         lane_width = LANE_WIDTH
@@ -442,83 +522,166 @@ class HierarchicalMpc(object):
                                    facecolor='none'))
 
         # ----------arrow--------------
-        plt.arrow(lane_width / 2, -square_length / 2 - 10, 0, 5, color='b')
-        plt.arrow(lane_width / 2, -square_length / 2 - 10 + 5, -0.5, 0, color='b', head_width=1)
-        plt.arrow(lane_width * 1.5, -square_length / 2 - 10, 0, 5, color='b', head_width=1)
-        plt.arrow(lane_width * 2.5, -square_length / 2 - 10, 0, 5, color='b')
-        plt.arrow(lane_width * 2.5, -square_length / 2 - 10 + 5, 0.5, 0, color='b', head_width=1)
+        plt.arrow(lane_width / 2, -square_length / 2 - 10, 0, 3, color='darkviolet')
+        plt.arrow(lane_width / 2, -square_length / 2 - 10 + 3, -0.5, 1.0, color='darkviolet', head_width=0.7)
+        plt.arrow(lane_width * 1.5, -square_length / 2 - 10, 0, 4, color='darkviolet', head_width=0.7)
+        plt.arrow(lane_width * 2.5, -square_length / 2 - 10, 0, 3, color='darkviolet')
+        plt.arrow(lane_width * 2.5, -square_length / 2 - 10 + 3, 0.5, 1.0, color='darkviolet', head_width=0.7)
 
         # ----------horizon--------------
-        plt.plot([-square_length / 2 - extension, -square_length / 2], [0, 0], color='black')
-        plt.plot([square_length / 2 + extension, square_length / 2], [0, 0], color='black')
 
-        #
+        plt.plot([-square_length / 2 - extension, -square_length / 2], [0.3, 0.3], color='orange')
+        plt.plot([-square_length / 2 - extension, -square_length / 2], [-0.3, -0.3], color='orange')
+        plt.plot([square_length / 2 + extension, square_length / 2], [0.3, 0.3], color='orange')
+        plt.plot([square_length / 2 + extension, square_length / 2], [-0.3, -0.3], color='orange')
+
+
         for i in range(1, LANE_NUMBER + 1):
             linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
+            linewidth = 1 if i < LANE_NUMBER else 2
             plt.plot([-square_length / 2 - extension, -square_length / 2], [i * lane_width, i * lane_width],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
             plt.plot([square_length / 2 + extension, square_length / 2], [i * lane_width, i * lane_width],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
             plt.plot([-square_length / 2 - extension, -square_length / 2], [-i * lane_width, -i * lane_width],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
             plt.plot([square_length / 2 + extension, square_length / 2], [-i * lane_width, -i * lane_width],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+
+        for i in range(4, 5 + 1):
+            linestyle = dotted_line_style if i < 5 else solid_line_style
+            linewidth = 1 if i < 5 else 2
+            plt.plot([-square_length / 2 - extension, -square_length / 2],
+                     [3 * lane_width + (i - 3) * 2, 3 * lane_width + (i - 3) * 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+            plt.plot([square_length / 2 + extension, square_length / 2],
+                     [3 * lane_width + (i - 3) * 2, 3 * lane_width + (i - 3) * 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+            plt.plot([-square_length / 2 - extension, -square_length / 2],
+                     [-3 * lane_width - (i - 3) * 2, -3 * lane_width - (i - 3) * 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+            plt.plot([square_length / 2 + extension, square_length / 2],
+                     [-3 * lane_width - (i - 3) * 2, -3 * lane_width - (i - 3) * 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
 
         # ----------vertical----------------
-        plt.plot([0, 0], [-square_length / 2 - extension, -square_length / 2], color='black')
-        plt.plot([0, 0], [square_length / 2 + extension, square_length / 2], color='black')
+        plt.plot([0.3, 0.3], [-square_length / 2 - extension, -square_length / 2], color='orange')
+        plt.plot([-0.3, -0.3], [-square_length / 2 - extension, -square_length / 2], color='orange')
+        plt.plot([0.3, 0.3], [square_length / 2 + extension, square_length / 2], color='orange')
+        plt.plot([-0.3, -0.3], [square_length / 2 + extension, square_length / 2], color='orange')
 
         #
         for i in range(1, LANE_NUMBER + 1):
             linestyle = dotted_line_style if i < LANE_NUMBER else solid_line_style
+            linewidth = 1 if i < LANE_NUMBER else 2
             plt.plot([i * lane_width, i * lane_width], [-square_length / 2 - extension, -square_length / 2],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
             plt.plot([i * lane_width, i * lane_width], [square_length / 2 + extension, square_length / 2],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
             plt.plot([-i * lane_width, -i * lane_width], [-square_length / 2 - extension, -square_length / 2],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
             plt.plot([-i * lane_width, -i * lane_width], [square_length / 2 + extension, square_length / 2],
-                     linestyle=linestyle, color='black')
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+
+        for i in range(4, 5 + 1):
+            linestyle = dotted_line_style if i < 5 else solid_line_style
+            linewidth = 1 if i < 5 else 2
+            plt.plot([3 * lane_width + (i - 3) * 2, 3 * lane_width + (i - 3) * 2],
+                     [-square_length / 2 - extension, -square_length / 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+            plt.plot([3 * lane_width + (i - 3) * 2, 3 * lane_width + (i - 3) * 2],
+                     [square_length / 2 + extension, square_length / 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+            plt.plot([-3 * lane_width - (i - 3) * 2, -3 * lane_width - (i - 3) * 2],
+                     [-square_length / 2 - extension, -square_length / 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
+            plt.plot([-3 * lane_width - (i - 3) * 2, -3 * lane_width - (i - 3) * 2],
+                     [square_length / 2 + extension, square_length / 2],
+                     linestyle=linestyle, color='black', linewidth=linewidth)
 
         v_light = self.env.v_light
-        if v_light == 0:
+        if v_light == 0 or v_light == 1:
             v_color, h_color = 'green', 'red'
-        elif v_light == 1:
-            v_color, h_color = 'orange', 'red'
         elif v_light == 2:
+            v_color, h_color = 'orange', 'red'
+        elif v_light == 3 or v_light == 4:
             v_color, h_color = 'red', 'green'
         else:
             v_color, h_color = 'red', 'orange'
 
         plt.plot([0, (LANE_NUMBER - 1) * lane_width], [-square_length / 2, -square_length / 2],
                  color=v_color, linewidth=light_line_width)
+        # plt.plot([(LANE_NUMBER - 1) * lane_width, LANE_NUMBER * lane_width], [-square_length / 2, -square_length / 2],
+        #          color='green', linewidth=light_line_width)
         plt.plot([(LANE_NUMBER - 1) * lane_width, LANE_NUMBER * lane_width], [-square_length / 2, -square_length / 2],
-                 color='green', linewidth=light_line_width)
+                 color=v_color, linewidth=light_line_width)
 
+        # plt.plot([-LANE_NUMBER * lane_width, -(LANE_NUMBER - 1) * lane_width], [square_length / 2, square_length / 2],
+        #          color='green', linewidth=light_line_width)
         plt.plot([-LANE_NUMBER * lane_width, -(LANE_NUMBER - 1) * lane_width], [square_length / 2, square_length / 2],
-                 color='green', linewidth=light_line_width)
+                 color=v_color, linewidth=light_line_width)
         plt.plot([-(LANE_NUMBER - 1) * lane_width, 0], [square_length / 2, square_length / 2],
                  color=v_color, linewidth=light_line_width)
 
         plt.plot([-square_length / 2, -square_length / 2], [0, -(LANE_NUMBER - 1) * lane_width],
                  color=h_color, linewidth=light_line_width)
+        # plt.plot([-square_length / 2, -square_length / 2], [-(LANE_NUMBER - 1) * lane_width, -LANE_NUMBER * lane_width],
+        #          color='green', linewidth=light_line_width)
         plt.plot([-square_length / 2, -square_length / 2], [-(LANE_NUMBER - 1) * lane_width, -LANE_NUMBER * lane_width],
-                 color='green', linewidth=light_line_width)
+                 color=h_color, linewidth=light_line_width)
 
         plt.plot([square_length / 2, square_length / 2], [(LANE_NUMBER - 1) * lane_width, 0],
                  color=h_color, linewidth=light_line_width)
+        # plt.plot([square_length / 2, square_length / 2], [LANE_NUMBER * lane_width, (LANE_NUMBER - 1) * lane_width],
+        #          color='green', linewidth=light_line_width)
         plt.plot([square_length / 2, square_length / 2], [LANE_NUMBER * lane_width, (LANE_NUMBER - 1) * lane_width],
-                 color='green', linewidth=light_line_width)
+                 color=h_color, linewidth=light_line_width)
 
         # ----------Oblique--------------
-        plt.plot([LANE_NUMBER * lane_width, square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
-                 color='black')
-        plt.plot([LANE_NUMBER * lane_width, square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
-                 color='black')
-        plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [-square_length / 2, -LANE_NUMBER * lane_width],
-                 color='black')
-        plt.plot([-LANE_NUMBER * lane_width, -square_length / 2], [square_length / 2, LANE_NUMBER * lane_width],
-                 color='black')
+
+        plt.plot([LANE_NUMBER * lane_width + 4, square_length / 2],
+                 [-square_length / 2, -LANE_NUMBER * lane_width - 4],
+                 color='black', linewidth=2)
+        plt.plot([LANE_NUMBER * lane_width + 4, square_length / 2],
+                 [square_length / 2, LANE_NUMBER * lane_width + 4],
+                 color='black', linewidth=2)
+        plt.plot([-LANE_NUMBER * lane_width - 4, -square_length / 2],
+                 [-square_length / 2, -LANE_NUMBER * lane_width - 4],
+                 color='black', linewidth=2)
+        plt.plot([-LANE_NUMBER * lane_width - 4, -square_length / 2],
+                 [square_length / 2, LANE_NUMBER * lane_width + 4],
+                 color='black', linewidth=2)
+
+        # ----------人行横道--------------
+        jj = 3.5
+        for ii in range(23):
+            if ii <= 3:
+                continue
+            ax.add_patch(plt.Rectangle((-square_length / 2 + jj + ii * 1.6, -square_length / 2 + 0.5), 0.8, 4,
+                                       color='lightgray', alpha=0.5))
+            ii += 1
+        for ii in range(23):
+            if ii <= 3:
+                continue
+            ax.add_patch(plt.Rectangle((-square_length / 2 + jj + ii * 1.6, square_length / 2 - 0.5 - 4), 0.8, 4,
+                                       color='lightgray', alpha=0.5))
+            ii += 1
+        for ii in range(23):
+            if ii <= 3:
+                continue
+            ax.add_patch(
+                plt.Rectangle((-square_length / 2 + 0.5, square_length / 2 - jj - 0.8 - ii * 1.6), 4, 0.8,
+                              color='lightgray',
+                              alpha=0.5))
+            ii += 1
+        for ii in range(23):
+            if ii <= 3:
+                continue
+            ax.add_patch(
+                plt.Rectangle((square_length / 2 - 0.5 - 4, square_length / 2 - jj - 0.8 - ii * 1.6), 4, 0.8,
+                              color='lightgray',
+                              alpha=0.5))
+            ii += 1
 
         def is_in_plot_area(x, y, tolerance=5):
             if -square_length / 2 - extension + tolerance < x < square_length / 2 + extension - tolerance and \
@@ -527,20 +690,29 @@ class HierarchicalMpc(object):
             else:
                 return False
 
-        def draw_rotate_rec(x, y, a, l, w, color, linestyle='-'):
-            RU_x, RU_y, _ = rotate_coordination(l / 2, w / 2, 0, -a)
-            RD_x, RD_y, _ = rotate_coordination(l / 2, -w / 2, 0, -a)
-            LU_x, LU_y, _ = rotate_coordination(-l / 2, w / 2, 0, -a)
-            LD_x, LD_y, _ = rotate_coordination(-l / 2, -w / 2, 0, -a)
-            ax.plot([RU_x + x, RD_x + x], [RU_y + y, RD_y + y], color=color, linestyle=linestyle)
-            ax.plot([RU_x + x, LU_x + x], [RU_y + y, LU_y + y], color=color, linestyle=linestyle)
-            ax.plot([LD_x + x, RD_x + x], [LD_y + y, RD_y + y], color=color, linestyle=linestyle)
-            ax.plot([LD_x + x, LU_x + x], [LD_y + y, LU_y + y], color=color, linestyle=linestyle)
+        def draw_rotate_rec(x, y, a, l, w, c):
+            bottom_left_x, bottom_left_y, _ = rotate_coordination(-l / 2, w / 2, 0, -a)
+            ax.add_patch(plt.Rectangle((x + bottom_left_x, y + bottom_left_y), w, l, edgecolor=c,
+                                       facecolor='white', angle=-(90 - a), zorder=50))
 
-        def plot_phi_line(x, y, phi, color):
-            line_length = 5
-            x_forw, y_forw = x + line_length * cos(phi * pi / 180.), \
-                             y + line_length * sin(phi * pi / 180.)
+        def draw_bike(x, y, a, l, w, c):
+            bottom_left_x1, bottom_left_y1, _ = rotate_coordination(-l / 2, w / 4, 0, -a)
+            ax.add_patch(plt.Rectangle((x + bottom_left_x1, y + bottom_left_y1), w/2, l, edgecolor=c,
+                                       facecolor=c, angle=-(90 - a), zorder=50))
+            bottom_left_x2, bottom_left_y2, _ = rotate_coordination(-l / 4, w / 2, 0, -a)
+            ax.add_patch(plt.Rectangle((x + bottom_left_x2, y + bottom_left_y2), w, l/4, edgecolor=c,
+                                       facecolor=c, angle=-(90 - a), zorder=50))
+
+        def plot_phi_line(type, x, y, phi, color):
+            # TODO:新增一个type项输入
+            if type in ['bicycle_1', 'bicycle_2', 'bicycle_3']:
+                line_length = 2.0
+            elif type == 'DEFAULT_PEDTYPE':
+                line_length = 1.0
+            else:
+                line_length = 3.5
+            x_forw, y_forw = x + line_length * cos(phi*pi/180.),\
+                             y + line_length * sin(phi*pi/180.)
             plt.plot([x, x_forw], [y, y_forw], color=color, linewidth=0.5)
 
         # plot cars
@@ -550,26 +722,81 @@ class HierarchicalMpc(object):
             veh_phi = veh['phi']
             veh_l = veh['l']
             veh_w = veh['w']
+            veh_type = veh['type']
             if is_in_plot_area(veh_x, veh_y):
-                plot_phi_line(veh_x, veh_y, veh_phi, 'black')
-                draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, 'black')
+                if veh_type in ['bicycle_1', 'bicycle_2', 'bicycle_3']:
+                    veh_color = 'steelblue'
+                    draw_bike(veh_x, veh_y, veh_phi, veh_l, veh_w, veh_color)
+                elif veh_type == 'DEFAULT_PEDTYPE':
+                    veh_color = 'purple'
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, veh_color)
+                else:
+                    veh_color = 'black'
+                    draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, veh_color)
+                plot_phi_line(veh_type, veh_x, veh_y, veh_phi, veh_color)
 
-        # plot_interested vehs
-        # for mode, num in self.veh_mode_dict.items():
+        # # plot_interested vehs
+        # for mode, num in self.env.veh_mode_dict.items():
         #     for i in range(num):
-        #         veh = self.interested_vehs[mode][i]
+        #         veh = self.env.interested_vehs[mode][i]
         #         veh_x = veh['x']
         #         veh_y = veh['y']
         #         veh_phi = veh['phi']
         #         veh_l = veh['l']
         #         veh_w = veh['w']
+        #         veh_type = veh['type']
+        #         # TODO: 定义veh_type
+        #         # print("车辆信息", veh)
+        #         # veh_type = 'car_1'
         #         task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
         #
         #         if is_in_plot_area(veh_x, veh_y):
-        #             plot_phi_line(veh_x, veh_y, veh_phi, 'black')
+        #             plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
         #             task = MODE2TASK[mode]
         #             color = task2color[task]
-        #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color, linestyle=':')
+        #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
+        #
+        # # plot_interested bicycle
+        # for mode, num in self.env.bicycle_mode_dict.items():
+        #     for i in range(num):
+        #         veh = self.env.interested_vehs[mode][i]
+        #         veh_x = veh['x']
+        #         veh_y = veh['y']
+        #         veh_phi = veh['phi']
+        #         veh_l = veh['l']
+        #         veh_w = veh['w']
+        #         veh_type = veh['type']
+        #         # TODO: 定义veh_type
+        #         # print("车辆信息", veh)
+        #         # veh_type = 'bicycle_1'
+        #         task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+        #
+        #         if is_in_plot_area(veh_x, veh_y):
+        #             plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+        #             task = MODE2TASK[mode]
+        #             color = task2color[task]
+        #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
+        #
+        # # plot_interested person
+        # for mode, num in self.env.person_mode_dict.items():
+        #     for i in range(num):
+        #         veh = self.env.interested_vehs[mode][i]
+        #         veh_x = veh['x']
+        #         veh_y = veh['y']
+        #         veh_phi = veh['phi']
+        #         veh_l = veh['l']
+        #         veh_w = veh['w']
+        #         veh_type = veh['type']
+        #         # TODO: 定义veh_type
+        #         # print("车辆信息", veh)
+        #         # veh_type = 'bicycle_1'
+        #         task2color = {'left': 'b', 'straight': 'c', 'right': 'm'}
+        #
+        #         if is_in_plot_area(veh_x, veh_y):
+        #             plot_phi_line(veh_type, veh_x, veh_y, veh_phi, 'black')
+        #             task = MODE2TASK[mode]
+        #             color = task2color[task]
+        #             draw_rotate_rec(veh_x, veh_y, veh_phi, veh_l, veh_w, color)
 
         ego_v_x = self.env.ego_dynamics['v_x']
         ego_v_y = self.env.ego_dynamics['v_y']
@@ -585,8 +812,15 @@ class HierarchicalMpc(object):
         alpha_r_bound = self.env.ego_dynamics['alpha_r_bound']
         r_bound = self.env.ego_dynamics['r_bound']
 
-        plot_phi_line(ego_x, ego_y, ego_phi, 'fuchsia')
+        plot_phi_line('self_car', ego_x, ego_y, ego_phi, 'fuchsia')
         draw_rotate_rec(ego_x, ego_y, ego_phi, ego_l, ego_w, 'fuchsia')
+        self.hist_posi.append((ego_x, ego_y))
+
+        # plot history
+        xs = [pos[0] for pos in self.hist_posi]
+        ys = [pos[1] for pos in self.hist_posi]
+        plt.scatter(np.array(xs), np.array(ys), color='fuchsia', alpha=0.1)
+
 
         # plot future data
         tracking_info = self.obs[
@@ -607,24 +841,15 @@ class HierarchicalMpc(object):
 
         # plot real time traj
         try:
-            color = ['blue', 'coral', 'cyan']
+            color = ['blue', 'coral', 'darkcyan']
             for i, item in enumerate(traj_list):
-                if method == 'ADP':
-                    if i == ADP_path_index:
-                        plt.plot(item.path[0], item.path[1], color=color[i])
-                    else:
-                        plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
-                    indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
-                    path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-                    plt.plot(path_x, path_y, color=color[i])
-                elif method == 'MPC':
-                    if i == MPC_path_index:
-                        plt.plot(item.path[0], item.path[1], color=color[i])
-                    else:
-                        plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
-                    indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
-                    path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
-                    plt.plot(path_x, path_y, color=color[i])
+                if i == MPC_path_index:
+                    plt.plot(item.path[0], item.path[1], color=color[i])
+                else:
+                    plt.plot(item.path[0], item.path[1], color=color[i], alpha=0.3)
+                indexs, points = item.find_closest_point(np.array([ego_x], np.float32), np.array([ego_y], np.float32))
+                path_x, path_y, path_phi = points[0][0], points[1][0], points[2][0]
+                plt.plot(path_x, path_y, color=color[i])
         except Exception:
             pass
 
@@ -670,19 +895,6 @@ class HierarchicalMpc(object):
             for key, val in self.env.reward_info.items():
                 plt.text(text_x, text_y_start - next(ge), '{}: {:.4f}'.format(key, val))
 
-        # indicator for Atrajectory selection
-        text_x, text_y_start = 18, -70
-        ge = iter(range(0, 1000, 6))
-        plt.text(text_x+10, text_y_start - next(ge), 'ADP', fontsize=14, color='r', fontstyle='italic')
-        if ADP_traj_return_value is not None:
-            for i, value in enumerate(ADP_traj_return_value):
-                if i == ADP_path_index:
-                    plt.text(text_x, text_y_start - next(ge), 'Path cost={:.4f}'.format(value), fontsize=14,
-                             color=color[i], fontstyle='italic')
-                else:
-                    plt.text(text_x, text_y_start - next(ge), 'Path cost={:.4f}'.format(value), fontsize=12,
-                             color=color[i], fontstyle='italic')
-
         text_x, text_y_start = -36, -70
         ge = iter(range(0, 1000, 6))
         plt.text(text_x+10, text_y_start - next(ge), 'MPC', fontsize=14, color='r', fontstyle='italic')
@@ -698,23 +910,27 @@ class HierarchicalMpc(object):
 
 
 def main():
-    hier_decision = HierarchicalMpc('left')
-    for i in range(1):
+    time_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    logdir = './results/{time}'.format(time=time_now)
+    # hier_decision = HierarchicalMpc('left', logdir)
+    # hier_decision = HierarchicalMpc('right', logdir)
+    hier_decision = HierarchicalMpc('straight', logdir)
+    for i in range(15):
         done = 0
         for _ in range(150):
             done = hier_decision.step()
             if done:
                 break
-        np.save('mpc.npy', np.array(hier_decision.data2plot))
+        # np.save('mpc.npy', np.array(hier_decision.data2plot))
         hier_decision.reset()
 
 
 def plot_data(epi_num, logdir):
     recorder = Recorder()
     recorder.load(logdir)
-    recorder.plot_mpc_rl(epi_num)
+    recorder.plot_mpc_rl(epi_num, logdir, sample=True)
 
 
 if __name__ == '__main__':
     main()
-    plot_data(epi_num=0, logdir='.')
+    # plot_data(epi_num=6, logdir='./results/2021-03-17-22-33-09')  # 6 or 3

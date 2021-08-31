@@ -24,6 +24,7 @@ from endtoend_env_utils import rotate_coordination, cal_ego_info_in_transform_co
 from hierarchical_decision.multi_path_generator import MultiPathGenerator
 from traffic import Traffic
 from utils.load_policy import LoadPolicy
+from hierarchical_decision.hier_decision import select_and_rename_snapshots_of_an_episode
 
 NAME2TASK = dict(DL='left', DU='straight', DR='right',
                  RD='left', RL='straight', RU='right',
@@ -35,20 +36,35 @@ dirname = os.path.dirname(__file__)
 
 class MultiEgo(object):
     def __init__(self, init_n_ego_dict):  # init_n_ego_dict is used to init traffic (mainly) and ego dynamics
-        self.TASK2MODEL = dict(left=LoadPolicy('../utils/models/left', 100000),
-                               straight=LoadPolicy('../utils/models/straight', 95000),
-                               right=LoadPolicy('../utils/models/right', 145000),)
+        self.TASK2MODEL = dict(left=LoadPolicy('../utils/models/left/experiment-2021-03-15-16-39-00', 180000),
+                               straight=LoadPolicy('../utils/models/straight/experiment-2021-03-15-19-16-13', 175000),
+                               right=LoadPolicy('../utils/models/right/experiment-2021-03-15-21-02-51', 195000),)
         self.n_ego_instance = {}
         self.n_ego_dynamics = {}
         self.n_ego_select_index = {}
         for egoID, ego_dict in init_n_ego_dict.items():
-            self.n_ego_instance[egoID] = CrossroadEnd2end(training_task=NAME2TASK[egoID[:2]], display=True)
+            self.n_ego_instance[egoID] = CrossroadEnd2end(training_task=NAME2TASK[egoID[:2]],
+                                                          mode='testing',
+                                                          multi_display=True)
 
         self.mpp = MultiPathGenerator()
         self.virtual_model = dict(left=EnvironmentModel(training_task='left', mode='selecting'),
                                   straight=EnvironmentModel(training_task='straight', mode='selecting'),
                                   right=EnvironmentModel(training_task='right', mode='selecting'))
 
+        # ------------------build graph for tf.function in advance-----------------------
+        for task in ['left', 'straight', 'right']:
+            env = CrossroadEnd2end(training_task=task, mode='testing', multi_display=False)
+            for i in range(3):
+                obs = env.reset()
+                obs = tf.convert_to_tensor(obs[np.newaxis, :], dtype=tf.float32)
+                self.is_safe(obs, i, task)
+            obs = env.reset()
+            obs_with_specific_shape = np.tile(obs, (3, 1))
+            self.TASK2MODEL[task].run_batch(obs_with_specific_shape)
+            self.TASK2MODEL[task].obj_value_batch(obs_with_specific_shape)
+            env.close()
+        # ------------------build graph for tf.function in advance-----------------------
         self.reset(init_n_ego_dict)
 
     def reset(self, init_n_ego_dict):
@@ -89,24 +105,13 @@ class MultiEgo(object):
                 obs = self.n_ego_instance[egoID]._get_obs(exit_=egoID[0])
                 obs_list.append(obs)
             all_obs = tf.stack(obs_list, axis=0)
-            path_values = self.TASK2MODEL[task].values(all_obs)
+            path_values = self.TASK2MODEL[task].obj_value_batch(all_obs).numpy()
             # select and safety shield
-            path_index = int(np.argmax(path_values[:, 0]))
-            # select
-            # temp = path_values[:, 0]
-            # if task == 'right':
-            #     temp = path_values[:, 0] + np.array([170, 0, 0])
-            # path_index = np.argmax(temp)
+            path_index = int(np.argmin(path_values))
             self.n_ego_select_index[egoID] = path_index
-            # self.n_ego_instance[egoID].render(traj_list, traj_return_value, path_index, feature_points)
             self.obs_real = obs_list[path_index]
-
             # safe shield
-            if v_light_trans == 0:
-                # safe_action = self.safe_shield(self.obs_real, traj_list[path_index], egoID, task)
-                safe_action = self.TASK2MODEL[task].run(self.obs_real).numpy()
-            else:
-                safe_action = self.TASK2MODEL[task].run(self.obs_real).numpy()
+            safe_action = self.safe_shield(self.obs_real, path_index, egoID, task)
             action_trans = self.n_ego_instance[egoID]._action_transformation_for_end2end(safe_action)
             next_ego_state, next_ego_params = self.n_ego_instance[egoID]._get_next_ego_state(action_trans)
             next_ego_dynamics = self.n_ego_instance[egoID]._get_ego_dynamics(next_ego_state, next_ego_params)
@@ -123,7 +128,7 @@ class MultiEgo(object):
             n_ego_done[egoID] = [collision_flag, is_achieve_goal]
         return n_ego_done
 
-    def safe_shield(self, real_obs, traj, egoID, task=None):
+    def safe_shield_old(self, real_obs, traj, egoID, task=None):
         action_bound = 1.0
         action_safe_set = ([[0., -action_bound]], [[-action_bound, -action_bound]], [[-action_bound, action_bound]],
                            [[action_bound, -action_bound]], [[action_bound, action_bound]])
@@ -170,6 +175,37 @@ class MultiEgo(object):
             sa = self.TASK2MODEL[task].run(real_obs).numpy().squeeze(0)
         return sa
 
+    # @tf.function
+    # def is_safe(self, obs, path_index, task):
+    #     model = self.virtual_model[task]
+    #     policy = self.TASK2MODEL[task]
+    #     model.ref_path.set_path(path_index)
+    #     action = policy.run_batch(obs)
+    #     veh2veh4real = model.ss(obs, action)
+    #     return False if veh2veh4real[0] > 0 else True
+
+    @tf.function
+    def is_safe(self, obs, path_index, task):
+        model = self.virtual_model[task]
+        policy = self.TASK2MODEL[task]
+        model.add_traj(obs, path_index)
+        punish = 0.
+        for step in range(20):
+            action = policy.run_batch(obs)
+            obs, _, _, real_punish_term, _, _ = model.rollout_out(action)
+            punish += real_punish_term[0]
+        return False if punish > 0 else True
+
+    def safe_shield(self, real_obs, path_index, egoID, task=None):
+        action_safe_set = ([[0., -1.]],)
+        real_obs = tf.convert_to_tensor(real_obs[np.newaxis, :], dtype=tf.float32)
+        obs = real_obs
+        if not self.is_safe(obs, path_index, task):
+            print(egoID + ': SAFETY SHIELD STARTED!')
+            return np.array(action_safe_set[0], dtype=np.float32).squeeze(0)
+        else:
+            return self.TASK2MODEL[task].run_batch(real_obs).numpy().squeeze(0)
+
 
 class Simulation(object):
     def __init__(self, init_n_ego_dict, logdir):
@@ -205,17 +241,16 @@ class Simulation(object):
         if self.logdir is not None:
             self.episode_counter += 1
             self.step_counter = -1
-            os.makedirs(self.logdir + '/episode{}'.format(self.episode_counter))
+            os.makedirs(self.logdir + '/episode{}/figs'.format(self.episode_counter))
+            if self.episode_counter >= 1:
+                select_and_rename_snapshots_of_an_episode(self.logdir, self.episode_counter - 1, 12)
 
     def step(self):
         self.step_counter += 1
         current_n_ego_vehicles = self.traffic.n_ego_vehicles
         current_v_light = self.traffic.v_light
         current_n_ego_collision_flag = self.traffic.n_ego_collision_flag
-        start_time = time.time()
         next_n_ego_dynamics = self.multiego.get_next_n_ego_dynamics(current_n_ego_vehicles, current_v_light)
-        end_time = time.time()
-        # print('Time for all vehicles:', end_time - start_time)
         n_ego_done = self.multiego.judge_n_ego_done(current_n_ego_collision_flag)
         for egoID, flag_list in n_ego_done.items():
             if flag_list[0]:
@@ -391,9 +426,11 @@ class Simulation(object):
             plot_phi_line(ego_x, ego_y, ego_a, 'fuchsia')
 
         # plot history
+        xs, ys = [], []
         for egoID in self.init_n_ego_dict.keys():
-            for hist_x, hist_y in self.hist_posi[egoID]:
-                plt.scatter(hist_x, hist_y, color='fuchsia', alpha=0.1)
+            xs += [pos[0] for pos in self.hist_posi[egoID]]
+            ys += [pos[1] for pos in self.hist_posi[egoID]]
+        plt.scatter(np.array(xs), np.array(ys), color='fuchsia', alpha=0.1)
 
         # plot trajectory
         color = ['blue', 'coral', 'darkcyan']
@@ -417,8 +454,7 @@ class Simulation(object):
             plt.savefig(self.logdir + '/episode{}'.format(self.episode_counter) + '/step{}.pdf'.format(self.step_counter))
 
 
-
-if __name__ == '__main__':
+def main():
     init_n_ego_dict = dict(
         DL1=dict(v_x=5, v_y=0, r=0, x=0.5 * LANE_WIDTH, y=-30, phi=90, l=4.3, w=1.9, routeID='dl'),
         DU1=dict(v_x=8, v_y=0, r=0, x=1.5 * LANE_WIDTH, y=-45, phi=90, l=4.3, w=1.9, routeID='du'),
@@ -445,7 +481,15 @@ if __name__ == '__main__':
                 start_time = time.time()
                 simulation.render()
                 end_time = time.time()
-                # print('render time:', end_time -start_time)
+                print('render time:', end_time -start_time)
         simulation.reset()
         print('NEW EPISODE*********************************')
         done = 0
+
+
+if __name__ == '__main__':
+    # main()
+    # plot_static_path()
+    # plot_and_save_ith_episode_data('./results/good/2021-03-16-13-58-03', 9)
+    select_and_rename_snapshots_of_an_episode('./results/good/2021-03-16-14-35-17', 0, 18)
+
