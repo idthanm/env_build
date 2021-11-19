@@ -397,9 +397,9 @@ class HierarchicalDecision(object):
 def plot_and_save_ith_episode_data(logdir, i):
     recorder = Recorder()
     recorder.load(logdir)
-    save_dir = logdir + '/episode{}/figs'.format(i)
+    save_dir = logdir + '/episode{}/figs_tmp'.format(i)
     os.makedirs(save_dir, exist_ok=True)
-    recorder.plot_and_save_ith_episode_curves(i, save_dir, True)
+    recorder.plot_and_save_ith_episode_curves(i, save_dir, False)
 
 
 def main():
@@ -539,10 +539,10 @@ def change_name(logdir, epinum):
 
 if __name__ == '__main__':
     # main()
-    image2video('./results/forvideos/2021-03-15-23-56-21/episode0_changename')
+    # image2video('./results/forvideos/2021-03-15-23-56-21/episode0_changename')
     # change_name('./results/forvideos/2021-03-15-23-56-21', 0)
     # plot_static_path()
-    # plot_and_save_ith_episode_data('./results/good/2021-03-15-23-56-21', 0)
+    plot_and_save_ith_episode_data('./results/good/2021-03-18-15-13-50', 0)
     # select_and_rename_snapshots_of_an_episode('./results/good/2021-03-15-23-56-21', 0, 12)
 
 
