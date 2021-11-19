@@ -195,7 +195,7 @@ class Recorder(object):
                 ax.set_xlabel("Time [s]", fontsize=15)
                 plt.yticks(fontsize=15)
                 plt.xticks(fontsize=15)
-                plt.savefig(save_dir + '/{}.pdf'.format(key))
+                plt.savefig(save_dir + '/{}.png'.format(key))
                 if not isshow:
                     plt.close(f)
                 i += 1
