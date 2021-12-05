@@ -539,10 +539,11 @@ def change_name(logdir, epinum):
 
 if __name__ == '__main__':
     # main()
-    # image2video('./results/forvideos/2021-03-15-23-56-21/episode0_changename')
+    image2video('../multi_env/results/forvideos/2021-03-16-14-35-17/episode0_changename')
+    # change_name('../multi_env/results/forvideos/2021-03-16-14-35-17', 0)
     # change_name('./results/forvideos/2021-03-15-23-56-21', 0)
     # plot_static_path()
-    plot_and_save_ith_episode_data('./results/good/2021-03-18-15-13-50', 0)
+    # plot_and_save_ith_episode_data('./results/good/2021-03-18-15-13-50', 0)
     # select_and_rename_snapshots_of_an_episode('./results/good/2021-03-15-23-56-21', 0, 12)
 
 
